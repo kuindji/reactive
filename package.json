@@ -1,30 +1,12 @@
 {
     "name": "@kuindji/app-utils",
     "version": "0.0.1",
-    "description": "A javascript app utils",
-    "main": "dist/index.js",
-    "types": "dist/index.d.ts",
-    "files": [
-        "dist/**/*"
-    ],
-    "scripts": {
-        "build": "tsc -p ./tsconfig-build.json",
-        "lint": "bun eslint .",
-        "test": "bun test tests/**/*.spec.ts*"
-    },
+    "author": "Ivan Kuindzhi",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/kuindji/event-bus.git"
     },
-    "author": "Ivan Kuindzhi",
-    "license": "ISC",
-    "keywords": [
-        "events",
-        "observable",
-        "pipe",
-        "collector",
-        "relay"
-    ],
+    "main": "dist/index.js",
     "devDependencies": {
         "@happy-dom/global-registrator": "^18.0.1",
         "@testing-library/dom": "^10.4.1",
@@ -37,7 +19,22 @@
         "typescript": "^5",
         "typescript-eslint": "^8.38.0"
     },
-    "dependencies": {
-        "type-fest": "^4.41.0"
-    }
+    "description": "A javascript app utils",
+    "files": [
+        "dist/**/*"
+    ],
+    "keywords": [
+        "events",
+        "observable",
+        "pipe",
+        "collector",
+        "relay"
+    ],
+    "license": "ISC",
+    "scripts": {
+        "build": "tsc -p ./tsconfig-build.json",
+        "lint": "bun eslint .",
+        "test": "bun test tests/**/*.spec.ts*"
+    },
+    "types": "dist/index.d.ts"
 }

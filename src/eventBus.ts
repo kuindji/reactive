@@ -1,7 +1,5 @@
 import {
     createEvent,
-    DefaultEventArgsOptions,
-    EventArgsOptions,
     EventDefinitionHelper,
     EventOptions,
     ListenerOptions,
@@ -13,12 +11,6 @@ import {
     ProxyType,
     TriggerReturnType,
 } from "./lib/types";
-
-type EventDetailsDefinition = {
-    signature: BaseHandler;
-    options: EventArgsOptions;
-};
-export type EventDefinition = BaseHandler | EventDetailsDefinition;
 
 type InterceptorFunction = (
     name: MapKey,
@@ -33,9 +25,18 @@ type RelaySource = {
         fn: (...args: any[]) => any,
         options?: ListenerOptions,
     ) => void;
+    onAnyEvent: (
+        fn: (name: any, args: any[]) => any,
+        options?: ListenerOptions,
+    ) => void;
     un: (
         name: any,
         fn: (...args: any[]) => any,
+        context?: object | null,
+        tag?: string | null,
+    ) => void;
+    unAnyEvent: (
+        fn: (name: any, args: any[]) => any,
         context?: object | null,
         tag?: string | null,
     ) => void;
@@ -77,11 +78,7 @@ type ProxyListener = {
 };
 
 export interface BaseEventMap {
-    [key: MapKey]: EventDefinition;
-}
-
-export interface DefaultEvents {
-    "*": (name: MapKey, args: any[], tags: string[] | null) => void;
+    [key: MapKey]: BaseHandler;
 }
 
 export type DefaultEventMap = {
@@ -92,64 +89,30 @@ export interface EventBusOptions {
     eventOptions?: {
         [key: MapKey]: EventOptions;
     };
-    includeDefaultEvents?: boolean;
 }
 
 type GetEventsMap<EventDefinitionsMap extends BaseEventMap> = {
-    [key in MapKey & keyof EventDefinitionsMap]:
-        EventDefinitionsMap[key] extends BaseHandler ? EventDefinitionHelper<
-                EventDefinitionsMap[key],
-                DefaultEventArgsOptions
-            >
-            : EventDefinitionsMap[key] extends EventDetailsDefinition
-                ? EventDefinitionHelper<
-                    EventDefinitionsMap[key]["signature"],
-                    EventDefinitionsMap[key]["options"]
-                >
-            : never;
+    [key in MapKey & keyof EventDefinitionsMap]: EventDefinitionHelper<
+        EventDefinitionsMap[key]
+    >;
 };
 
 type GetEventTypesMap<
     EventDefinitionsMap extends BaseEventMap,
-    EventsMap extends GetEventsMap<EventDefinitionsMap> = GetEventsMap<
-        EventDefinitionsMap
-    >,
 > = {
-    [key in MapKey & keyof EventsMap]: ReturnType<
+    [key in MapKey & keyof EventDefinitionsMap]: ReturnType<
         typeof createEvent<
-            EventsMap[key]["eventSignature"],
-            EventsMap[key]["eventArgsOptions"]
+            EventDefinitionsMap[key]
         >
     >;
 };
 
-type GetEventSignaturesMap<
-    EventDefinitionsMap extends BaseEventMap,
-    EventsMap extends GetEventsMap<EventDefinitionsMap> = GetEventsMap<
-        EventDefinitionsMap
-    >,
-> = {
-    [key in MapKey & keyof EventsMap]: {
-        signature: EventsMap[key]["eventSignature"];
-        options: EventsMap[key]["eventArgsOptions"];
-    };
-};
-
 export type EventBusDefinitionHelper<
     EventsMap extends BaseEventMap = BaseEventMap,
-    IncludeDefaultEvents extends boolean = false,
-    FinalEventsMap extends BaseEventMap = IncludeDefaultEvents extends true
-        ? EventsMap & DefaultEvents
-        : EventsMap,
 > = {
-    allEventDefinitions: FinalEventsMap;
-    events: GetEventsMap<FinalEventsMap>;
-    eventTypes: GetEventTypesMap<
-        FinalEventsMap
-    >;
-    eventSignatures: GetEventSignaturesMap<
-        FinalEventsMap
-    >;
+    eventSignatures: EventsMap;
+    events: GetEventsMap<EventsMap>;
+    eventTypes: GetEventTypesMap<EventsMap>;
 };
 
 function proxyReturnTypeToTriggerReturnType(proxyType: ProxyType) {
@@ -225,10 +188,8 @@ function proxyReturnTypeToTriggerReturnType(proxyType: ProxyType) {
 export function createEventBus<
     EventsMap extends BaseEventMap = DefaultEventMap,
 >(eventBusOptions?: EventBusOptions) {
-    const includeDefaultEvents = eventBusOptions?.includeDefaultEvents ?? true;
     type EventBus = EventBusDefinitionHelper<
-        EventsMap,
-        typeof includeDefaultEvents
+        EventsMap
     >;
     type Events = EventBus["events"];
     type EventTypes = EventBus["eventTypes"];
@@ -245,7 +206,6 @@ export function createEventBus<
     const asterisk = createEvent<
         (name: MapKey, args: any[], tags: string[] | null) => void
     >();
-    events.set("*", asterisk);
 
     const _getProxyListener = ({
         remoteEventName,
@@ -860,7 +820,12 @@ export function createEventBus<
                 localEventNamePrefix: localEventNamePrefix || null,
             },
         );
-        eventSource.on(remoteEventName, listener.listener);
+        if (remoteEventName === "*") {
+            eventSource.onAnyEvent(listener.listener);
+        }
+        else {
+            eventSource.on(remoteEventName, listener.listener);
+        }
     };
 
     const unrelay = ({
@@ -889,7 +854,12 @@ export function createEventBus<
             },
         );
         if (listener) {
-            eventSource.un(remoteEventName, listener.listener);
+            if (remoteEventName === "*") {
+                eventSource.unAnyEvent(listener.listener);
+            }
+            else {
+                eventSource.un(remoteEventName, listener.listener);
+            }
         }
     };
 
@@ -940,6 +910,8 @@ export function createEventBus<
         on,
         /** @alias addListener */
         listen: on,
+        /** @alias addListener */
+        subscribe: on,
         once,
         promise,
         removeListener: un,
@@ -949,6 +921,8 @@ export function createEventBus<
         off: un,
         /** @alias removeListener */
         remove: un,
+        /** @alias removeListener */
+        unsubscribe: un,
         trigger,
         /** @alias trigger */
         emit: trigger,
@@ -983,14 +957,12 @@ export function createEventBus<
         unrelay,
         addEventSource,
         removeEventSource,
+        onAnyEvent: asterisk.addListener,
+        unAnyEvent: asterisk.removeListener,
     } as const;
 
     return api as ApiType<EventBus, typeof api>;
 }
 
 export type BaseEventBusDefinition = EventBusDefinitionHelper<BaseEventMap>;
-export type BaseEventBus = ReturnType<
-    typeof createEventBus<{
-        [key: MapKey]: BaseHandler;
-    }>
->;
+export type BaseEventBus = ReturnType<typeof createEventBus<BaseEventMap>>;

@@ -2,25 +2,6 @@ import { describe, expect, it } from "bun:test";
 import { createEvent } from "../../src/event";
 
 describe("event listener", () => {
-    it("should respect event's append and prepend arguments", () => {
-        const options = {
-            prependArgs: [ 1, 2 ] as const,
-            appendArgs: [ 3, 4 ] as const,
-        };
-        const o = createEvent<(value: string) => void, typeof options>(
-            options,
-        );
-
-        const triggered: any[] = [];
-
-        o.addListener((...args) => {
-            args.forEach((arg) => triggered.push(arg));
-        });
-        o.trigger("!");
-
-        expect(triggered).toEqual([ 1, 2, "!", 3, 4 ]);
-    });
-
     it("should respect listener's first option", () => {
         const o = createEvent<() => void>();
         const triggered: any[] = [];
@@ -54,24 +35,6 @@ describe("event listener", () => {
         o.trigger();
 
         expect(triggered).toEqual([ 1, 3, 2 ]);
-    });
-
-    it("should respect event's replaceArgs argument", () => {
-        const options = {
-            replaceArgs: [ 1, 2 ] as const,
-        };
-        const o = createEvent<(value: string) => void, typeof options>(
-            options,
-        );
-
-        const triggered: any[] = [];
-
-        o.addListener((...args) => {
-            args.forEach((arg) => triggered.push(arg));
-        });
-        o.trigger("!");
-
-        expect(triggered).toEqual([ 1, 2 ]);
     });
 
     it("should respect start and limit options", () => {

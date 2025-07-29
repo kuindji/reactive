@@ -1,13 +1,9 @@
-import { IsTuple } from "type-fest";
 import asyncCall from "./lib/asyncCall";
 import listenerSorter from "./lib/listenerSorter";
 import tagsIntersect from "./lib/tagsIntersect";
 import { ApiType, BaseHandler, TriggerReturnType } from "./lib/types";
 
 type Unarray<T> = T extends (infer U)[] ? U : T;
-type Writable<T> = {
-    -readonly [P in keyof T]: T[P];
-};
 
 interface BaseOptions {
     /**
@@ -67,22 +63,7 @@ interface ListenerPrototype<Handler extends BaseHandler>
     start: number;
 }
 
-export interface EventArgsOptions {
-    /**
-     * Prepend parameters
-     */
-    prependArgs?: readonly any[];
-    /**
-     * Append parameters
-     */
-    appendArgs?: readonly any[];
-    /**
-     * Replace parameters
-     */
-    replaceArgs?: readonly any[];
-}
-
-export interface EventOptions extends BaseOptions, EventArgsOptions {
+export interface EventOptions extends BaseOptions {
     /**
      * Call this event this number of times; 0 for unlimited
      * @default 0
@@ -105,68 +86,22 @@ export interface EventOptions extends BaseOptions, EventArgsOptions {
     filterContext?: object | null;
 }
 
-export type DefaultEventArgsOptions = {
-    prependArgs: readonly [];
-    appendArgs: readonly [];
-    replaceArgs: never;
-};
-
-type GetEventArgsOption<
-    Option extends readonly any[] | undefined,
-    Default extends readonly [] = readonly [],
-> = [ Option ] extends [ undefined ] ? Default
-    : [ Option ] extends [ never ] ? Default
-    : IsTuple<NonNullable<Option>> extends true ? NonNullable<Option>
-    : Default;
-
-type GetHandlerArguments<
-    TriggerArguments extends any[],
-    PrependArgs extends readonly any[],
-    AppendArgs extends readonly any[],
-    ReplaceArgs extends readonly any[] | never,
-> = [ ReplaceArgs ] extends [ never ]
-    ? [ ...PrependArgs, ...TriggerArguments, ...AppendArgs ]
-    : Writable<ReplaceArgs>;
-
 export type EventDefinitionHelper<
     ListenerSignature extends BaseHandler = BaseHandler,
-    Options extends EventArgsOptions = DefaultEventArgsOptions,
 > = {
     eventSignature: ListenerSignature;
     triggerArguments: Parameters<ListenerSignature>;
-    prependArgs: GetEventArgsOption<Options["prependArgs"]>;
-    appendArgs: GetEventArgsOption<Options["appendArgs"]>;
-    replaceArgs: GetEventArgsOption<Options["replaceArgs"], never>;
-    eventArgsOptions: {
-        prependArgs: GetEventArgsOption<Options["prependArgs"]>;
-        appendArgs: GetEventArgsOption<Options["appendArgs"]>;
-        replaceArgs: GetEventArgsOption<Options["replaceArgs"], never>;
-    };
-    listenerArguments: GetHandlerArguments<
-        Parameters<ListenerSignature>,
-        GetEventArgsOption<Options["prependArgs"]>,
-        GetEventArgsOption<Options["appendArgs"]>,
-        GetEventArgsOption<Options["replaceArgs"], never>
-    >;
+    listenerArguments: Parameters<ListenerSignature>;
     listenerReturnType: ReturnType<ListenerSignature>;
     listenerSignature: (
-        ...args: GetHandlerArguments<
-            Parameters<ListenerSignature>,
-            GetEventArgsOption<Options["prependArgs"]>,
-            GetEventArgsOption<Options["appendArgs"]>,
-            GetEventArgsOption<Options["replaceArgs"], never>
-        >
+        ...args: Parameters<ListenerSignature>
     ) => ReturnType<ListenerSignature>;
 };
 
 export function createEvent<
     ListenerSignature extends BaseHandler,
-    ListenerTransformOptions extends EventArgsOptions = DefaultEventArgsOptions,
 >(eventOptions: EventOptions = {}) {
-    type Event = EventDefinitionHelper<
-        ListenerSignature,
-        ListenerTransformOptions
-    >;
+    type Event = EventDefinitionHelper<ListenerSignature>;
     type Listener = ListenerPrototype<Event["listenerSignature"]>;
 
     let listeners: Listener[] = [];
@@ -183,9 +118,6 @@ export function createEvent<
         async: null,
         limit: null,
         autoTrigger: null,
-        appendArgs: undefined,
-        prependArgs: undefined,
-        replaceArgs: undefined,
         filter: null,
         filterContext: null,
         ...eventOptions,
@@ -377,19 +309,6 @@ export function createEvent<
         triggered = 0;
     };
 
-    const _prepareListenerArgs = (
-        args: Event["triggerArguments"],
-    ): Event["listenerArguments"] => {
-        if (options.replaceArgs) {
-            return options.replaceArgs as unknown as Event["listenerArguments"];
-        }
-        return [
-            ...(options.prependArgs || []),
-            ...args,
-            ...(options.appendArgs || []),
-        ] as Event["listenerArguments"];
-    };
-
     const _listenerCall = (
         listener: Listener,
         args: Event["listenerArguments"],
@@ -470,12 +389,12 @@ export function createEvent<
     };
 
     const _trigger = (
-        origArgs: Event["triggerArguments"],
+        args: Event["triggerArguments"],
         returnType: TriggerReturnType | null = null,
         tags?: string[] | null,
     ) => {
         if (queued) {
-            queue.push([ origArgs, returnType ]);
+            queue.push([ args, returnType ]);
             return;
         }
         if (suspended) {
@@ -487,14 +406,14 @@ export function createEvent<
         triggered++;
 
         if (options.autoTrigger) {
-            lastTrigger = origArgs.slice() as Event["triggerArguments"];
+            lastTrigger = args.slice() as Event["triggerArguments"];
         }
 
         // in pipe mode if there is no listeners,
         // we just return piped value
         if (listeners.length === 0) {
             if (returnType === TriggerReturnType.PIPE) {
-                return origArgs.length > 0 ? origArgs[0] : undefined;
+                return args.length > 0 ? args[0] : undefined;
             }
             else if (
                 returnType === TriggerReturnType.ALL
@@ -520,7 +439,7 @@ export function createEvent<
             || returnType === TriggerReturnType.UNTIL_TRUE
             || returnType === TriggerReturnType.UNTIL_FALSE
             || returnType === TriggerReturnType.FIRST_NON_EMPTY;
-        let args: Event["listenerArguments"];
+
         let listener: Listener | undefined;
         let listenerResult: ListenerResult;
         const results: ListenerResult[] = [];
@@ -530,8 +449,6 @@ export function createEvent<
             if (!listener) {
                 continue;
             }
-
-            args = _prepareListenerArgs(origArgs);
 
             if (
                 options.filter
@@ -881,6 +798,8 @@ export function createEvent<
         on: addListener,
         /** @alias addListener */
         listen: addListener,
+        /** @alias addListener */
+        subscribe: addListener,
         removeListener,
         /** @alias removeListener */
         un: removeListener,
@@ -888,6 +807,8 @@ export function createEvent<
         off: removeListener,
         /** @alias removeListener */
         remove: removeListener,
+        /** @alias removeListener */
+        unsubscribe: removeListener,
         trigger,
         /** @alias trigger */
         emit: trigger,
@@ -929,29 +850,3 @@ export function createEvent<
 
 export type BaseEventDefinition = EventDefinitionHelper<BaseHandler>;
 export type BaseEvent = ReturnType<typeof createEvent<BaseHandler>>;
-
-export function createEventHelper<
-    ListenerSignature extends BaseHandler = never,
->() {
-    return <
-        T extends EventOptions,
-        Prepend extends readonly any[] = T extends { prependArgs: infer A1; }
-            ? A1 extends readonly any[] ? GetEventArgsOption<A1, readonly []>
-            : readonly []
-            : readonly [],
-        Append extends readonly any[] = T extends { appendArgs: infer A2; }
-            ? A2 extends readonly any[] ? GetEventArgsOption<A2, readonly []>
-            : readonly []
-            : readonly [],
-        Replace extends readonly any[] = T extends { replaceArgs: infer A3; }
-            ? A3 extends readonly any[] ? GetEventArgsOption<A3, never>
-            : never
-            : never,
-    >(options: T = {} as T) => {
-        return createEvent<ListenerSignature, {
-            prependArgs: Prepend;
-            appendArgs: Append;
-            replaceArgs: Replace;
-        }>(options as EventOptions);
-    };
-}

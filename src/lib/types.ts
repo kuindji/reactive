@@ -1,6 +1,6 @@
-import { Simplify } from "type-fest";
 export type MapKey = string | symbol;
 export type BaseHandler = (...args: any[]) => any;
+export type Simplify<T> = { [KeyType in keyof T]: T[KeyType]; } & {};
 
 export type ApiType<TypeDefinition, Api extends object> = Simplify<Api> & {
     __type: TypeDefinition;

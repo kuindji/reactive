@@ -40,7 +40,7 @@ describe("eventBus", () => {
         const o = createEventBus();
         const triggered: any[] = [];
 
-        o.on("*", (name, args, tags) => {
+        o.onAnyEvent((name, args, tags) => {
             triggered.push(name, args, tags);
         });
 

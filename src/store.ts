@@ -41,8 +41,7 @@ export type StoreDefinitionHelper<
     changeEvents: StoreDataEvents<PropMap>;
     pipeEvents: StorePipeEvents<PropMap>;
     changeEventBus: EventBusDefinitionHelper<
-        & StoreDataEvents<PropMap>
-        & StoreControlEvents<PropMap>
+        StoreDataEvents<PropMap>
     >;
     pipeEventBus: EventBusDefinitionHelper<
         StorePipeEvents<PropMap>
@@ -60,15 +59,9 @@ export function createStore<PropMap extends BasePropMap>(
     const data = new Map<MapKey & keyof PropMap, any>(
         Object.entries(initialData),
     );
-    const changes = createEventBus<Store["changeEvents"]>({
-        includeDefaultEvents: false,
-    });
-    const pipe = createEventBus<Store["pipeEvents"]>({
-        includeDefaultEvents: false,
-    });
-    const control = createEventBus<Store["controlEvents"]>({
-        includeDefaultEvents: false,
-    });
+    const changes = createEventBus<Store["changeEvents"]>();
+    const pipe = createEventBus<Store["pipeEvents"]>();
+    const control = createEventBus<Store["controlEvents"]>();
 
     const _set = <K extends MapKey & keyof PropMap, V extends PropMap[K]>(
         name: K,
