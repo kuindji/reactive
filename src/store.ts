@@ -1,5 +1,5 @@
-import { createEventBus, EventBusDefinitionHelper } from "eventBus";
 import { Simplify } from "type-fest";
+import { createEventBus, EventBusDefinitionHelper } from "./eventBus";
 import { BaseHandler, MapKey } from "./lib/types";
 
 type Prettify<T> = Simplify<T>;

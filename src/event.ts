@@ -922,10 +922,14 @@ export function createEvent<
         pipe,
         resolvePipe,
         raw,
+        eventSignature: (...args: Event["triggerArguments"]) =>
+            null as Event["listenerReturnType"],
     } as const;
 
     return api as Prettify<typeof api>;
 }
+
+export type Event = ReturnType<typeof createEvent<BaseHandler>>;
 
 export function createEventHelper<
     TriggerSignature extends BaseHandler = never,

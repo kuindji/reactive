@@ -160,8 +160,8 @@ describe("eventBus", () => {
     });
 
     it("should pass results back to relay", () => {
-        const o1 = createEventBus<{ event: () => void; }>();
-        const o2 = createEventBus<{ event: () => void; }>();
+        const o1 = createEventBus<{ event: () => number; }>();
+        const o2 = createEventBus<{ event: () => number; }>();
 
         o1.relay({
             eventSource: o2,

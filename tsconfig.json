@@ -1,7 +1,7 @@
 {
     "compilerOptions": {
         "outDir": "dist",
-        "baseUrl": "./src",
+        "baseUrl": "./",
         "sourceMap": false,
         "noImplicitAny": false,
         "declaration": true,
@@ -9,6 +9,7 @@
         "allowJs": false,
         "module": "commonjs",
         "target": "es5",
+        "jsx": "react-jsx",
         "lib": [
             "dom",
             "esnext"
