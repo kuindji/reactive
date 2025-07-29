@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useRef } from "react";
-import { createEventBus, type EventBus } from "../../src/eventBus";
-import { BaseHandler, MapKey } from "../../src/lib/types";
+import { type BaseEventBus } from "../../src/eventBus";
+import { MapKey } from "../../src/lib/types";
 import { ListenerOptions } from "../event";
 
 export function useEventBusListen<
-    TEventBus extends EventBus,
-    TEventSignatures extends EventBus["eventSignatures"] =
-        TEventBus["eventSignatures"],
-    K extends MapKey & keyof TEventSignatures = MapKey & keyof TEventSignatures,
-    H extends BaseHandler = TEventSignatures[K]["signature"],
->(eventBus: TEventBus, eventName: K, handler: H, options?: ListenerOptions) {
-    const handlerRef = useRef<H>(handler);
+    TEventBus extends BaseEventBus,
+    TKey extends MapKey & keyof TEventBus["__type"]["eventSignatures"],
+    THandler extends TEventBus["__type"]["eventSignatures"][TKey]["signature"],
+>(
+    eventBus: TEventBus,
+    eventName: TKey,
+    handler: THandler,
+    options?: ListenerOptions,
+) {
+    const handlerRef = useRef<THandler>(handler);
     const eventBusRef = useRef<TEventBus>(eventBus);
 
     handlerRef.current = handler;
 
     const genericHandler = useCallback(
-        (...args: Parameters<H>) => {
+        (...args: Parameters<THandler>) => {
             return handlerRef.current(...args);
         },
         [],

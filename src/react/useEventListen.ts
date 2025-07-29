@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef } from "react";
-import { createEvent, type Event, ListenerOptions } from "../../src/event";
+import { type BaseEvent, ListenerOptions } from "../../src/event";
 
 export function useEventListen<
-    TEvent extends Event,
-    TEventSignature extends TEvent["eventSignature"],
+    TEvent extends BaseEvent,
+    TEventSignature extends TEvent["__type"]["eventSignature"] =
+        TEvent["__type"]["eventSignature"],
 >(event: TEvent, handler: TEventSignature, options?: ListenerOptions) {
     const handlerRef = useRef<TEventSignature>(handler);
     const eventRef = useRef<TEvent>(event);

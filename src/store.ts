@@ -1,16 +1,13 @@
-import { Simplify } from "type-fest";
 import { createEventBus, EventBusDefinitionHelper } from "./eventBus";
-import { BaseHandler, MapKey } from "./lib/types";
-
-type Prettify<T> = Simplify<T>;
+import { ApiType, MapKey } from "./lib/types";
 
 export interface BasePropMap {
     [key: MapKey]: any;
 }
 
-export const BeforeChangeEventName = Symbol("beforeChange");
-export const ChangeEventName = Symbol("change");
-export const ResetEventName = Symbol("reset");
+export const BeforeChangeEventName = "beforeChange";
+export const ChangeEventName = "change";
+export const ResetEventName = "reset";
 
 type StoreControlEvents<PropMap extends BasePropMap = BasePropMap> = {
     [BeforeChangeEventName]: <K extends MapKey & keyof PropMap>(
@@ -243,5 +240,8 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         pipe: pipe.addListener,
         control: control.addListener,
     } as const;
-    return api as Prettify<typeof api>;
+    return api as ApiType<Store, typeof api>;
 }
+
+export type BaseStoreDefinition = StoreDefinitionHelper<BasePropMap>;
+export type BaseStore = ReturnType<typeof createStore<BasePropMap>>;

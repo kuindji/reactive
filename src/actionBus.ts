@@ -1,10 +1,8 @@
-import { Simplify } from "type-fest";
 import { ActionDefinitionHelper, createAction, ErrorResponse } from "./action";
 import { createEvent, ListenerOptions } from "./event";
-import { BaseHandler, MapKey } from "./lib/types";
-type Prettify<T> = Simplify<T>;
+import { ApiType, BaseHandler, MapKey } from "./lib/types";
 
-interface BaseActionsMap {
+export interface BaseActionsMap {
     [key: MapKey]: BaseHandler;
 }
 
@@ -16,14 +14,14 @@ type GetActionTypesMap<
     ActionsMap extends BaseActionsMap,
 > = {
     [key in keyof ActionsMap]: [ ActionsMap[key] ] extends [ never ] ? never
-        : Prettify<ReturnType<typeof createAction<ActionsMap[key]>>>;
+        : ReturnType<typeof createAction<ActionsMap[key]>>;
 };
 
 type GetActionDefinitionsMap<
     ActionsMap extends BaseActionsMap,
 > = {
     [key in keyof ActionsMap]: [ ActionsMap[key] ] extends [ never ] ? never
-        : Prettify<ActionDefinitionHelper<ActionsMap[key]>>;
+        : ActionDefinitionHelper<ActionsMap[key]>;
 };
 
 export type ActionBusDefinitionHelper<ActionsMap extends BaseActionsMap> = {
@@ -69,7 +67,7 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
 
     const on = <K extends MapKey & keyof Actions>(
         name: K,
-        handler: Actions[K]["eventSignature"],
+        handler: Actions[K]["listenerSignature"],
         options?: ListenerOptions,
     ) => {
         const action: ActionTypes[K] = get(name);
@@ -81,7 +79,7 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
 
     const once = <K extends MapKey & keyof Actions>(
         name: K,
-        handler: Actions[K]["eventSignature"],
+        handler: Actions[K]["listenerSignature"],
         options?: ListenerOptions,
     ) => {
         options = options || {};
@@ -95,7 +93,7 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
 
     const un = <K extends MapKey & keyof Actions>(
         name: K,
-        handler: Actions[K]["eventSignature"],
+        handler: Actions[K]["listenerSignature"],
         context?: object | null,
         tag?: string | null,
     ) => {
@@ -119,5 +117,8 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         onError: errorEvent.addListener,
         unError: errorEvent.removeListener,
     } as const;
-    return api as Prettify<typeof api>;
+    return api as ApiType<ActionBus, typeof api>;
 }
+
+export type BaseActionBusDefinition = ActionBusDefinitionHelper<BaseActionsMap>;
+export type BaseActionBus = ReturnType<typeof createActionBus<BaseActionsMap>>;

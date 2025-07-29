@@ -1,8 +1,5 @@
-import { describe, expect, it } from "bun:test";
-/**
- * @jest-environment jsdom
- */
 import { render } from "@testing-library/react";
+import { describe, expect, it } from "bun:test";
 import { useCallback, useEffect } from "react";
 import { useEventBus } from "../../src/react/useEventBus";
 import { useEventBusListen } from "../../src/react/useEventBusListen";

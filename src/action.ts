@@ -1,26 +1,21 @@
-import { Simplify } from "type-fest";
 import { createEvent } from "./event";
-import { BaseHandler } from "./lib/types";
-
-type Prettify<T> = Simplify<T>;
+import { ApiType, BaseHandler } from "./lib/types";
 
 export type ActionResponse<
     Response extends any = any,
     Args extends any[] = any[],
-> =
-    | {
-        response: Response;
-        error: null;
-        request: Args;
-    }
-    | {
-        response: null;
-        error: any;
-        request: Args;
-    };
+> = {
+    response: Response;
+    error: null;
+    request: Args;
+} | {
+    response: null;
+    error: string;
+    request: Args;
+};
 
 export type ErrorResponse<Args extends any[] = any[]> = {
-    error: any;
+    error: string;
     request: Args;
 };
 
@@ -30,14 +25,12 @@ export type ActionDefinitionHelper<A extends BaseHandler> = {
     actionReturnType: Awaited<ReturnType<A>>;
     responseType: ActionResponse<Awaited<ReturnType<A>>, Parameters<A>>;
     errorResponseType: ErrorResponse<Parameters<A>>;
-    eventSignature: (
-        ...args: [
-            Prettify<ActionResponse<Awaited<ReturnType<A>>, Parameters<A>>>,
-        ]
+    listenerArgument: ActionResponse<Awaited<ReturnType<A>>, Parameters<A>>;
+    listenerSignature: (
+        arg: ActionResponse<Awaited<ReturnType<A>>, Parameters<A>>,
     ) => void;
-    errorEventSignature: (
-        ...args: [ Prettify<ErrorResponse<Parameters<A>>> ]
-    ) => void;
+    errorListenerArgument: ErrorResponse<Parameters<A>>;
+    errorListenerSignature: (arg: ErrorResponse<Parameters<A>>) => void;
 };
 
 export function createAction<A extends BaseHandler>(action: A) {
@@ -49,7 +42,7 @@ export function createAction<A extends BaseHandler>(action: A) {
         removeAllListeners,
         removeListener,
         promise,
-    } = createEvent<Action["eventSignature"]>();
+    } = createEvent<Action["listenerSignature"]>();
 
     const {
         trigger: triggerError,
@@ -57,7 +50,7 @@ export function createAction<A extends BaseHandler>(action: A) {
         removeAllListeners: removeAllErrorListeners,
         removeListener: removeErrorListener,
         promise: errorPromise,
-    } = createEvent<Action["errorEventSignature"]>();
+    } = createEvent<Action["errorListenerSignature"]>();
 
     const invoke = async (
         ...args: Action["actionArguments"]
@@ -112,5 +105,12 @@ export function createAction<A extends BaseHandler>(action: A) {
         errorPromise,
     } as const;
 
-    return api as Prettify<typeof api>;
+    return api as ApiType<Action, typeof api>;
 }
+
+export type BaseActionDefinition = ActionDefinitionHelper<
+    (...args: [ any ]) => any
+>;
+export type BaseAction = ReturnType<
+    typeof createAction<(...args: [ any ]) => any>
+>;

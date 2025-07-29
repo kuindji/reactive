@@ -1,5 +1,11 @@
+import { Simplify } from "type-fest";
 export type MapKey = string | symbol;
 export type BaseHandler = (...args: any[]) => any;
+
+export type ApiType<TypeDefinition, Api extends object> = Simplify<Api> & {
+    __type: TypeDefinition;
+};
+
 export enum TriggerReturnType {
     RAW = "raw",
     ALL = "all",

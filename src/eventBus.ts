@@ -1,4 +1,3 @@
-import { Simplify } from "type-fest";
 import {
     createEvent,
     DefaultEventArgsOptions,
@@ -7,9 +6,13 @@ import {
     EventOptions,
     ListenerOptions,
 } from "./event";
-import { BaseHandler, MapKey, ProxyType, TriggerReturnType } from "./lib/types";
-
-type Prettify<T> = Simplify<T>;
+import {
+    ApiType,
+    BaseHandler,
+    MapKey,
+    ProxyType,
+    TriggerReturnType,
+} from "./lib/types";
 
 type EventDetailsDefinition = {
     signature: BaseHandler;
@@ -92,17 +95,17 @@ export interface EventBusOptions {
 }
 
 type GetEventsMap<EventDefinitionsMap extends BaseEventMap> = {
-    [key in keyof EventDefinitionsMap]: EventDefinitionsMap[key] extends
-        BaseHandler ? EventDefinitionHelper<
-            EventDefinitionsMap[key],
-            DefaultEventArgsOptions
-        >
-        : EventDefinitionsMap[key] extends EventDetailsDefinition
-            ? EventDefinitionHelper<
-                EventDefinitionsMap[key]["signature"],
-                EventDefinitionsMap[key]["options"]
+    [key in MapKey & keyof EventDefinitionsMap]:
+        EventDefinitionsMap[key] extends BaseHandler ? EventDefinitionHelper<
+                EventDefinitionsMap[key],
+                DefaultEventArgsOptions
             >
-        : never;
+            : EventDefinitionsMap[key] extends EventDetailsDefinition
+                ? EventDefinitionHelper<
+                    EventDefinitionsMap[key]["signature"],
+                    EventDefinitionsMap[key]["options"]
+                >
+            : never;
 };
 
 type GetEventTypesMap<
@@ -111,7 +114,7 @@ type GetEventTypesMap<
         EventDefinitionsMap
     >,
 > = {
-    [key in keyof EventsMap]: ReturnType<
+    [key in MapKey & keyof EventsMap]: ReturnType<
         typeof createEvent<
             EventsMap[key]["eventSignature"],
             EventsMap[key]["eventArgsOptions"]
@@ -125,9 +128,9 @@ type GetEventSignaturesMap<
         EventDefinitionsMap
     >,
 > = {
-    [key in keyof EventsMap]: {
-        signature: EventsMap[keyof EventsMap]["eventSignature"];
-        options: EventsMap[keyof EventsMap]["eventArgsOptions"];
+    [key in MapKey & keyof EventsMap]: {
+        signature: EventsMap[key]["eventSignature"];
+        options: EventsMap[key]["eventArgsOptions"];
     };
 };
 
@@ -863,16 +866,6 @@ export function createEventBus<
         }
     };
 
-    const eventSignatures: EventBus["eventSignatures"] = Array.from(
-        events.entries(),
-    ).reduce((acc, [ name, event ]) => {
-        acc[name] = {
-            signature: event.eventSignature,
-            options: event.eventArgsOptions,
-        };
-        return acc;
-    }, {} as EventBus["eventSignatures"]);
-
     const api = {
         addListener: on,
         /** @alias addListener */
@@ -922,13 +915,13 @@ export function createEventBus<
         unrelay,
         addEventSource,
         removeEventSource,
-        eventSignatures,
     } as const;
 
-    return api as Prettify<typeof api>;
+    return api as ApiType<EventBus, typeof api>;
 }
 
-export type EventBus = ReturnType<
+export type BaseEventBusDefinition = EventBusDefinitionHelper<BaseEventMap>;
+export type BaseEventBus = ReturnType<
     typeof createEventBus<{
         [key: MapKey]: BaseHandler;
     }>

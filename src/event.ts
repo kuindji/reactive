@@ -1,11 +1,10 @@
-import { IsTuple, Simplify } from "type-fest";
+import { IsTuple } from "type-fest";
 import asyncCall from "./lib/asyncCall";
 import listenerSorter from "./lib/listenerSorter";
 import tagsIntersect from "./lib/tagsIntersect";
-import { BaseHandler, TriggerReturnType } from "./lib/types";
+import { ApiType, BaseHandler, TriggerReturnType } from "./lib/types";
 
 type Unarray<T> = T extends (infer U)[] ? U : T;
-type Prettify<T> = Simplify<T>;
 type Writable<T> = {
     -readonly [P in keyof T]: T[P];
 };
@@ -130,11 +129,11 @@ type GetHandlerArguments<
     : Writable<ReplaceArgs>;
 
 export type EventDefinitionHelper<
-    TriggerSignature extends BaseHandler = BaseHandler,
+    ListenerSignature extends BaseHandler = BaseHandler,
     Options extends EventArgsOptions = DefaultEventArgsOptions,
 > = {
-    eventSignature: TriggerSignature;
-    triggerArguments: Parameters<TriggerSignature>;
+    eventSignature: ListenerSignature;
+    triggerArguments: Parameters<ListenerSignature>;
     prependArgs: GetEventArgsOption<Options["prependArgs"]>;
     appendArgs: GetEventArgsOption<Options["appendArgs"]>;
     replaceArgs: GetEventArgsOption<Options["replaceArgs"], never>;
@@ -144,28 +143,31 @@ export type EventDefinitionHelper<
         replaceArgs: GetEventArgsOption<Options["replaceArgs"], never>;
     };
     listenerArguments: GetHandlerArguments<
-        Parameters<TriggerSignature>,
+        Parameters<ListenerSignature>,
         GetEventArgsOption<Options["prependArgs"]>,
         GetEventArgsOption<Options["appendArgs"]>,
         GetEventArgsOption<Options["replaceArgs"], never>
     >;
-    listenerReturnType: ReturnType<TriggerSignature>;
+    listenerReturnType: ReturnType<ListenerSignature>;
     listenerSignature: (
         ...args: GetHandlerArguments<
-            Parameters<TriggerSignature>,
+            Parameters<ListenerSignature>,
             GetEventArgsOption<Options["prependArgs"]>,
             GetEventArgsOption<Options["appendArgs"]>,
             GetEventArgsOption<Options["replaceArgs"], never>
         >
-    ) => ReturnType<TriggerSignature>;
+    ) => ReturnType<ListenerSignature>;
 };
 
 export function createEvent<
-    TriggerSignature extends BaseHandler = BaseHandler,
-    HandlerOptions extends EventArgsOptions = DefaultEventArgsOptions,
->(eventOptions: Prettify<EventOptions> = {}) {
-    type Event = EventDefinitionHelper<TriggerSignature, HandlerOptions>;
-    type Listener = Prettify<ListenerPrototype<Event["listenerSignature"]>>;
+    ListenerSignature extends BaseHandler = BaseHandler,
+    ListenerTransformOptions extends EventArgsOptions = DefaultEventArgsOptions,
+>(eventOptions: EventOptions = {}) {
+    type Event = EventDefinitionHelper<
+        ListenerSignature,
+        ListenerTransformOptions
+    >;
+    type Listener = ListenerPrototype<Event["listenerSignature"]>;
 
     let listeners: Listener[] = [];
     let queue: Array<[ Event["triggerArguments"], TriggerReturnType | null ]> =
@@ -177,7 +179,7 @@ export function createEvent<
     let sortListeners: boolean = false;
     let currentTagsFilter: string[] | null = null;
 
-    const options: Prettify<EventOptions> = {
+    const options: EventOptions = {
         async: null,
         limit: null,
         autoTrigger: null,
@@ -191,9 +193,7 @@ export function createEvent<
 
     const addListener = (
         handler: Event["listenerSignature"],
-        listenerOptions: Prettify<ListenerOptions> = {} as Prettify<
-            ListenerOptions
-        >,
+        listenerOptions: ListenerOptions = {} as ListenerOptions,
     ) => {
         if (!handler) {
             return;
@@ -922,17 +922,16 @@ export function createEvent<
         pipe,
         resolvePipe,
         raw,
-        eventSignature: (...args: Event["triggerArguments"]) =>
-            null as Event["listenerReturnType"],
     } as const;
 
-    return api as Prettify<typeof api>;
+    return api as ApiType<Event, typeof api>;
 }
 
-export type Event = ReturnType<typeof createEvent<BaseHandler>>;
+export type BaseEventDefinition = EventDefinitionHelper<BaseHandler>;
+export type BaseEvent = ReturnType<typeof createEvent<BaseHandler>>;
 
 export function createEventHelper<
-    TriggerSignature extends BaseHandler = never,
+    ListenerSignature extends BaseHandler = never,
 >() {
     return <
         T extends EventOptions,
@@ -949,7 +948,7 @@ export function createEventHelper<
             : never
             : never,
     >(options: T = {} as T) => {
-        return createEvent<TriggerSignature, {
+        return createEvent<ListenerSignature, {
             prependArgs: Prepend;
             appendArgs: Append;
             replaceArgs: Replace;

@@ -1,28 +1,33 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "bun:test";
 import { useCallback, useEffect } from "react";
-import { useEvent } from "../../src/react/useEvent";
-import { useEventListen } from "../../src/react/useEventListen";
+import { useAction } from "../../src/react/useAction";
+import { useActionListen } from "../../src/react/useActionListen";
 
-describe("useEventListen", () => {
+describe("useActionListen", () => {
     it("should listen to event", () => {
         let triggered = false;
         function Component() {
-            const event = useEvent<(a: number) => string>();
+            const action = useAction((a: number): string => a.toString());
 
             const handler = useCallback(
-                (a: number) => {
+                (
+                    { response }: {
+                        response: string | null;
+                        request: [ number ];
+                    },
+                ) => {
+                    expect(response).toBe("1");
                     triggered = true;
-                    return "test";
                 },
                 [],
             );
 
-            useEventListen(event, handler);
+            useActionListen(action, handler);
 
             useEffect(
                 () => {
-                    event.trigger(1);
+                    action.invoke(1);
                 },
                 [],
             );
