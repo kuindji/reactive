@@ -1,0 +1,123 @@
+import { Simplify } from "type-fest";
+import { ActionDefinitionHelper, createAction, ErrorResponse } from "./action";
+import { createEvent, ListenerOptions } from "./event";
+import { BaseHandler, MapKey } from "./lib/types";
+type Prettify<T> = Simplify<T>;
+
+interface BaseActionsMap {
+    [key: MapKey]: BaseHandler;
+}
+
+type ErrorEventSignature = (
+    ...args: [ ErrorResponse<any[]> & { name: MapKey; } ]
+) => void;
+
+type GetActionTypesMap<
+    ActionsMap extends BaseActionsMap,
+> = {
+    [key in keyof ActionsMap]: [ ActionsMap[key] ] extends [ never ] ? never
+        : Prettify<ReturnType<typeof createAction<ActionsMap[key]>>>;
+};
+
+type GetActionDefinitionsMap<
+    ActionsMap extends BaseActionsMap,
+> = {
+    [key in keyof ActionsMap]: [ ActionsMap[key] ] extends [ never ] ? never
+        : Prettify<ActionDefinitionHelper<ActionsMap[key]>>;
+};
+
+export type ActionBusDefinitionHelper<ActionsMap extends BaseActionsMap> = {
+    actions: GetActionDefinitionsMap<ActionsMap>;
+    actionTypes: GetActionTypesMap<ActionsMap>;
+};
+
+export function createActionBus<ActionsMap extends BaseActionsMap>(
+    initialActions: ActionsMap = {} as ActionsMap,
+) {
+    type ActionBus = ActionBusDefinitionHelper<ActionsMap>;
+    type ActionTypes = ActionBus["actionTypes"];
+    type Actions = ActionBus["actions"];
+
+    const actions = new Map<MapKey & keyof Actions, any>();
+    const errorEvent = createEvent<ErrorEventSignature>();
+
+    const add = (name: MapKey, action: BaseHandler) => {
+        if (!actions.has(name)) {
+            const a = createAction(action);
+            a.addErrorListener(({ error, request }) => {
+                errorEvent.emit({ name, error, request });
+            });
+            actions.set(name, a);
+        }
+    };
+
+    Object.entries(initialActions).forEach(([ name, action ]) => {
+        add(name, action);
+    });
+
+    const get = <K extends MapKey & keyof Actions>(name: K) => {
+        return actions.get(name) as ActionTypes[K];
+    };
+
+    const invoke = <K extends MapKey & keyof Actions>(
+        name: K,
+        ...args: Actions[K]["actionArguments"]
+    ) => {
+        const action = get(name);
+        return action.invoke(...args);
+    };
+
+    const on = <K extends MapKey & keyof Actions>(
+        name: K,
+        handler: Actions[K]["eventSignature"],
+        options?: ListenerOptions,
+    ) => {
+        const action: ActionTypes[K] = get(name);
+        if (!action) {
+            throw new Error(`Action ${name as string} not found`);
+        }
+        return action.addListener(handler, options);
+    };
+
+    const once = <K extends MapKey & keyof Actions>(
+        name: K,
+        handler: Actions[K]["eventSignature"],
+        options?: ListenerOptions,
+    ) => {
+        options = options || {};
+        options.limit = 1;
+        const action: ActionTypes[K] = get(name);
+        if (!action) {
+            throw new Error(`Action ${name as string} not found`);
+        }
+        return action.addListener(handler, options);
+    };
+
+    const un = <K extends MapKey & keyof Actions>(
+        name: K,
+        handler: Actions[K]["eventSignature"],
+        context?: object | null,
+        tag?: string | null,
+    ) => {
+        const action: ActionTypes[K] = get(name);
+        if (!action) {
+            throw new Error(`Action ${name as string} not found`);
+        }
+        return action.removeListener(handler, context, tag);
+    };
+
+    const api = {
+        add,
+        get,
+        invoke,
+        on,
+        addListener: on,
+        once,
+        un,
+        removeListener: un,
+        off: un,
+        onError: errorEvent.addListener,
+        unError: errorEvent.removeListener,
+    } as const;
+    return api as Prettify<typeof api>;
+}
