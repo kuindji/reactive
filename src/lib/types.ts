@@ -1,5 +1,3 @@
-import { OmitIndexSignature } from "type-fest";
-
 export type MapKey = string | symbol;
 export type BaseHandler = (...args: any[]) => any;
 export enum TriggerReturnType {

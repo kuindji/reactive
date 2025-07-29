@@ -1,4 +1,4 @@
-import { OmitIndexSignature, Simplify } from "type-fest";
+import { Simplify } from "type-fest";
 import {
     createEvent,
     DefaultEventArgsOptions,
@@ -305,9 +305,10 @@ export function createEventBus<
 
     const on = <K extends MapKey & keyof Events>(
         name: K,
-        handler: Events[K] extends never ? BaseHandler
-            : unknown extends Events[K] ? BaseHandler
-            : Events[K]["listenerSignature"],
+        // handler: Events[K] extends never ? BaseHandler
+        //     : unknown extends Events[K] ? BaseHandler
+        //     : Events[K]["listenerSignature"],
+        handler: Events[K]["listenerSignature"],
         options?: ListenerOptions,
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);

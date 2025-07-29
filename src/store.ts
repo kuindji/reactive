@@ -26,7 +26,7 @@ type StoreControlEvents<PropMap extends BasePropMap = BasePropMap> = {
 type StoreDataEvents<PropMap extends BasePropMap = BasePropMap> = {
     [K in MapKey & keyof PropMap]: (
         value: PropMap[K],
-        previousValue: PropMap[K] | undefined,
+        previousValue?: PropMap[K] | undefined,
     ) => void;
 };
 
