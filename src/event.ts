@@ -160,7 +160,7 @@ export type EventDefinitionHelper<
 };
 
 export function createEvent<
-    ListenerSignature extends BaseHandler = BaseHandler,
+    ListenerSignature extends BaseHandler,
     ListenerTransformOptions extends EventArgsOptions = DefaultEventArgsOptions,
 >(eventOptions: EventOptions = {}) {
     type Event = EventDefinitionHelper<

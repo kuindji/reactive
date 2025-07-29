@@ -1,7 +1,7 @@
 {
-    "name": "@kuindji/event-bus",
+    "name": "@kuindji/app-utils",
     "version": "0.0.1",
-    "description": "A javascript event bus",
+    "description": "A javascript app utils",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "files": [

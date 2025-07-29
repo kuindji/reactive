@@ -9,7 +9,7 @@ export const BeforeChangeEventName = "beforeChange";
 export const ChangeEventName = "change";
 export const ResetEventName = "reset";
 
-type StoreControlEvents<PropMap extends BasePropMap = BasePropMap> = {
+type StoreControlEvents<PropMap extends BasePropMap> = {
     [BeforeChangeEventName]: <K extends MapKey & keyof PropMap>(
         name: K,
         value: PropMap[K],
@@ -20,21 +20,21 @@ type StoreControlEvents<PropMap extends BasePropMap = BasePropMap> = {
     [ResetEventName]: () => void;
 };
 
-type StoreDataEvents<PropMap extends BasePropMap = BasePropMap> = {
+type StoreDataEvents<PropMap extends BasePropMap> = {
     [K in MapKey & keyof PropMap]: (
         value: PropMap[K],
         previousValue?: PropMap[K] | undefined,
     ) => void;
 };
 
-type StorePipeEvents<PropMap extends BasePropMap = BasePropMap> = {
+type StorePipeEvents<PropMap extends BasePropMap> = {
     [K in MapKey & keyof PropMap]: (
         value: PropMap[K],
     ) => PropMap[K];
 };
 
 export type StoreDefinitionHelper<
-    PropMap extends BasePropMap = BasePropMap,
+    PropMap extends BasePropMap,
 > = {
     propTypes: PropMap;
     controlEvents: StoreControlEvents<PropMap>;
@@ -44,11 +44,15 @@ export type StoreDefinitionHelper<
         & StoreDataEvents<PropMap>
         & StoreControlEvents<PropMap>
     >;
-    pipeEventBus: EventBusDefinitionHelper<StorePipeEvents<PropMap>>;
-    controlEventBus: EventBusDefinitionHelper<StoreControlEvents<PropMap>>;
+    pipeEventBus: EventBusDefinitionHelper<
+        StorePipeEvents<PropMap>
+    >;
+    controlEventBus: EventBusDefinitionHelper<
+        StoreControlEvents<PropMap>
+    >;
 };
 
-export function createStore<PropMap extends BasePropMap = BasePropMap>(
+export function createStore<PropMap extends BasePropMap>(
     initialData: Partial<PropMap> = {},
 ) {
     type Store = StoreDefinitionHelper<PropMap>;
@@ -56,16 +60,22 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     const data = new Map<MapKey & keyof PropMap, any>(
         Object.entries(initialData),
     );
-    const changes = createEventBus<Store["changeEvents"]>();
-    const pipe = createEventBus<Store["pipeEvents"]>();
-    const control = createEventBus<Store["controlEvents"]>();
+    const changes = createEventBus<Store["changeEvents"]>({
+        includeDefaultEvents: false,
+    });
+    const pipe = createEventBus<Store["pipeEvents"]>({
+        includeDefaultEvents: false,
+    });
+    const control = createEventBus<Store["controlEvents"]>({
+        includeDefaultEvents: false,
+    });
 
-    const _set = <K extends (MapKey & keyof PropMap)>(
+    const _set = <K extends MapKey & keyof PropMap, V extends PropMap[K]>(
         name: K,
-        value: PropMap[K],
+        value: V,
         triggerChange: boolean = true,
     ) => {
-        const prev = data.get(name) as PropMap[K] | undefined;
+        const prev = data.get(name) as V | undefined;
         if (prev !== value) {
             if (
                 control.firstNonEmpty(BeforeChangeEventName, name, value)
@@ -77,9 +87,10 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
             // @ts-expect-error
             const newValue = pipe.pipe(name, value);
             if (newValue !== undefined) {
-                value = newValue;
+                value = newValue as V;
             }
             data.set(name, value);
+
             // @ts-expect-error
             changes.trigger(name, value, prev);
 

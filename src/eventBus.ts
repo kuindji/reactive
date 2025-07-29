@@ -92,6 +92,7 @@ export interface EventBusOptions {
     eventOptions?: {
         [key: MapKey]: EventOptions;
     };
+    includeDefaultEvents?: boolean;
 }
 
 type GetEventsMap<EventDefinitionsMap extends BaseEventMap> = {
@@ -136,14 +137,18 @@ type GetEventSignaturesMap<
 
 export type EventBusDefinitionHelper<
     EventsMap extends BaseEventMap = BaseEventMap,
+    IncludeDefaultEvents extends boolean = false,
+    FinalEventsMap extends BaseEventMap = IncludeDefaultEvents extends true
+        ? EventsMap & DefaultEvents
+        : EventsMap,
 > = {
-    allEventDefinitions: EventsMap & DefaultEvents;
-    events: GetEventsMap<EventsMap & DefaultEvents>;
+    allEventDefinitions: FinalEventsMap;
+    events: GetEventsMap<FinalEventsMap>;
     eventTypes: GetEventTypesMap<
-        EventsMap & DefaultEvents
+        FinalEventsMap
     >;
     eventSignatures: GetEventSignaturesMap<
-        EventsMap & DefaultEvents
+        FinalEventsMap
     >;
 };
 
@@ -220,7 +225,11 @@ function proxyReturnTypeToTriggerReturnType(proxyType: ProxyType) {
 export function createEventBus<
     EventsMap extends BaseEventMap = DefaultEventMap,
 >(eventBusOptions?: EventBusOptions) {
-    type EventBus = EventBusDefinitionHelper<EventsMap>;
+    const includeDefaultEvents = eventBusOptions?.includeDefaultEvents ?? true;
+    type EventBus = EventBusDefinitionHelper<
+        EventsMap,
+        typeof includeDefaultEvents
+    >;
     type Events = EventBus["events"];
     type EventTypes = EventBus["eventTypes"];
 
@@ -323,12 +332,12 @@ export function createEventBus<
         return _getOrAddEvent(name);
     };
 
-    const on = <K extends MapKey & keyof Events>(
+    const on = <
+        K extends MapKey & keyof Events,
+        H extends Events[K]["listenerSignature"],
+    >(
         name: K,
-        // handler: Events[K] extends never ? BaseHandler
-        //     : unknown extends Events[K] ? BaseHandler
-        //     : Events[K]["listenerSignature"],
-        handler: Events[K]["listenerSignature"],
+        handler: H,
         options?: ListenerOptions,
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
@@ -364,11 +373,12 @@ export function createEventBus<
         return e.addListener(handler as any, options);
     };
 
-    const once = <K extends MapKey & keyof Events>(
+    const once = <
+        K extends MapKey & keyof Events,
+        H extends Events[K]["listenerSignature"],
+    >(
         name: K,
-        handler: Events[K] extends never ? BaseHandler
-            : unknown extends Events[K] ? BaseHandler
-            : Events[K]["listenerSignature"],
+        handler: H,
         options?: ListenerOptions,
     ) => {
         options = options || {};
@@ -384,11 +394,12 @@ export function createEventBus<
         return e.promise(options);
     };
 
-    const un = <K extends MapKey & keyof Events>(
+    const un = <
+        K extends MapKey & keyof Events,
+        H extends Events[K]["listenerSignature"],
+    >(
         name: K,
-        handler: Events[K] extends never ? BaseHandler
-            : unknown extends Events[K] ? BaseHandler
-            : Events[K]["listenerSignature"],
+        handler: H,
         context?: object | null,
         tag?: string | null,
     ) => {
@@ -426,9 +437,12 @@ export function createEventBus<
         }
     };
 
-    const _trigger = <K extends MapKey & keyof Events>(
+    const _trigger = <
+        K extends MapKey & keyof Events,
+        A extends Parameters<Events[K]["eventSignature"]>,
+    >(
         name: K,
-        args: Parameters<Events[K]["eventSignature"]>,
+        args: A,
         returnType?: TriggerReturnType | null,
         resolve?: boolean,
     ) => {
@@ -505,16 +519,22 @@ export function createEventBus<
         return result;
     };
 
-    const trigger = <K extends MapKey & keyof Events>(
+    const trigger = <
+        K extends MapKey & keyof Events,
+        A extends Parameters<Events[K]["eventSignature"]>,
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         return _trigger(name, args, null, false) as void;
     };
 
-    const first = <K extends MapKey & keyof Events>(
+    const first = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
@@ -525,9 +545,12 @@ export function createEventBus<
         ) as ReturnType<typeof e.first>;
     };
 
-    const resolveFirst = <K extends MapKey & keyof Events>(
+    const resolveFirst = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
@@ -538,9 +561,12 @@ export function createEventBus<
         ) as ReturnType<typeof e.resolveFirst>;
     };
 
-    const all = <K extends MapKey & keyof Events>(
+    const all = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(name, args, TriggerReturnType.ALL, false) as ReturnType<
@@ -548,9 +574,12 @@ export function createEventBus<
         >;
     };
 
-    const resolveAll = <K extends MapKey & keyof Events>(
+    const resolveAll = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
@@ -561,9 +590,12 @@ export function createEventBus<
         ) as ReturnType<typeof e.resolveAll>;
     };
 
-    const last = <K extends MapKey & keyof Events>(
+    const last = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
@@ -574,9 +606,12 @@ export function createEventBus<
         ) as ReturnType<typeof e.last>;
     };
 
-    const resolveLast = <K extends MapKey & keyof Events>(
+    const resolveLast = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
@@ -587,9 +622,12 @@ export function createEventBus<
         ) as ReturnType<typeof e.resolveLast>;
     };
 
-    const merge = <K extends MapKey & keyof Events>(
+    const merge = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
@@ -600,9 +638,12 @@ export function createEventBus<
         ) as ReturnType<typeof e.merge>;
     };
 
-    const resolveMerge = <K extends MapKey & keyof Events>(
+    const resolveMerge = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Parameters<Events[K]["eventSignature"]>
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
@@ -613,9 +654,12 @@ export function createEventBus<
         ) as ReturnType<typeof e.resolveMerge>;
     };
 
-    const concat = <K extends MapKey & keyof Events>(
+    const concat = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
@@ -626,9 +670,12 @@ export function createEventBus<
         ) as ReturnType<typeof e.concat>;
     };
 
-    const resolveConcat = <K extends MapKey & keyof Events>(
+    const resolveConcat = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
@@ -639,9 +686,12 @@ export function createEventBus<
         ) as ReturnType<typeof e.resolveConcat>;
     };
 
-    const firstNonEmpty = <K extends MapKey & keyof Events>(
+    const firstNonEmpty = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
@@ -652,9 +702,12 @@ export function createEventBus<
         ) as ReturnType<typeof e.firstNonEmpty>;
     };
 
-    const resolveFirstNonEmpty = <K extends MapKey & keyof Events>(
+    const resolveFirstNonEmpty = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
@@ -665,9 +718,12 @@ export function createEventBus<
         ) as ReturnType<typeof e.resolveFirstNonEmpty>;
     };
 
-    const untilTrue = <K extends MapKey & keyof Events>(
+    const untilTrue = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
@@ -678,9 +734,12 @@ export function createEventBus<
         ) as ReturnType<typeof e.untilTrue>;
     };
 
-    const untilFalse = <K extends MapKey & keyof Events>(
+    const untilFalse = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
@@ -691,9 +750,12 @@ export function createEventBus<
         ) as ReturnType<typeof e.untilFalse>;
     };
 
-    const pipe = <K extends MapKey & keyof Events>(
+    const pipe = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
@@ -704,9 +766,12 @@ export function createEventBus<
         ) as ReturnType<typeof e.pipe>;
     };
 
-    const resolvePipe = <K extends MapKey & keyof Events>(
+    const resolvePipe = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
@@ -717,9 +782,12 @@ export function createEventBus<
         ) as ReturnType<typeof e.resolvePipe>;
     };
 
-    const raw = <K extends MapKey & keyof Events>(
+    const raw = <
+        K extends MapKey & keyof Events,
+        A extends Events[K]["triggerArguments"],
+    >(
         name: K,
-        ...args: Events[K]["triggerArguments"]
+        ...args: A
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         return _trigger(
