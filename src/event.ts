@@ -63,7 +63,9 @@ interface ListenerPrototype<Handler extends BaseHandler>
     start: number;
 }
 
-export interface EventOptions extends BaseOptions {
+export interface EventOptions<
+    ListenerSignature extends BaseHandler,
+> extends BaseOptions {
     /**
      * Call this event this number of times; 0 for unlimited
      * @default 0
@@ -78,7 +80,10 @@ export interface EventOptions extends BaseOptions {
      * A function that decides whether event should trigger a listener this time
      */
     filter?:
-        | ((args: any[], listener: ListenerPrototype<BaseHandler>) => boolean)
+        | ((
+            args: any[],
+            listener: ListenerPrototype<ListenerSignature>,
+        ) => boolean)
         | null;
     /**
      * TriggerFilter's this object, if needed
@@ -89,32 +94,28 @@ export interface EventOptions extends BaseOptions {
 export type EventDefinitionHelper<
     ListenerSignature extends BaseHandler = BaseHandler,
 > = {
-    eventSignature: ListenerSignature;
-    triggerArguments: Parameters<ListenerSignature>;
-    listenerArguments: Parameters<ListenerSignature>;
-    listenerReturnType: ReturnType<ListenerSignature>;
-    listenerSignature: (
-        ...args: Parameters<ListenerSignature>
-    ) => ReturnType<ListenerSignature>;
+    signature: ListenerSignature;
+    arguments: Parameters<ListenerSignature>;
+    returnType: ReturnType<ListenerSignature>;
+    options: EventOptions<ListenerSignature>;
 };
 
 export function createEvent<
     ListenerSignature extends BaseHandler,
->(eventOptions: EventOptions = {}) {
+>(eventOptions: EventOptions<ListenerSignature> = {}) {
     type Event = EventDefinitionHelper<ListenerSignature>;
-    type Listener = ListenerPrototype<Event["listenerSignature"]>;
+    type Listener = ListenerPrototype<ListenerSignature>;
 
     let listeners: Listener[] = [];
-    let queue: Array<[ Event["triggerArguments"], TriggerReturnType | null ]> =
-        [];
+    let queue: Array<[ Event["arguments"], TriggerReturnType | null ]> = [];
     let suspended: boolean = false;
     let queued: boolean = false;
     let triggered: number = 0;
-    let lastTrigger: Event["triggerArguments"] | null = null;
+    let lastTrigger: Event["arguments"] | null = null;
     let sortListeners: boolean = false;
     let currentTagsFilter: string[] | null = null;
 
-    const options: EventOptions = {
+    const options: Event["options"] = {
         async: null,
         limit: null,
         autoTrigger: null,
@@ -124,7 +125,7 @@ export function createEvent<
     };
 
     const addListener = (
-        handler: Event["listenerSignature"],
+        handler: Event["signature"],
         listenerOptions: ListenerOptions = {} as ListenerOptions,
     ) => {
         if (!handler) {
@@ -201,7 +202,7 @@ export function createEvent<
     };
 
     const removeListener = (
-        handler: Event["listenerSignature"],
+        handler: Event["signature"],
         context?: object | null,
         tag?: string | null,
     ) => {
@@ -230,7 +231,7 @@ export function createEvent<
     };
 
     const hasListener = (
-        handler?: Event["listenerSignature"] | null,
+        handler?: Event["signature"] | null,
         context?: object | null,
         tag?: string | null,
     ) => {
@@ -293,7 +294,7 @@ export function createEvent<
     };
 
     const setOptions = (
-        eventOptions: Pick<EventOptions, "async" | "limit" | "autoTrigger">,
+        eventOptions: Pick<Event["options"], "async" | "limit" | "autoTrigger">,
     ) => {
         Object.assign(options, eventOptions);
     };
@@ -311,8 +312,8 @@ export function createEvent<
 
     const _listenerCall = (
         listener: Listener,
-        args: Event["listenerArguments"],
-        resolve: null | ((any: Event["listenerReturnType"]) => void) = null,
+        args: Event["arguments"],
+        resolve: null | ((any: Event["returnType"]) => void) = null,
     ) => {
         let isAsync: boolean | number | null | undefined = listener.async;
         if (isAsync === null || isAsync === undefined) {
@@ -327,8 +328,8 @@ export function createEvent<
 
         const result = isAsync !== false
             ? asyncCall<
-                Event["listenerArguments"],
-                Event["listenerReturnType"]
+                Event["arguments"],
+                Event["returnType"]
             >(
                 listener.handler,
                 listener.context,
@@ -351,12 +352,12 @@ export function createEvent<
 
     const _listenerCallWPrev = (
         listener: Listener,
-        args: Event["listenerArguments"],
-        prevValue: Event["listenerReturnType"] | boolean,
+        args: Event["arguments"],
+        prevValue: Event["returnType"] | boolean,
         returnType: TriggerReturnType,
     ):
-        | Event["listenerReturnType"]
-        | Promise<Event["listenerReturnType"]>
+        | Event["returnType"]
+        | Promise<Event["returnType"]>
         | boolean =>
     {
         if (returnType === TriggerReturnType.PIPE) {
@@ -389,7 +390,7 @@ export function createEvent<
     };
 
     const _trigger = (
-        args: Event["triggerArguments"],
+        args: Event["arguments"],
         returnType: TriggerReturnType | null = null,
         tags?: string[] | null,
     ) => {
@@ -406,7 +407,7 @@ export function createEvent<
         triggered++;
 
         if (options.autoTrigger) {
-            lastTrigger = args.slice() as Event["triggerArguments"];
+            lastTrigger = args.slice() as Event["arguments"];
         }
 
         // in pipe mode if there is no listeners,
@@ -420,17 +421,17 @@ export function createEvent<
                 || returnType === TriggerReturnType.CONCAT
                 || returnType === TriggerReturnType.RAW
             ) {
-                return [] as Event["listenerReturnType"][];
+                return [] as Event["returnType"][];
             }
             else if (returnType === TriggerReturnType.MERGE) {
-                return {} as Partial<Event["listenerReturnType"]>;
+                return {} as Partial<Event["returnType"]>;
             }
             return;
         }
 
         type ListenerResult =
-            | Event["listenerReturnType"]
-            | Promise<Event["listenerReturnType"]>
+            | Event["returnType"]
+            | Promise<Event["returnType"]>
             | boolean
             | Promise<boolean>;
 
@@ -495,10 +496,10 @@ export function createEvent<
                         (
                             (
                                 listener: Listener,
-                                args: Event["listenerArguments"],
+                                args: Event["arguments"],
                                 returnType: TriggerReturnType,
                             ) =>
-                            (value: Event["listenerReturnType"] | boolean) => {
+                            (value: Event["returnType"] | boolean) => {
                                 return _listenerCallWPrev(
                                     listener,
                                     args,
@@ -508,7 +509,7 @@ export function createEvent<
                             }
                         )(listener, args, returnType),
                     ) as
-                        | Promise<Event["listenerReturnType"]>
+                        | Promise<Event["returnType"]>
                         | Promise<boolean>;
                 }
                 else {
@@ -516,7 +517,7 @@ export function createEvent<
                         listener,
                         args,
                         // no promises here
-                        prev as Event["listenerReturnType"] | boolean,
+                        prev as Event["returnType"] | boolean,
                         returnType,
                     );
                 }
@@ -622,7 +623,7 @@ export function createEvent<
         }
     };
 
-    const trigger = (...args: Event["triggerArguments"]) => {
+    const trigger = (...args: Event["arguments"]) => {
         _trigger(args);
     };
 
@@ -638,28 +639,25 @@ export function createEvent<
     };
 
     const promise = (options?: ListenerOptions) => {
-        return new Promise<Event["listenerArguments"]>((resolve) => {
+        return new Promise<Event["arguments"]>((resolve) => {
             options = { ...(options || {}), limit: 1 };
-            addListener(
-                (...args: Event["listenerArguments"]): any => {
-                    resolve(args);
-                },
-                options,
-            );
+            const l = ((...args: Event["arguments"]) =>
+                resolve(args)) as Event["signature"];
+            addListener(l, options);
         });
     };
 
     const first = (
-        ...args: Event["triggerArguments"]
-    ): Event["listenerReturnType"] | undefined => {
+        ...args: Event["arguments"]
+    ): Event["returnType"] | undefined => {
         return _trigger(args, TriggerReturnType.FIRST) as
-            | Event["listenerReturnType"]
+            | Event["returnType"]
             | undefined;
     };
 
     const resolveFirst = (
-        ...args: Event["triggerArguments"]
-    ): Promise<Awaited<Event["listenerReturnType"]> | undefined> => {
+        ...args: Event["arguments"]
+    ): Promise<Awaited<Event["returnType"]> | undefined> => {
         const response = _trigger(args, TriggerReturnType.FIRST);
         if (response instanceof Promise) {
             return response;
@@ -668,17 +666,17 @@ export function createEvent<
     };
 
     const all = (
-        ...args: Event["triggerArguments"]
-    ): Event["listenerReturnType"][] => {
+        ...args: Event["arguments"]
+    ): Event["returnType"][] => {
         return _trigger(
             args,
             TriggerReturnType.ALL,
-        ) as Event["listenerReturnType"][];
+        ) as Event["returnType"][];
     };
 
     const resolveAll = (
-        ...args: Event["triggerArguments"]
-    ): Promise<Awaited<Event["listenerReturnType"]>[]> => {
+        ...args: Event["arguments"]
+    ): Promise<Awaited<Event["returnType"]>[]> => {
         const response = _trigger(args, TriggerReturnType.ALL);
         if (response instanceof Promise) {
             return response;
@@ -687,16 +685,16 @@ export function createEvent<
     };
 
     const last = (
-        ...args: Event["triggerArguments"]
-    ): Event["listenerReturnType"] | undefined => {
+        ...args: Event["arguments"]
+    ): Event["returnType"] | undefined => {
         return _trigger(args, TriggerReturnType.LAST) as
-            | Event["listenerReturnType"]
+            | Event["returnType"]
             | undefined;
     };
 
     const resolveLast = (
-        ...args: Event["triggerArguments"]
-    ): Promise<Awaited<Event["listenerReturnType"]> | undefined> => {
+        ...args: Event["arguments"]
+    ): Promise<Awaited<Event["returnType"]> | undefined> => {
         const response = _trigger(args, TriggerReturnType.LAST);
         if (response instanceof Promise) {
             return response;
@@ -705,16 +703,16 @@ export function createEvent<
     };
 
     const merge = (
-        ...args: Event["triggerArguments"]
-    ): Event["listenerReturnType"] | undefined => {
+        ...args: Event["arguments"]
+    ): Event["returnType"] | undefined => {
         return _trigger(args, TriggerReturnType.MERGE) as
-            | Event["listenerReturnType"]
+            | Event["returnType"]
             | undefined;
     };
 
     const resolveMerge = (
-        ...args: Event["triggerArguments"]
-    ): Promise<Awaited<Event["listenerReturnType"]> | undefined> => {
+        ...args: Event["arguments"]
+    ): Promise<Awaited<Event["returnType"]> | undefined> => {
         const response = _trigger(args, TriggerReturnType.MERGE);
         if (response instanceof Promise) {
             return response;
@@ -723,17 +721,17 @@ export function createEvent<
     };
 
     const concat = (
-        ...args: Event["triggerArguments"]
-    ): Unarray<Event["listenerReturnType"]>[] => {
+        ...args: Event["arguments"]
+    ): Unarray<Event["returnType"]>[] => {
         return _trigger(
             args,
             TriggerReturnType.CONCAT,
-        ) as Unarray<Event["listenerReturnType"]>[];
+        ) as Unarray<Event["returnType"]>[];
     };
 
     const resolveConcat = (
-        ...args: Event["triggerArguments"]
-    ): Promise<Unarray<Awaited<Event["listenerReturnType"]>>[]> => {
+        ...args: Event["arguments"]
+    ): Promise<Unarray<Awaited<Event["returnType"]>>[]> => {
         const response = _trigger(args, TriggerReturnType.CONCAT);
         if (response instanceof Promise) {
             return response;
@@ -742,16 +740,16 @@ export function createEvent<
     };
 
     const firstNonEmpty = (
-        ...args: Event["triggerArguments"]
-    ): Event["listenerReturnType"] | undefined => {
+        ...args: Event["arguments"]
+    ): Event["returnType"] | undefined => {
         return _trigger(args, TriggerReturnType.FIRST_NON_EMPTY) as
-            | Event["listenerReturnType"]
+            | Event["returnType"]
             | undefined;
     };
 
     const resolveFirstNonEmpty = (
-        ...args: Event["triggerArguments"]
-    ): Promise<Awaited<Event["listenerReturnType"]> | undefined> => {
+        ...args: Event["arguments"]
+    ): Promise<Awaited<Event["returnType"]> | undefined> => {
         const response = _trigger(args, TriggerReturnType.FIRST_NON_EMPTY);
         if (response instanceof Promise) {
             return response;
@@ -759,23 +757,23 @@ export function createEvent<
         return Promise.resolve(response);
     };
 
-    const untilTrue = (...args: Event["triggerArguments"]) => {
+    const untilTrue = (...args: Event["arguments"]) => {
         _trigger(args, TriggerReturnType.UNTIL_TRUE);
     };
 
-    const untilFalse = (...args: Event["triggerArguments"]) => {
+    const untilFalse = (...args: Event["arguments"]) => {
         _trigger(args, TriggerReturnType.UNTIL_FALSE);
     };
 
-    const pipe = (...args: Event["triggerArguments"]) => {
+    const pipe = (...args: Event["arguments"]) => {
         return _trigger(args, TriggerReturnType.PIPE) as
-            | Event["listenerReturnType"]
+            | Event["returnType"]
             | undefined;
     };
 
     const resolvePipe = (
-        ...args: Event["triggerArguments"]
-    ): Promise<Awaited<Event["listenerReturnType"]> | undefined> => {
+        ...args: Event["arguments"]
+    ): Promise<Awaited<Event["returnType"]> | undefined> => {
         const response = _trigger(args, TriggerReturnType.PIPE);
         if (response instanceof Promise) {
             return response;
@@ -784,12 +782,12 @@ export function createEvent<
     };
 
     const raw = (
-        ...args: Event["triggerArguments"]
-    ): Unarray<Event["listenerReturnType"]>[] => {
+        ...args: Event["arguments"]
+    ): Unarray<Event["returnType"]>[] => {
         return _trigger(
             args,
             TriggerReturnType.RAW,
-        ) as Unarray<Event["listenerReturnType"]>[];
+        ) as Unarray<Event["returnType"]>[];
     };
 
     const api = {

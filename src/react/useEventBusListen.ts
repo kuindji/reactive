@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
 import { type BaseEventBus } from "../../src/eventBus";
-import { MapKey } from "../../src/lib/types";
+import { KeyOf } from "../../src/lib/types";
 import { ListenerOptions } from "../event";
 
 export function useEventBusListen<
     TEventBus extends BaseEventBus,
-    TKey extends MapKey & keyof TEventBus["__type"]["eventSignatures"],
-    THandler extends TEventBus["__type"]["eventSignatures"][TKey]["signature"],
+    TKey extends KeyOf<TEventBus["__type"]["eventSignatures"]>,
+    THandler extends TEventBus["__type"]["eventSignatures"][TKey],
 >(
     eventBus: TEventBus,
     eventName: TKey,

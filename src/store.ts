@@ -1,5 +1,5 @@
 import { createEventBus, EventBusDefinitionHelper } from "./eventBus";
-import { ApiType, MapKey } from "./lib/types";
+import { ApiType, KeyOf, MapKey } from "./lib/types";
 
 export interface BasePropMap {
     [key: MapKey]: any;
@@ -10,27 +10,23 @@ export const ChangeEventName = "change";
 export const ResetEventName = "reset";
 
 type StoreControlEvents<PropMap extends BasePropMap> = {
-    [BeforeChangeEventName]: <K extends MapKey & keyof PropMap>(
+    [BeforeChangeEventName]: <K extends KeyOf<PropMap>>(
         name: K,
         value: PropMap[K],
     ) => boolean;
-    [ChangeEventName]: <K extends MapKey & keyof PropMap>(
-        names: K[],
-    ) => void;
+    [ChangeEventName]: <K extends KeyOf<PropMap>>(names: K[]) => void;
     [ResetEventName]: () => void;
 };
 
-type StoreDataEvents<PropMap extends BasePropMap> = {
-    [K in MapKey & keyof PropMap]: (
+type StoreChangeEvents<PropMap extends BasePropMap> = {
+    [K in KeyOf<PropMap>]: (
         value: PropMap[K],
         previousValue?: PropMap[K] | undefined,
     ) => void;
 };
 
 type StorePipeEvents<PropMap extends BasePropMap> = {
-    [K in MapKey & keyof PropMap]: (
-        value: PropMap[K],
-    ) => PropMap[K];
+    [K in KeyOf<PropMap>]: (value: PropMap[K]) => PropMap[K];
 };
 
 export type StoreDefinitionHelper<
@@ -38,10 +34,10 @@ export type StoreDefinitionHelper<
 > = {
     propTypes: PropMap;
     controlEvents: StoreControlEvents<PropMap>;
-    changeEvents: StoreDataEvents<PropMap>;
+    changeEvents: StoreChangeEvents<PropMap>;
     pipeEvents: StorePipeEvents<PropMap>;
     changeEventBus: EventBusDefinitionHelper<
-        StoreDataEvents<PropMap>
+        StoreChangeEvents<PropMap>
     >;
     pipeEventBus: EventBusDefinitionHelper<
         StorePipeEvents<PropMap>
@@ -51,19 +47,21 @@ export type StoreDefinitionHelper<
     >;
 };
 
-export function createStore<PropMap extends BasePropMap>(
+export function createStore<PropMap extends BasePropMap = BasePropMap>(
     initialData: Partial<PropMap> = {},
 ) {
     type Store = StoreDefinitionHelper<PropMap>;
+    type PipeEvents = Store["pipeEventBus"]["events"];
+    type ChangeEvents = Store["changeEventBus"]["events"];
 
-    const data = new Map<MapKey & keyof PropMap, any>(
+    const data = new Map<KeyOf<PropMap>, any>(
         Object.entries(initialData),
     );
     const changes = createEventBus<Store["changeEvents"]>();
     const pipe = createEventBus<Store["pipeEvents"]>();
     const control = createEventBus<Store["controlEvents"]>();
 
-    const _set = <K extends MapKey & keyof PropMap, V extends PropMap[K]>(
+    const _set = <K extends KeyOf<PropMap>, V extends PropMap[K]>(
         name: K,
         value: V,
         triggerChange: boolean = true,
@@ -77,15 +75,18 @@ export function createStore<PropMap extends BasePropMap>(
                 return;
             }
 
-            // @ts-expect-error
-            const newValue = pipe.pipe(name, value);
+            const pipeArgs = [ value ] as PipeEvents[K]["arguments"];
+            const newValue = pipe.pipe(name, ...pipeArgs);
             if (newValue !== undefined) {
-                value = newValue as V;
+                value = newValue;
             }
             data.set(name, value);
 
-            // @ts-expect-error
-            changes.trigger(name, value, prev);
+            const changeArgs = [
+                value,
+                prev,
+            ] as unknown as ChangeEvents[K]["arguments"];
+            changes.trigger(name, ...changeArgs);
 
             if (triggerChange) {
                 control.trigger(ChangeEventName, [ name ]);
@@ -95,14 +96,14 @@ export function createStore<PropMap extends BasePropMap>(
         return false;
     };
 
-    function asyncSet<K extends MapKey & keyof PropMap>(
+    function asyncSet<K extends KeyOf<PropMap>>(
         key: K,
         value: PropMap[K],
     ): void;
     function asyncSet(key: Partial<PropMap>): void;
     function asyncSet<
-        K extends (MapKey & keyof PropMap) | Partial<PropMap>,
-        V extends K extends (MapKey & keyof PropMap) ? PropMap[K]
+        K extends (KeyOf<PropMap>) | Partial<PropMap>,
+        V extends K extends (KeyOf<PropMap>) ? PropMap[K]
             : never,
     >(
         name: K,
@@ -110,7 +111,7 @@ export function createStore<PropMap extends BasePropMap>(
     ) {
         setTimeout(() => {
             if (
-                (typeof name === "string" || typeof name === "symbol")
+                (typeof name === "string")
                 && value !== undefined
             ) {
                 set(name, value);
@@ -121,21 +122,21 @@ export function createStore<PropMap extends BasePropMap>(
         }, 0);
     }
 
-    function set<K extends MapKey & keyof PropMap>(
+    function set<K extends KeyOf<PropMap>>(
         key: K,
         value: PropMap[K],
     ): void;
     function set(key: Partial<PropMap>): void;
     function set<
-        K extends (MapKey & keyof PropMap) | Partial<PropMap>,
-        V extends K extends (MapKey & keyof PropMap) ? PropMap[K]
+        K extends (KeyOf<PropMap>) | Partial<PropMap>,
+        V extends K extends (KeyOf<PropMap>) ? PropMap[K]
             : never,
     >(
         name: K,
         value?: V,
     ) {
         if (
-            (typeof name === "string" || typeof name === "symbol")
+            (typeof name === "string")
             && value !== undefined
         ) {
             _set(name, value);
@@ -155,16 +156,15 @@ export function createStore<PropMap extends BasePropMap>(
     }
 
     const get = <
-        K extends (MapKey & keyof PropMap) | Array<MapKey & keyof PropMap>,
+        K extends (KeyOf<PropMap>) | Array<KeyOf<PropMap>>,
     >(key: K) => {
-        type V = K extends (MapKey & keyof PropMap) ? PropMap[K]
-            : K extends Array<MapKey & keyof PropMap> ? {
+        type V = K extends (KeyOf<PropMap>) ? PropMap[K]
+            : K extends Array<KeyOf<PropMap>> ? {
                     [AK in K[number]]: PropMap[AK];
                 }
             : never;
         if (
             typeof key === "string"
-            || typeof key === "symbol"
         ) {
             return data.get(key) as V;
         }
@@ -217,8 +217,11 @@ export function createStore<PropMap extends BasePropMap>(
         changes.stopIntercepting();
 
         for (const [ propName, value, prev ] of log) {
-            // @ts-expect-error
-            changes.trigger(propName, value, prev);
+            const changeArgs = [
+                value,
+                prev,
+            ] as unknown as ChangeEvents[typeof propName]["arguments"];
+            changes.trigger(propName, ...changeArgs);
         }
 
         if (allChangedKeys.length > 0) {
@@ -242,10 +245,12 @@ export function createStore<PropMap extends BasePropMap>(
         onChange: changes.addListener,
         removeOnChange: changes.removeListener,
         pipe: pipe.addListener,
+        removePipe: pipe.removeListener,
         control: control.addListener,
+        removeControl: control.removeListener,
     } as const;
     return api as ApiType<Store, typeof api>;
 }
 
 export type BaseStoreDefinition = StoreDefinitionHelper<BasePropMap>;
-export type BaseStore = ReturnType<typeof createStore<BasePropMap>>;
+export type BaseStore = ReturnType<typeof createStore<any>>;

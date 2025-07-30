@@ -1,6 +1,6 @@
 import { ActionDefinitionHelper, createAction, ErrorResponse } from "./action";
 import { createEvent, ListenerOptions } from "./event";
-import { ApiType, BaseHandler, MapKey } from "./lib/types";
+import { ApiType, BaseHandler, KeyOf, MapKey } from "./lib/types";
 
 export interface BaseActionsMap {
     [key: MapKey]: BaseHandler;
@@ -13,14 +13,14 @@ type ErrorEventSignature = (
 type GetActionTypesMap<
     ActionsMap extends BaseActionsMap,
 > = {
-    [key in keyof ActionsMap]: [ ActionsMap[key] ] extends [ never ] ? never
+    [key in KeyOf<ActionsMap>]: [ ActionsMap[key] ] extends [ never ] ? never
         : ReturnType<typeof createAction<ActionsMap[key]>>;
 };
 
 type GetActionDefinitionsMap<
     ActionsMap extends BaseActionsMap,
 > = {
-    [key in keyof ActionsMap]: [ ActionsMap[key] ] extends [ never ] ? never
+    [key in KeyOf<ActionsMap>]: [ ActionsMap[key] ] extends [ never ] ? never
         : ActionDefinitionHelper<ActionsMap[key]>;
 };
 
@@ -36,7 +36,7 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
     type ActionTypes = ActionBus["actionTypes"];
     type Actions = ActionBus["actions"];
 
-    const actions = new Map<MapKey & keyof Actions, any>();
+    const actions = new Map<KeyOf<Actions>, any>();
     const errorEvent = createEvent<ErrorEventSignature>();
 
     const add = (name: MapKey, action: BaseHandler) => {
@@ -53,11 +53,11 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         add(name, action);
     });
 
-    const get = <K extends MapKey & keyof Actions>(name: K) => {
+    const get = <K extends KeyOf<Actions>>(name: K) => {
         return actions.get(name) as ActionTypes[K];
     };
 
-    const invoke = <K extends MapKey & keyof Actions>(
+    const invoke = <K extends KeyOf<Actions>>(
         name: K,
         ...args: Actions[K]["actionArguments"]
     ) => {
@@ -65,7 +65,7 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         return action.invoke(...args);
     };
 
-    const on = <K extends MapKey & keyof Actions>(
+    const on = <K extends KeyOf<Actions>>(
         name: K,
         handler: Actions[K]["listenerSignature"],
         options?: ListenerOptions,
@@ -77,7 +77,7 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         return action.addListener(handler, options);
     };
 
-    const once = <K extends MapKey & keyof Actions>(
+    const once = <K extends KeyOf<Actions>>(
         name: K,
         handler: Actions[K]["listenerSignature"],
         options?: ListenerOptions,
@@ -91,7 +91,7 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         return action.addListener(handler, options);
     };
 
-    const un = <K extends MapKey & keyof Actions>(
+    const un = <K extends KeyOf<Actions>>(
         name: K,
         handler: Actions[K]["listenerSignature"],
         context?: object | null,

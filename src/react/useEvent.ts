@@ -1,18 +1,12 @@
 import { useMemo } from "react";
-import {
-    createEvent,
-    DefaultEventArgsOptions,
-    EventArgsOptions,
-    EventOptions,
-} from "../event";
+import { createEvent, EventOptions } from "../event";
 import { BaseHandler } from "../lib/types";
 
 export function useEvent<
-    TriggerSignature extends BaseHandler = BaseHandler,
-    HandlerOptions extends EventArgsOptions = DefaultEventArgsOptions,
->(eventOptions: EventOptions = {}) {
+    ListenerSignature extends BaseHandler = BaseHandler,
+>(eventOptions: EventOptions<ListenerSignature> = {}) {
     const event = useMemo(
-        () => createEvent<TriggerSignature, HandlerOptions>(eventOptions),
+        () => createEvent<ListenerSignature>(eventOptions),
         [],
     );
     return event;

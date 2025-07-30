@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MapKey } from "../lib/types";
+import { KeyOf } from "../lib/types";
 import { BaseStore } from "../store";
 
 export function useStoreState<
     TStore extends BaseStore,
-    TKey extends MapKey & keyof TStore["__type"]["propTypes"],
+    TKey extends KeyOf<TStore["__type"]["propTypes"]>,
 >(store: TStore, key: TKey) {
     type ValueType = TStore["__type"]["propTypes"][TKey];
     type Setter = (
         previousValue?: ValueType | undefined,
     ) => ValueType;
-    const [ value, setValue ] = useState(store.get(key));
+    const [ value, setValue ] = useState<ValueType>(store.get(key));
     const storeRef = useRef<TStore>(store);
     const keyRef = useRef<TKey>(key);
 
@@ -26,8 +26,7 @@ export function useStoreState<
             if (typeof value === "function") {
                 storeRef.current.set(
                     keyRef.current,
-                    // @ts-expect-error
-                    value(storeRef.current.get(keyRef.current)),
+                    (value as Setter)(storeRef.current.get(keyRef.current)),
                 );
             }
             else {
@@ -40,7 +39,6 @@ export function useStoreState<
     useEffect(
         () => {
             return () => {
-                // @ts-expect-error
                 storeRef.current.onChange(keyRef.current, onChange);
             };
         },
@@ -49,11 +47,9 @@ export function useStoreState<
 
     useEffect(
         () => {
-            // @ts-expect-error
             storeRef.current.removeOnChange(keyRef.current, onChange);
             storeRef.current = store;
             keyRef.current = key;
-            // @ts-expect-error
             storeRef.current.onChange(keyRef.current, onChange);
         },
         [ store, key ],

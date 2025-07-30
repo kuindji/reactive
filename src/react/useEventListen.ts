@@ -3,8 +3,8 @@ import { type BaseEvent, ListenerOptions } from "../../src/event";
 
 export function useEventListen<
     TEvent extends BaseEvent,
-    TEventSignature extends TEvent["__type"]["eventSignature"] =
-        TEvent["__type"]["eventSignature"],
+    TEventSignature extends TEvent["__type"]["signature"] =
+        TEvent["__type"]["signature"],
 >(event: TEvent, handler: TEventSignature, options?: ListenerOptions) {
     const handlerRef = useRef<TEventSignature>(handler);
     const eventRef = useRef<TEvent>(event);

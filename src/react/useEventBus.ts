@@ -8,7 +8,7 @@ import {
 
 export function useEventBus<
     EventsMap extends BaseEventMap = DefaultEventMap,
->(eventBusOptions?: EventBusOptions) {
+>(eventBusOptions?: EventBusOptions<EventsMap>) {
     const eventBus = useMemo(
         () => createEventBus<EventsMap>(eventBusOptions),
         [],

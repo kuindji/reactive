@@ -1,10 +1,12 @@
-export type MapKey = string | symbol;
+export type MapKey = string;
 export type BaseHandler = (...args: any[]) => any;
 export type Simplify<T> = { [KeyType in keyof T]: T[KeyType]; } & {};
 
 export type ApiType<TypeDefinition, Api extends object> = Simplify<Api> & {
     __type: TypeDefinition;
 };
+
+export type KeyOf<T> = MapKey & keyof T;
 
 export enum TriggerReturnType {
     RAW = "raw",
