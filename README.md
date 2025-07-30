@@ -1,4 +1,4 @@
-# @kuindji/app-utils
+# @kuindji/reactive
 
 A comprehensive JavaScript/TypeScript utility library for building reactive applications with events, actions, stores, and React hooks.
 
@@ -14,7 +14,7 @@ A comprehensive JavaScript/TypeScript utility library for building reactive appl
 ## Installation
 
 ```bash
-npm install @kuindji/app-utils
+npm install @kuindji/reactive
 ```
 
 ## Table of Contents
@@ -35,7 +35,7 @@ The event system provides a powerful event emitter with advanced features like f
 Creates a new event emitter with optional configuration.
 
 ```typescript
-import { createEvent } from "@kuindji/app-utils";
+import { createEvent } from "@kuindji/reactive";
 
 const event = createEvent<(message: string) => void>();
 ```
@@ -56,12 +56,6 @@ interface EventOptions {
     filterContext?: object | null;
     /** Call this event asynchronously */
     async?: boolean | number | null;
-    /** Prepend parameters to listener arguments */
-    prependArgs?: readonly any[];
-    /** Append parameters to listener arguments */
-    appendArgs?: readonly any[];
-    /** Replace parameters completely */
-    replaceArgs?: readonly any[];
 }
 ```
 
@@ -359,7 +353,7 @@ The action system provides async action handling with success/error responses an
 Creates a new action with automatic error handling and response formatting.
 
 ```typescript
-import { createAction } from "@kuindji/app-utils";
+import { createAction } from "@kuindji/reactive";
 
 const fetchUser = createAction(async (id: string) => {
     const response = await fetch(`/api/users/${id}`);
@@ -469,7 +463,7 @@ The action bus provides centralized action management with multiple named action
 Creates a new action bus for managing multiple actions.
 
 ```typescript
-import { createActionBus } from "@kuindji/app-utils";
+import { createActionBus } from "@kuindji/reactive";
 
 const actionBus = createActionBus({
     fetchUser: async (id: string) => {
@@ -573,7 +567,7 @@ The event bus provides centralized event management with event source integratio
 Creates a new event bus for managing multiple events.
 
 ```typescript
-import { createEventBus } from '@kuindji/app-utils';
+import { createEventBus } from '@kuindji/reactive';
 
 const eventBus = createEventBus({
   userLogin: (user: any) => void,
@@ -803,7 +797,7 @@ The store provides reactive state management with change events and data transfo
 Creates a new store for managing application state.
 
 ```typescript
-import { createStore } from "@kuindji/app-utils";
+import { createStore } from "@kuindji/reactive";
 
 const store = createStore({
     user: null,
@@ -960,7 +954,7 @@ The library provides React hooks for seamless integration with React components.
 Creates an event that persists across component re-renders.
 
 ```typescript
-import { useEvent } from "@kuindji/app-utils/react";
+import { useEvent } from "@kuindji/reactive/react";
 
 function MyComponent() {
     const event = useEvent<(message: string) => void>();
@@ -980,7 +974,7 @@ function MyComponent() {
 Creates an event bus that persists across component re-renders.
 
 ```typescript
-import { useEventBus } from '@kuindji/app-utils/react';
+import { useEventBus } from '@kuindji/reactive/react';
 
 function MyComponent() {
   const eventBus = useEventBus({
@@ -1003,7 +997,7 @@ function MyComponent() {
 Automatically manages event listener lifecycle.
 
 ```typescript
-import { useEventListen } from "@kuindji/app-utils/react";
+import { useEventListen } from "@kuindji/reactive/react";
 
 function MyComponent({ event }) {
     useEventListen(event, (message) => {
@@ -1019,7 +1013,7 @@ function MyComponent({ event }) {
 Automatically manages event bus listener lifecycle.
 
 ```typescript
-import { useEventBusListen } from "@kuindji/app-utils/react";
+import { useEventBusListen } from "@kuindji/reactive/react";
 
 function MyComponent({ eventBus }) {
     useEventBusListen(eventBus, "userLogin", (user) => {
@@ -1035,7 +1029,7 @@ function MyComponent({ eventBus }) {
 Creates an action that persists across component re-renders.
 
 ```typescript
-import { useAction } from "@kuindji/app-utils/react";
+import { useAction } from "@kuindji/reactive/react";
 
 function MyComponent() {
     const fetchUser = useAction(async (id: string) => {
@@ -1063,7 +1057,7 @@ function MyComponent() {
 Creates an action bus that persists across component re-renders.
 
 ```typescript
-import { useActionBus } from "@kuindji/app-utils/react";
+import { useActionBus } from "@kuindji/reactive/react";
 
 function MyComponent() {
     const actionBus = useActionBus({
@@ -1097,7 +1091,7 @@ function MyComponent() {
 Automatically manages action listener lifecycle.
 
 ```typescript
-import { useActionListen } from "@kuindji/app-utils/react";
+import { useActionListen } from "@kuindji/reactive/react";
 
 function MyComponent({ action }) {
     useActionListen(action, ({ response, error }) => {
@@ -1118,7 +1112,7 @@ function MyComponent({ action }) {
 Creates a store that persists across component re-renders.
 
 ```typescript
-import { useStore } from "@kuindji/app-utils/react";
+import { useStore } from "@kuindji/reactive/react";
 
 function MyComponent() {
     const store = useStore({
@@ -1145,7 +1139,7 @@ function MyComponent() {
 Creates a React state that syncs with a store property.
 
 ```typescript
-import { useStoreState } from "@kuindji/app-utils/react";
+import { useStoreState } from "@kuindji/reactive/react";
 
 function MyComponent({ store }) {
     const [ user, setUser ] = useStoreState(store, "user");
@@ -1169,7 +1163,7 @@ function MyComponent({ store }) {
 Creates a read-only React state that syncs with a store property.
 
 ```typescript
-import { useStoreValue } from "@kuindji/app-utils/react";
+import { useStoreValue } from "@kuindji/reactive/react";
 
 function MyComponent({ store }) {
     const theme = useStoreValue(store, "theme");
@@ -1227,7 +1221,7 @@ Enum for event source proxy types:
 ### Basic Event Usage
 
 ```typescript
-import { createEvent } from "@kuindji/app-utils";
+import { createEvent } from "@kuindji/reactive";
 
 const userEvent = createEvent<(user: any) => void>();
 
@@ -1241,7 +1235,7 @@ userEvent.trigger({ id: "123", name: "John" });
 ### Action with Error Handling
 
 ```typescript
-import { createAction } from "@kuindji/app-utils";
+import { createAction } from "@kuindji/reactive";
 
 const fetchUser = createAction(async (id: string) => {
     const response = await fetch(`/api/users/${id}`);
@@ -1266,8 +1260,8 @@ await fetchUser.invoke("123");
 ### Store with React Integration
 
 ```typescript
-import { createStore } from "@kuindji/app-utils";
-import { useStoreState } from "@kuindji/app-utils/react";
+import { createStore } from "@kuindji/reactive";
+import { useStoreState } from "@kuindji/reactive/react";
 
 const store = createStore({
     user: null,
@@ -1305,7 +1299,7 @@ function UserProfile() {
 ### Event Bus with Multiple Events
 
 ```typescript
-import { createEventBus } from '@kuindji/app-utils';
+import { createEventBus } from '@kuindji/reactive';
 
 const appEvents = createEventBus({
   userLogin: (user: any) => void,

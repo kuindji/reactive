@@ -1,12 +1,29 @@
 {
-    "name": "@kuindji/app-utils",
-    "version": "0.0.1",
+    "name": "@kuindji/reactive",
+    "version": "1.0.0",
     "author": "Ivan Kuindzhi",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/kuindji/event-bus.git"
+        "url": "git+https://github.com/kuindji/reactive.git"
+    },
+    "homepage": "https://github.com/kuindji/reactive#readme",
+    "bugs": {
+        "url": "https://github.com/kuindji/reactive/issues"
     },
     "main": "dist/index.js",
+    "module": "dist/index.js",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "require": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        },
+        "./react": {
+            "import": "./dist/react.js",
+            "require": "./dist/react.js",
+            "types": "./dist/react.d.ts"
+        }
+    },
     "devDependencies": {
         "@happy-dom/global-registrator": "^18.0.1",
         "@testing-library/dom": "^10.4.1",
@@ -19,16 +36,27 @@
         "typescript": "^5",
         "typescript-eslint": "^8.38.0"
     },
-    "description": "A javascript app utils",
+    "description": "A comprehensive JavaScript/TypeScript utility library for building reactive applications with events, actions, stores, and React hooks",
     "files": [
         "dist/**/*"
     ],
     "keywords": [
+        "reactive",
         "events",
+        "actions",
+        "store",
+        "state-management",
+        "react-hooks",
+        "typescript",
+        "event-emitter",
         "observable",
-        "pipe",
-        "collector",
-        "relay"
+        "async",
+        "event-bus",
+        "action-bus",
+        "reactive-programming",
+        "javascript",
+        "react",
+        "hooks"
     ],
     "license": "ISC",
     "scripts": {
@@ -36,5 +64,9 @@
         "lint": "bun eslint .",
         "test": "bun test tests/**/*.spec.ts*"
     },
-    "types": "dist/index.d.ts"
+    "types": "dist/index.d.ts",
+    "engines": {
+        "node": ">=16.0.0"
+    },
+    "sideEffects": false
 }
