@@ -184,7 +184,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         if (data.size === 0) {
             return true;
         }
-        return data.values().every((value) =>
+        return Array.from(data.values()).every((value) =>
             value === null || value === undefined
         );
     };

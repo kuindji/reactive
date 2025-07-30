@@ -8,7 +8,7 @@
         "strict": true,
         "allowJs": false,
         "module": "commonjs",
-        "target": "es5",
+        "target": "es2022",
         "jsx": "react-jsx",
         "lib": [
             "dom",
