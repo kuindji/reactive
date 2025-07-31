@@ -1,7 +1,6 @@
 {
     "compilerOptions": {
         "outDir": "dist",
-        "baseUrl": "./src",
         "sourceMap": false,
         "noImplicitAny": false,
         "declaration": true,
@@ -19,8 +18,8 @@
         ]
     },
     "include": [
-        "src/**/*",
-        "tests/**/*"
+        "./src/**/*",
+        "./tests/**/*"
     ],
     "exclude": [
         "./dist/**/*"

@@ -89,6 +89,8 @@ export function createAction<A extends BaseHandler>(action: A) {
         /** @alias addListener */
         on: addListener,
         /** @alias addListener */
+        subscribe: addListener,
+        /** @alias addListener */
         listen: addListener,
         removeAllListeners,
         removeListener,
@@ -98,6 +100,8 @@ export function createAction<A extends BaseHandler>(action: A) {
         off: removeListener,
         /** @alias removeListener */
         remove: removeListener,
+        /** @alias removeListener */
+        unsubscribe: removeListener,
         promise,
         addErrorListener,
         removeAllErrorListeners,

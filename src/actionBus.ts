@@ -6,8 +6,10 @@ export interface BaseActionsMap {
     [key: MapKey]: BaseHandler;
 }
 
-type ErrorEventSignature = (
-    ...args: [ ErrorResponse<any[]> & { name: MapKey; } ]
+export type AnyErrorResponse = ErrorResponse<any[]> & { name: MapKey; };
+
+export type ErrorEventSignature = (
+    ...args: [ AnyErrorResponse ]
 ) => void;
 
 type GetActionTypesMap<
@@ -108,12 +110,27 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         add,
         get,
         invoke,
-        on,
+
         addListener: on,
+        /** @alias addListener */
+        on,
+        /** @alias addListener */
+        subscribe: on,
+        /** @alias addListener */
+        listen: on,
+
         once,
-        un,
+
         removeListener: un,
+        /** @alias removeListener */
         off: un,
+        /** @alias removeListener */
+        remove: un,
+        /** @alias removeListener */
+        un: un,
+        /** @alias removeListener */
+        unsubscribe: un,
+
         onError: errorEvent.addListener,
         unError: errorEvent.removeListener,
     } as const;
