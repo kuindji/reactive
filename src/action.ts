@@ -1,5 +1,5 @@
 import { createEvent } from "./event";
-import { ApiType, BaseHandler } from "./lib/types";
+import { ApiType, BaseHandler, MapKey } from "./lib/types";
 
 export type ActionResponse<
     Response extends any = any,
@@ -17,7 +17,19 @@ export type ActionResponse<
 export type ErrorResponse<Args extends any[] = any[]> = {
     error: string;
     request: Args;
+    name?: MapKey;
 };
+
+export type ErrorListenerSignature<ActionSignature extends BaseHandler> = (
+    errorResponse: ErrorResponse<Parameters<ActionSignature>>,
+) => void;
+
+export type ListenerSignature<ActionSignature extends BaseHandler> = (
+    arg: ActionResponse<
+        Awaited<ReturnType<ActionSignature>>,
+        Parameters<ActionSignature>
+    >,
+) => void;
 
 export type ActionDefinitionHelper<A extends BaseHandler> = {
     actionSignature: A;
@@ -26,11 +38,9 @@ export type ActionDefinitionHelper<A extends BaseHandler> = {
     responseType: ActionResponse<Awaited<ReturnType<A>>, Parameters<A>>;
     errorResponseType: ErrorResponse<Parameters<A>>;
     listenerArgument: ActionResponse<Awaited<ReturnType<A>>, Parameters<A>>;
-    listenerSignature: (
-        arg: ActionResponse<Awaited<ReturnType<A>>, Parameters<A>>,
-    ) => void;
+    listenerSignature: ListenerSignature<A>;
     errorListenerArgument: ErrorResponse<Parameters<A>>;
-    errorListenerSignature: (arg: ErrorResponse<Parameters<A>>) => void;
+    errorListenerSignature: ErrorListenerSignature<A>;
 };
 
 export function createAction<A extends BaseHandler>(action: A) {
@@ -50,6 +60,7 @@ export function createAction<A extends BaseHandler>(action: A) {
         removeAllListeners: removeAllErrorListeners,
         removeListener: removeErrorListener,
         promise: errorPromise,
+        hasListener: hasErrorListeners,
     } = createEvent<Action["errorListenerSignature"]>();
 
     const invoke = async (
@@ -69,6 +80,9 @@ export function createAction<A extends BaseHandler>(action: A) {
             return response;
         }
         catch (error) {
+            if (!hasErrorListeners()) {
+                throw error;
+            }
             const response = {
                 response: null,
                 error: error instanceof Error ? error.message : error as string,

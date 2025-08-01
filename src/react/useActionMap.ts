@@ -1,23 +1,46 @@
-import { useEffect, useMemo, useRef } from "react";
-import type { BaseActionsMap, ErrorEventSignature } from "../actionBus";
-import { createActionMap } from "../actionMap";
+import { useContext, useEffect, useMemo, useRef } from "react";
 import type {
     ActionResponse,
-    AnyErrorCallback,
-    AnyErrorResponse,
-} from "../actionMap";
-import { Simplify } from "../lib/types";
+    ErrorListenerSignature,
+    ErrorResponse,
+    ListenerSignature,
+} from "../action";
+import type { BaseActionsMap } from "../actionBus";
+import { createActionMap } from "../actionMap";
+import { BaseHandler, Simplify } from "../lib/types";
+import { ActionErrorBoundaryContext } from "./ActionErrorBoundary";
 
-export type { ActionResponse, AnyErrorCallback, AnyErrorResponse };
+export type {
+    ActionResponse,
+    BaseActionsMap,
+    ErrorListenerSignature,
+    ErrorResponse,
+    ListenerSignature,
+};
 
 export function useActionMap<M extends BaseActionsMap>(
     actions: M,
-    onAnyError?: AnyErrorCallback,
+    onAnyError?: ErrorListenerSignature<BaseHandler> | (
+        | ErrorListenerSignature<
+            BaseHandler
+        >
+        | undefined
+    )[],
 ) {
+    const onBoundaryActionError = useContext(
+        ActionErrorBoundaryContext,
+    ) as ErrorListenerSignature<BaseHandler> | null;
     const changeRef = useRef(0);
     const actionMap = useMemo(
-        () => createActionMap(actions, onAnyError),
-        [ actions, onAnyError ],
+        () => {
+            const errorListeners = [
+                ...(Array.isArray(onAnyError) ? onAnyError : [ onAnyError ]),
+                ...(onBoundaryActionError ? [ onBoundaryActionError ] : []),
+            ].filter(l => l !== undefined);
+            const actionMap = createActionMap(actions, errorListeners);
+            return actionMap;
+        },
+        [],
     );
     useEffect(
         () => {
@@ -28,7 +51,7 @@ export function useActionMap<M extends BaseActionsMap>(
             }
             changeRef.current++;
         },
-        [ actions, onAnyError ],
+        [ actions, onAnyError, onBoundaryActionError ],
     );
     return actionMap as Simplify<typeof actionMap>;
 }
