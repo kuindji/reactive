@@ -2,12 +2,14 @@ import { useContext, useEffect, useMemo, useRef } from "react";
 import {
     type ActionResponse,
     createAction,
-    type ErrorListenerSignature,
-    type ErrorResponse,
     type ListenerSignature,
 } from "../action";
-import { BaseHandler } from "../lib/types";
-import { ActionErrorBoundaryContext } from "./ActionErrorBoundary";
+import type {
+    BaseHandler,
+    ErrorListenerSignature,
+    ErrorResponse,
+} from "../lib/types";
+import { ErrorBoundaryContext } from "./ErrorBoundary";
 
 export type {
     ActionResponse,
@@ -19,20 +21,20 @@ export type {
 export function useAction<
     ActionSignature extends BaseHandler,
     Listener extends ListenerSignature<ActionSignature>,
-    ErrorListener extends ErrorListenerSignature<ActionSignature>,
+    ErrorListener extends ErrorListenerSignature<Parameters<ActionSignature>>,
 >(
     actionSignature: ActionSignature,
     listener?: Listener,
     errorListener?: ErrorListener,
 ) {
-    const onBoundaryActionError = useContext(
-        ActionErrorBoundaryContext,
+    const boundaryErrorListener = useContext(
+        ErrorBoundaryContext,
     ) as ErrorListener;
     const updateRef = useRef(0);
     const listenerRef = useRef<Listener>(listener);
     const errorListenerRef = useRef<ErrorListener>(errorListener);
     const boundaryErrorListenerRef = useRef<ErrorListener>(
-        onBoundaryActionError,
+        boundaryErrorListener,
     );
 
     const action = useMemo(
@@ -81,12 +83,12 @@ export function useAction<
             if (boundaryErrorListenerRef.current) {
                 action.removeErrorListener(boundaryErrorListenerRef.current);
             }
-            boundaryErrorListenerRef.current = onBoundaryActionError;
-            if (onBoundaryActionError) {
-                action.addErrorListener(onBoundaryActionError);
+            boundaryErrorListenerRef.current = boundaryErrorListener;
+            if (boundaryErrorListener) {
+                action.addErrorListener(boundaryErrorListener);
             }
         },
-        [ onBoundaryActionError ],
+        [ boundaryErrorListener ],
     );
 
     return action;

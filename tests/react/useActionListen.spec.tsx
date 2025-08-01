@@ -14,7 +14,7 @@ describe("useActionListen", () => {
                 (
                     { response }: {
                         response: string | null;
-                        request: [ number ];
+                        args: [ number ];
                     },
                 ) => {
                     expect(response).toBe("1");

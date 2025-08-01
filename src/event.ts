@@ -1,7 +1,13 @@
 import asyncCall from "./lib/asyncCall";
 import listenerSorter from "./lib/listenerSorter";
 import tagsIntersect from "./lib/tagsIntersect";
-import { ApiType, BaseHandler, TriggerReturnType } from "./lib/types";
+import type {
+    ApiType,
+    BaseHandler,
+    ErrorListenerSignature,
+    ErrorResponse,
+} from "./lib/types";
+import { TriggerReturnType } from "./lib/types";
 
 type Unarray<T> = T extends (infer U)[] ? U : T;
 
@@ -63,6 +69,11 @@ interface ListenerPrototype<Handler extends BaseHandler>
     start: number;
 }
 
+interface ErrorListenerPrototype<Handler extends BaseHandler> {
+    handler: Handler;
+    context?: object | null;
+}
+
 export interface EventOptions<
     ListenerSignature extends BaseHandler,
 > extends BaseOptions {
@@ -89,6 +100,11 @@ export interface EventOptions<
      * TriggerFilter's this object, if needed
      */
     filterContext?: object | null;
+    /**
+     * Maximum number of listeners to add
+     * @default 1000
+     */
+    maxListeners?: number;
 }
 
 export type EventDefinitionHelper<
@@ -105,8 +121,12 @@ export function createEvent<
 >(eventOptions: EventOptions<ListenerSignature> = {}) {
     type Event = EventDefinitionHelper<ListenerSignature>;
     type Listener = ListenerPrototype<ListenerSignature>;
+    type ErrorListener = ErrorListenerPrototype<
+        ErrorListenerSignature<Parameters<ListenerSignature>>
+    >;
 
     let listeners: Listener[] = [];
+    let errorListeners: ErrorListener[] = [];
     let queue: Array<[ Event["arguments"], TriggerReturnType | null ]> = [];
     let suspended: boolean = false;
     let queued: boolean = false;
@@ -121,6 +141,7 @@ export function createEvent<
         autoTrigger: null,
         filter: null,
         filterContext: null,
+        maxListeners: 1000,
         ...eventOptions,
     };
 
@@ -140,6 +161,10 @@ export function createEvent<
             return;
         }
 
+        if (listeners.length >= options.maxListeners!) {
+            throw new Error(`Max listeners (${options.maxListeners}) reached`);
+        }
+
         const listener: Listener = {
             handler,
             called: 0,
@@ -156,6 +181,7 @@ export function createEvent<
             async: null,
             ...listenerOptions,
         } as const;
+
         if (listener.async === true) {
             listener.async = 1;
         }
@@ -274,6 +300,34 @@ export function createEvent<
         }
     };
 
+    const addErrorListener = (
+        handler: ErrorListenerSignature<Parameters<ListenerSignature>>,
+        context?: object | null,
+    ) => {
+        if (
+            listeners.find((l) =>
+                l.handler === handler && l.context === context
+            )
+        ) {
+            return;
+        }
+        errorListeners.push({ handler, context });
+    };
+
+    const removeErrorListener = (
+        handler: ErrorListenerSignature<Parameters<ListenerSignature>>,
+        context?: object | null,
+    ) => {
+        const inx = errorListeners.findIndex((l) =>
+            l.handler === handler && l.context === context
+        );
+        if (inx === -1) {
+            return false;
+        }
+        errorListeners.splice(inx, 1);
+        return true;
+    };
+
     const suspend = (withQueue: boolean = false) => {
         suspended = true;
         if (withQueue) {
@@ -326,28 +380,46 @@ export function createEvent<
             isAsync = false;
         }
 
-        const result = isAsync !== false
-            ? asyncCall<
-                Event["arguments"],
-                Event["returnType"]
-            >(
-                listener.handler,
-                listener.context,
-                args,
-                isAsync,
-            )
-            : listener.handler.bind(listener.context)(...args);
+        try {
+            // TODO handle error
+            const result = isAsync !== false
+                ? asyncCall<
+                    Event["arguments"],
+                    Event["returnType"]
+                >(
+                    listener.handler,
+                    listener.context,
+                    args,
+                    isAsync,
+                )
+                : listener.handler.bind(listener.context)(...args);
 
-        if (resolve !== null) {
-            if (result instanceof Promise) {
-                result.then(resolve);
+            if (resolve !== null) {
+                if (result instanceof Promise) {
+                    result.then(resolve);
+                }
+                else {
+                    resolve(result);
+                }
             }
-            else {
-                resolve(result);
-            }
+
+            return result;
         }
-
-        return result;
+        catch (error) {
+            for (const errorListener of errorListeners) {
+                errorListener.handler({
+                    error: error instanceof Error
+                        ? error
+                        : new Error(error as string),
+                    args: args,
+                    type: "event",
+                });
+            }
+            if (errorListeners.length === 0) {
+                throw error;
+            }
+            return undefined;
+        }
     };
 
     const _listenerCallWPrev = (
@@ -816,6 +888,8 @@ export function createEvent<
         /** @alias hasListener */
         has: hasListener,
         removeAllListeners,
+        addErrorListener,
+        removeErrorListener,
         suspend,
         resume,
         setOptions,

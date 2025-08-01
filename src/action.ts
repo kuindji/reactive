@@ -1,5 +1,10 @@
 import { createEvent } from "./event";
-import { ApiType, BaseHandler, MapKey } from "./lib/types";
+import type {
+    ApiType,
+    BaseHandler,
+    ErrorListenerSignature,
+    ErrorResponse,
+} from "./lib/types";
 
 export type ActionResponse<
     Response extends any = any,
@@ -7,22 +12,12 @@ export type ActionResponse<
 > = {
     response: Response;
     error: null;
-    request: Args;
+    args: Args;
 } | {
     response: null;
     error: string;
-    request: Args;
+    args: Args;
 };
-
-export type ErrorResponse<Args extends any[] = any[]> = {
-    error: string;
-    request: Args;
-    name?: MapKey;
-};
-
-export type ErrorListenerSignature<ActionSignature extends BaseHandler> = (
-    errorResponse: ErrorResponse<Parameters<ActionSignature>>,
-) => void;
 
 export type ListenerSignature<ActionSignature extends BaseHandler> = (
     arg: ActionResponse<
@@ -40,7 +35,7 @@ export type ActionDefinitionHelper<A extends BaseHandler> = {
     listenerArgument: ActionResponse<Awaited<ReturnType<A>>, Parameters<A>>;
     listenerSignature: ListenerSignature<A>;
     errorListenerArgument: ErrorResponse<Parameters<A>>;
-    errorListenerSignature: ErrorListenerSignature<A>;
+    errorListenerSignature: ErrorListenerSignature<Parameters<A>>;
 };
 
 export function createAction<A extends BaseHandler>(action: A) {
@@ -74,7 +69,7 @@ export function createAction<A extends BaseHandler>(action: A) {
             const response = {
                 response: result,
                 error: null,
-                request: args,
+                args: args,
             };
             trigger(response);
             return response;
@@ -86,12 +81,15 @@ export function createAction<A extends BaseHandler>(action: A) {
             const response = {
                 response: null,
                 error: error instanceof Error ? error.message : error as string,
-                request: args,
+                args: args,
             };
             trigger(response);
             triggerError({
-                error: error instanceof Error ? error.message : error as string,
-                request: args,
+                error: error instanceof Error
+                    ? error
+                    : new Error(error as string),
+                args: args,
+                type: "action",
             });
             return response;
         }

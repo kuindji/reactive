@@ -57,3 +57,14 @@ export type ReturnableProxyType =
     | ProxyType.CONCAT
     | ProxyType.PIPE
     | ProxyType.RAW;
+
+export type ErrorResponse<Arguments extends any[] = any[]> = {
+    error: Error;
+    args: Arguments;
+    name?: MapKey;
+    type: "action" | "event";
+};
+
+export type ErrorListenerSignature<Arguments extends any[] = any[]> = (
+    errorResponse: ErrorResponse<Arguments>,
+) => void;

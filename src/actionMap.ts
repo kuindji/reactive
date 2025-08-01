@@ -1,11 +1,12 @@
 import { createAction } from "./action";
+import type { ActionResponse } from "./action";
+import type { BaseActionsMap } from "./actionBus";
 import type {
-    ActionResponse,
     ErrorListenerSignature,
     ErrorResponse,
-} from "./action";
-import type { BaseActionsMap } from "./actionBus";
-import { BaseHandler, KeyOf, Simplify } from "./lib/types";
+    KeyOf,
+    Simplify,
+} from "./lib/types";
 
 export type {
     ActionResponse,
@@ -16,27 +17,29 @@ export type {
 
 export function createActionMap<M extends BaseActionsMap>(
     actions: M,
-    onAnyError?: ErrorListenerSignature<BaseHandler> | ErrorListenerSignature<
-        BaseHandler
-    >[],
+    onAnyError?:
+        | ErrorListenerSignature<any[]>
+        | ErrorListenerSignature<any[]>[],
 ) {
     type ActionMap = {
         [key in KeyOf<M>]: Simplify<ReturnType<typeof createAction<M[key]>>>;
     };
     type ErrorListenersMap = {
-        [key in KeyOf<M>]: ErrorListenerSignature<M[key]>;
+        [key in KeyOf<M>]: ErrorListenerSignature<Parameters<M[key]>>;
     };
 
     const errorListenersMap: ErrorListenersMap = {} as ErrorListenersMap;
     for (const key in actions) {
-        (errorListenersMap as any)[key] = (error: ErrorResponse<[ any ]>) => {
+        (errorListenersMap as any)[key] = (
+            errorResponse: ErrorResponse<any[]>,
+        ) => {
             if (Array.isArray(onAnyError)) {
                 for (const listener of onAnyError) {
-                    listener?.({ name: key, ...error });
+                    listener?.({ name: key, ...errorResponse });
                 }
             }
             else {
-                onAnyError?.({ name: key, ...error });
+                onAnyError?.({ name: key, ...errorResponse });
             }
         };
     }

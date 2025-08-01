@@ -4,8 +4,8 @@ import { useCallback, useEffect } from "react";
 
 import {
     type ActionResponse,
-    type AnyErrorCallback,
-    type AnyErrorResponse,
+    type ErrorListenerSignature,
+    type ErrorResponse,
     useActionMap,
 } from "../../src/react/useActionMap";
 
@@ -31,10 +31,10 @@ describe("useEventListen", () => {
         let onAnyErrorTriggered = false;
         let anyErrorMessage = "";
         function Component() {
-            const onAnyError = useCallback<AnyErrorCallback>(
-                (response: AnyErrorResponse) => {
+            const onAnyError = useCallback<ErrorListenerSignature<any[]>>(
+                (response: ErrorResponse) => {
                     onAnyErrorTriggered = true;
-                    anyErrorMessage = response.error;
+                    anyErrorMessage = response.error.message;
                 },
                 [],
             );

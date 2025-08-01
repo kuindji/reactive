@@ -1,6 +1,12 @@
-import { ActionDefinitionHelper, createAction, ErrorResponse } from "./action";
+import { ActionDefinitionHelper, createAction } from "./action";
 import { createEvent, ListenerOptions } from "./event";
-import { ApiType, BaseHandler, KeyOf, MapKey } from "./lib/types";
+import type {
+    ApiType,
+    BaseHandler,
+    ErrorResponse,
+    KeyOf,
+    MapKey,
+} from "./lib/types";
 
 export interface BaseActionsMap {
     [key: MapKey]: BaseHandler;
@@ -44,8 +50,8 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
     const add = (name: MapKey, action: BaseHandler) => {
         if (!actions.has(name)) {
             const a = createAction(action);
-            a.addErrorListener(({ error, request }) => {
-                errorEvent.emit({ name, error, request });
+            a.addErrorListener(({ error, args }) => {
+                errorEvent.emit({ name, error, args, type: "action" });
             });
             actions.set(name, a);
         }
