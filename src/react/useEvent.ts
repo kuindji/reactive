@@ -21,20 +21,32 @@ export function useEvent<
     > = ErrorListenerSignature<Parameters<Listener>>,
 >(
     eventOptions: EventOptions<Listener> = {},
-    listener?: Listener,
-    errorListener?: ErrorListener,
+    listener?: Listener | null,
+    errorListener?: ErrorListener | null,
 ) {
     const boundaryErrorListener = useContext(
         ErrorBoundaryContext,
     ) as ErrorListener;
     const updateRef = useRef(0);
-    const listenerRef = useRef<Listener>(listener);
-    const errorListenerRef = useRef<ErrorListener>(errorListener);
-    const boundaryErrorListenerRef = useRef<ErrorListener>(
+    const listenerRef = useRef<Listener | null>(listener);
+    const errorListenerRef = useRef<ErrorListener | null>(errorListener);
+    const boundaryErrorListenerRef = useRef<ErrorListener | null>(
         boundaryErrorListener,
     );
     const event = useMemo(
-        () => createEvent<Listener>(eventOptions),
+        () => {
+            const event = createEvent<Listener>(eventOptions);
+            if (listenerRef.current) {
+                event.addListener(listenerRef.current);
+            }
+            if (errorListenerRef.current) {
+                event.addErrorListener(errorListenerRef.current);
+            }
+            if (boundaryErrorListenerRef.current) {
+                event.addErrorListener(boundaryErrorListenerRef.current);
+            }
+            return event;
+        },
         [],
     );
 
@@ -50,12 +62,14 @@ export function useEvent<
 
     useEffect(
         () => {
-            if (listenerRef.current) {
-                event.removeListener(listenerRef.current);
-            }
-            listenerRef.current = listener;
-            if (listener) {
-                event.addListener(listener);
+            if (listenerRef.current !== listener) {
+                if (listenerRef.current) {
+                    event.removeListener(listenerRef.current);
+                }
+                listenerRef.current = listener ?? null;
+                if (listener) {
+                    event.addListener(listener);
+                }
             }
         },
         [ listener ],
@@ -63,12 +77,14 @@ export function useEvent<
 
     useEffect(
         () => {
-            if (errorListenerRef.current) {
-                event.removeErrorListener(errorListenerRef.current);
-            }
-            errorListenerRef.current = errorListener;
-            if (errorListener) {
-                event.addErrorListener(errorListener);
+            if (errorListenerRef.current !== errorListener) {
+                if (errorListenerRef.current) {
+                    event.removeErrorListener(errorListenerRef.current);
+                }
+                errorListenerRef.current = errorListener ?? null;
+                if (errorListener) {
+                    event.addErrorListener(errorListener);
+                }
             }
         },
         [ errorListener ],
@@ -76,12 +92,15 @@ export function useEvent<
 
     useEffect(
         () => {
-            if (boundaryErrorListenerRef.current) {
-                event.removeErrorListener(boundaryErrorListenerRef.current);
-            }
-            boundaryErrorListenerRef.current = boundaryErrorListener;
-            if (boundaryErrorListener) {
-                event.addErrorListener(boundaryErrorListener);
+            if (boundaryErrorListenerRef.current !== boundaryErrorListener) {
+                if (boundaryErrorListenerRef.current) {
+                    event.removeErrorListener(boundaryErrorListenerRef.current);
+                }
+                boundaryErrorListenerRef.current = boundaryErrorListener
+                    ?? null;
+                if (boundaryErrorListener) {
+                    event.addErrorListener(boundaryErrorListener);
+                }
             }
         },
         [ boundaryErrorListener ],

@@ -24,21 +24,33 @@ export function useAction<
     ErrorListener extends ErrorListenerSignature<Parameters<ActionSignature>>,
 >(
     actionSignature: ActionSignature,
-    listener?: Listener,
-    errorListener?: ErrorListener,
+    listener?: Listener | null,
+    errorListener?: ErrorListener | null,
 ) {
     const boundaryErrorListener = useContext(
         ErrorBoundaryContext,
     ) as ErrorListener;
     const updateRef = useRef(0);
-    const listenerRef = useRef<Listener>(listener);
-    const errorListenerRef = useRef<ErrorListener>(errorListener);
-    const boundaryErrorListenerRef = useRef<ErrorListener>(
+    const listenerRef = useRef<Listener | null>(listener);
+    const errorListenerRef = useRef<ErrorListener | null>(errorListener);
+    const boundaryErrorListenerRef = useRef<ErrorListener | null>(
         boundaryErrorListener,
     );
 
     const action = useMemo(
-        () => createAction<ActionSignature>(actionSignature),
+        () => {
+            const action = createAction<ActionSignature>(actionSignature);
+            if (listenerRef.current) {
+                action.addListener(listenerRef.current);
+            }
+            if (errorListenerRef.current) {
+                action.addErrorListener(errorListenerRef.current);
+            }
+            if (boundaryErrorListenerRef.current) {
+                action.addErrorListener(boundaryErrorListenerRef.current);
+            }
+            return action;
+        },
         [],
     );
 
@@ -49,17 +61,19 @@ export function useAction<
             }
             updateRef.current++;
         },
-        [ action ],
+        [ actionSignature ],
     );
 
     useEffect(
         () => {
-            if (listenerRef.current) {
-                action.removeListener(listenerRef.current);
-            }
-            listenerRef.current = listener;
-            if (listener) {
-                action.addListener(listener);
+            if (listenerRef.current !== listener) {
+                if (listenerRef.current) {
+                    action.removeListener(listenerRef.current);
+                }
+                listenerRef.current = listener ?? null;
+                if (listener) {
+                    action.addListener(listener);
+                }
             }
         },
         [ listener ],
@@ -67,12 +81,14 @@ export function useAction<
 
     useEffect(
         () => {
-            if (errorListenerRef.current) {
-                action.removeErrorListener(errorListenerRef.current);
-            }
-            errorListenerRef.current = errorListener;
-            if (errorListener) {
-                action.addErrorListener(errorListener);
+            if (errorListenerRef.current !== errorListener) {
+                if (errorListenerRef.current) {
+                    action.removeErrorListener(errorListenerRef.current);
+                }
+                errorListenerRef.current = errorListener ?? null;
+                if (errorListener) {
+                    action.addErrorListener(errorListener);
+                }
             }
         },
         [ errorListener ],
@@ -80,12 +96,17 @@ export function useAction<
 
     useEffect(
         () => {
-            if (boundaryErrorListenerRef.current) {
-                action.removeErrorListener(boundaryErrorListenerRef.current);
-            }
-            boundaryErrorListenerRef.current = boundaryErrorListener;
-            if (boundaryErrorListener) {
-                action.addErrorListener(boundaryErrorListener);
+            if (boundaryErrorListenerRef.current !== boundaryErrorListener) {
+                if (boundaryErrorListenerRef.current) {
+                    action.removeErrorListener(
+                        boundaryErrorListenerRef.current,
+                    );
+                }
+                boundaryErrorListenerRef.current = boundaryErrorListener
+                    ?? null;
+                if (boundaryErrorListener) {
+                    action.addErrorListener(boundaryErrorListener);
+                }
             }
         },
         [ boundaryErrorListener ],

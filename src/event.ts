@@ -376,7 +376,6 @@ export function createEvent<
         }
 
         try {
-            // TODO handle error
             const result = isAsync !== false
                 ? asyncCall<
                     Event["arguments"],
