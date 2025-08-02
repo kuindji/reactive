@@ -2,7 +2,7 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "bun:test";
 import { useCallback, useEffect } from "react";
 import { useEventBus } from "../../src/react/useEventBus";
-import { useEventBusListen } from "../../src/react/useEventBusListen";
+import { useEventBusListen } from "../../src/react/useListenToEventBus";
 
 describe("useEventListen", () => {
     it("should listen to event", () => {

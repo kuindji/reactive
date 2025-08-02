@@ -1,12 +1,7 @@
 import asyncCall from "./lib/asyncCall";
 import listenerSorter from "./lib/listenerSorter";
 import tagsIntersect from "./lib/tagsIntersect";
-import type {
-    ApiType,
-    BaseHandler,
-    ErrorListenerSignature,
-    ErrorResponse,
-} from "./lib/types";
+import type { ApiType, BaseHandler, ErrorListenerSignature } from "./lib/types";
 import { TriggerReturnType } from "./lib/types";
 
 type Unarray<T> = T extends (infer U)[] ? U : T;

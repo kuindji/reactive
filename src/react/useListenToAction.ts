@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { BaseAction, BaseActionDefinition } from "../../src/action";
+import { BaseAction, BaseActionDefinition } from "../action";
 
 export function useActionListen<
     TAction extends BaseAction,
@@ -22,7 +22,7 @@ export function useActionListen<
     useEffect(
         () => {
             return () => {
-                actionRef.current.off(genericHandler);
+                actionRef.current.removeListener(genericHandler);
             };
         },
         [],
@@ -30,9 +30,9 @@ export function useActionListen<
 
     useEffect(
         () => {
-            actionRef.current.off(genericHandler);
+            actionRef.current.removeListener(genericHandler);
             actionRef.current = action;
-            actionRef.current.on(genericHandler);
+            actionRef.current.addListener(genericHandler);
         },
         [ action ],
     );

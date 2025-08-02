@@ -1,5 +1,5 @@
-import {
-    createEvent,
+import { createEvent } from "./event";
+import type {
     EventDefinitionHelper,
     EventOptions,
     ListenerOptions,
@@ -7,6 +7,8 @@ import {
 import {
     ApiType,
     BaseHandler,
+    ErrorListenerSignature,
+    ErrorResponse,
     KeyOf,
     MapKey,
     ProxyType,
@@ -26,7 +28,7 @@ type RelaySource = {
         fn: (...args: any[]) => any,
         options?: ListenerOptions,
     ) => void;
-    onAnyEvent: (
+    addAllEventsListener: (
         fn: (name: any, args: any[]) => any,
         options?: ListenerOptions,
     ) => void;
@@ -36,7 +38,7 @@ type RelaySource = {
         context?: object | null,
         tag?: string | null,
     ) => void;
-    unAnyEvent: (
+    removeAllEventsListener: (
         fn: (name: any, args: any[]) => any,
         context?: object | null,
         tag?: string | null,
@@ -207,6 +209,8 @@ export function createEventBus<
     const asterisk = createEvent<
         (name: MapKey, args: any[], tags: string[] | null) => void
     >();
+
+    const errorEvent = createEvent<ErrorListenerSignature<any[]>>();
 
     const _getProxyListener = ({
         remoteEventName,
@@ -469,16 +473,32 @@ export function createEventBus<
             }
             return result;
         };
-        let result;
-        if (currentTagsFilter) {
-            result = e.withTags(currentTagsFilter, runner);
-        }
-        else {
-            result = runner();
-        }
+        try {
+            let result;
+            if (currentTagsFilter) {
+                result = e.withTags(currentTagsFilter, runner);
+            }
+            else {
+                result = runner();
+            }
 
-        asterisk.trigger(name, args, currentTagsFilter);
-        return result;
+            asterisk.trigger(name, args, currentTagsFilter);
+            return result;
+        }
+        catch (error) {
+            errorEvent.trigger({
+                name,
+                error: error instanceof Error
+                    ? error
+                    : new Error(String(error)),
+                args,
+                type: "event",
+            });
+            if (errorEvent.hasListener()) {
+                return undefined;
+            }
+            throw error;
+        }
     };
 
     const trigger = <
@@ -823,7 +843,7 @@ export function createEventBus<
             },
         );
         if (remoteEventName === "*") {
-            eventSource.onAnyEvent(listener.listener);
+            eventSource.addAllEventsListener(listener.listener);
         }
         else {
             eventSource.on(remoteEventName, listener.listener);
@@ -857,7 +877,7 @@ export function createEventBus<
         );
         if (listener) {
             if (remoteEventName === "*") {
-                eventSource.unAnyEvent(listener.listener);
+                eventSource.removeAllEventsListener(listener.listener);
             }
             else {
                 eventSource.un(remoteEventName, listener.listener);
@@ -959,8 +979,10 @@ export function createEventBus<
         unrelay,
         addEventSource,
         removeEventSource,
-        onAnyEvent: asterisk.addListener,
-        unAnyEvent: asterisk.removeListener,
+        addAllEventsListener: asterisk.addListener,
+        removeAllEventsListener: asterisk.removeListener,
+        addErrorListener: errorEvent.addListener,
+        removeErrorListener: errorEvent.removeListener,
     } as const;
 
     return api as ApiType<EventBus, typeof api>;

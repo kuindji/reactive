@@ -21,7 +21,7 @@ export function useEventListen<
     useEffect(
         () => {
             return () => {
-                eventRef.current.off(genericHandler);
+                eventRef.current.removeListener(genericHandler);
             };
         },
         [],
@@ -29,9 +29,9 @@ export function useEventListen<
 
     useEffect(
         () => {
-            eventRef.current.off(genericHandler);
+            eventRef.current.removeListener(genericHandler);
             eventRef.current = event;
-            eventRef.current.on(genericHandler, options);
+            eventRef.current.addListener(genericHandler, options);
         },
         [ event ],
     );

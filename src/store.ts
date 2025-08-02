@@ -10,11 +10,11 @@ export const ChangeEventName = "change";
 export const ResetEventName = "reset";
 
 type StoreControlEvents<PropMap extends BasePropMap> = {
-    [BeforeChangeEventName]: <K extends KeyOf<PropMap>>(
+    [BeforeChangeEventName]: <K extends KeyOf<PropMap>, V extends PropMap[K]>(
         name: K,
-        value: PropMap[K],
+        value: V,
     ) => boolean;
-    [ChangeEventName]: <K extends KeyOf<PropMap>>(names: K[]) => void;
+    [ChangeEventName]: (names: KeyOf<PropMap>[]) => void;
     [ResetEventName]: () => void;
 };
 

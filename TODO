@@ -1,7 +1,4 @@
 * From every hook return all types that may be needed when using hook
 * Forward these types from main modules
-- useAction() add event listener and error listener parameters
-* Error handling in event?
-* useEvent() add event listener parameter
-- ActionErrorBoundary
-- Action: throw error if there is no error listeners
+* Test error handling in all apis
+* Test untyped apis

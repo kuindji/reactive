@@ -3,7 +3,6 @@ import {
     BeforeChangeEventName,
     ChangeEventName,
     createStore,
-    ResetEventName,
 } from "../../src/store";
 
 describe("store basic", () => {
@@ -47,8 +46,8 @@ describe("store basic", () => {
         let triggered = false;
 
         store.control(BeforeChangeEventName, (name, value) => {
-            expect(name).toEqual("a");
-            expect(value).toEqual(2);
+            expect("a").toEqual(name);
+            expect(value).toEqual(2 as any);
             triggered = true;
             return false;
         });

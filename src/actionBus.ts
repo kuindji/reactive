@@ -137,8 +137,8 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         /** @alias removeListener */
         unsubscribe: un,
 
-        onError: errorEvent.addListener,
-        unError: errorEvent.removeListener,
+        addErrorListener: errorEvent.addListener,
+        removeErrorListener: errorEvent.removeListener,
     } as const;
     return api as ApiType<ActionBus, typeof api>;
 }
