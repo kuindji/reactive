@@ -234,4 +234,46 @@ describe("ErrorBoundary", () => {
 
         expect(triggered).toBe(true);
     });
+
+    it("should should pass to outer boundary", () => {
+        let triggered = false;
+        function Component() {
+            const action = useAction((a: number): string => {
+                throw new Error("test");
+            });
+
+            useEffect(
+                () => {
+                    action.invoke(1);
+                },
+                [],
+            );
+
+            return null;
+        }
+
+        function App() {
+            const errorListener = useCallback(
+                ({ error, args }: { error: Error; args: any[]; }) => {
+                    expect(error).toBeDefined();
+                    expect(args).toEqual([ 1 ]);
+                    expect(error.message).toBe("test");
+                    triggered = true;
+                },
+                [],
+            );
+
+            return (
+                <ErrorBoundary listener={errorListener}>
+                    <ErrorBoundary>
+                        <Component />
+                    </ErrorBoundary>
+                </ErrorBoundary>
+            );
+        }
+
+        render(<App />);
+
+        expect(triggered).toBe(true);
+    });
 });
