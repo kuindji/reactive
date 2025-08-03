@@ -1,4 +1,4 @@
-import { ApiType, BaseHandler } from "./lib/types";
+import type { ApiType, BaseHandler, ErrorListenerSignature } from "./lib/types";
 type Unarray<T> = T extends (infer U)[] ? U : T;
 interface BaseOptions {
     /**
@@ -71,12 +71,18 @@ export interface EventOptions<ListenerSignature extends BaseHandler> extends Bas
      * TriggerFilter's this object, if needed
      */
     filterContext?: object | null;
+    /**
+     * Maximum number of listeners to add
+     * @default 1000
+     */
+    maxListeners?: number;
 }
 export type EventDefinitionHelper<ListenerSignature extends BaseHandler = BaseHandler> = {
     signature: ListenerSignature;
     arguments: Parameters<ListenerSignature>;
     returnType: ReturnType<ListenerSignature>;
     options: EventOptions<ListenerSignature>;
+    errorListenerSignature: ErrorListenerSignature<Parameters<ListenerSignature>>;
 };
 export declare function createEvent<ListenerSignature extends BaseHandler>(eventOptions?: EventOptions<ListenerSignature>): ApiType<EventDefinitionHelper<ListenerSignature>, {
     readonly addListener: (handler: ListenerSignature, listenerOptions?: ListenerOptions) => void;
@@ -104,6 +110,8 @@ export declare function createEvent<ListenerSignature extends BaseHandler>(event
     /** @alias hasListener */
     readonly has: (handler?: ListenerSignature | null, context?: object | null, tag?: string | null) => boolean;
     readonly removeAllListeners: (tag?: string) => void;
+    readonly addErrorListener: (handler: ErrorListenerSignature<Parameters<ListenerSignature>>, context?: object | null) => void;
+    readonly removeErrorListener: (handler: ErrorListenerSignature<Parameters<ListenerSignature>>, context?: object | null) => boolean;
     readonly suspend: (withQueue?: boolean) => void;
     readonly resume: () => void;
     readonly setOptions: (eventOptions: Pick<EventOptions<ListenerSignature>, "async" | "limit" | "autoTrigger">) => void;

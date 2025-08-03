@@ -35,12 +35,11 @@
         "typescript": "^5",
         "typescript-eslint": "^8.38.0"
     },
-    "description": "A comprehensive JavaScript/TypeScript utility library for building reactive applications with events, actions, stores, and React hooks",
+    "description": "A JavaScript/TypeScript utility library for building reactive applications with events, actions, stores, and React hooks",
     "files": [
         "dist/**/*"
     ],
     "keywords": [
-        "reactive",
         "events",
         "actions",
         "store",
@@ -51,11 +50,7 @@
         "observable",
         "async",
         "event-bus",
-        "action-bus",
-        "reactive-programming",
-        "javascript",
-        "react",
-        "hooks"
+        "action-bus"
     ],
     "license": "ISC",
     "scripts": {

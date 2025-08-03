@@ -1,0 +1,21 @@
+import type { ActionResponse, ListenerSignature } from "../action";
+import type { BaseHandler, ErrorListenerSignature, ErrorResponse } from "../lib/types";
+export type { ActionResponse, BaseHandler, ErrorListenerSignature, ErrorResponse, ListenerSignature, };
+export declare function useAction<ActionSignature extends BaseHandler, Listener extends ListenerSignature<ActionSignature>, ErrorListener extends ErrorListenerSignature<Parameters<ActionSignature>>>(actionSignature: ActionSignature, listener?: Listener | null, errorListener?: ErrorListener | null): import("../lib/types").ApiType<import("../action").ActionDefinitionHelper<ActionSignature>, {
+    readonly invoke: (...args: Parameters<ActionSignature>) => Promise<ActionResponse<Awaited<ReturnType<ActionSignature>>, Parameters<ActionSignature>>>;
+    readonly addListener: (handler: ListenerSignature<ActionSignature>, listenerOptions?: import("..").ListenerOptions) => void;
+    readonly on: (handler: ListenerSignature<ActionSignature>, listenerOptions?: import("..").ListenerOptions) => void;
+    readonly subscribe: (handler: ListenerSignature<ActionSignature>, listenerOptions?: import("..").ListenerOptions) => void;
+    readonly listen: (handler: ListenerSignature<ActionSignature>, listenerOptions?: import("..").ListenerOptions) => void;
+    readonly removeAllListeners: (tag?: string) => void;
+    readonly removeListener: (handler: ListenerSignature<ActionSignature>, context?: object | null, tag?: string | null) => boolean;
+    readonly un: (handler: ListenerSignature<ActionSignature>, context?: object | null, tag?: string | null) => boolean;
+    readonly off: (handler: ListenerSignature<ActionSignature>, context?: object | null, tag?: string | null) => boolean;
+    readonly remove: (handler: ListenerSignature<ActionSignature>, context?: object | null, tag?: string | null) => boolean;
+    readonly unsubscribe: (handler: ListenerSignature<ActionSignature>, context?: object | null, tag?: string | null) => boolean;
+    readonly promise: (options?: import("..").ListenerOptions) => Promise<[arg: ActionResponse<Awaited<ReturnType<ActionSignature>>, Parameters<ActionSignature>>]>;
+    readonly addErrorListener: (handler: ErrorListenerSignature<Parameters<ActionSignature>>, listenerOptions?: import("..").ListenerOptions) => void;
+    readonly removeAllErrorListeners: (tag?: string) => void;
+    readonly removeErrorListener: (handler: ErrorListenerSignature<Parameters<ActionSignature>>, context?: object | null, tag?: string | null) => boolean;
+    readonly errorPromise: (options?: import("..").ListenerOptions) => Promise<[errorResponse: ErrorResponse<Parameters<ActionSignature>>]>;
+}>;

@@ -1,15 +1,17 @@
 import { EventBusDefinitionHelper } from "./eventBus";
-import { ApiType, KeyOf, MapKey } from "./lib/types";
+import type { ApiType, ErrorListenerSignature, KeyOf, MapKey } from "./lib/types";
 export interface BasePropMap {
     [key: MapKey]: any;
 }
 export declare const BeforeChangeEventName = "beforeChange";
 export declare const ChangeEventName = "change";
 export declare const ResetEventName = "reset";
+export declare const ErrorEventName = "error";
 type StoreControlEvents<PropMap extends BasePropMap> = {
-    [BeforeChangeEventName]: <K extends KeyOf<PropMap>>(name: K, value: PropMap[K]) => boolean;
-    [ChangeEventName]: <K extends KeyOf<PropMap>>(names: K[]) => void;
+    [BeforeChangeEventName]: <K extends KeyOf<PropMap>, V extends PropMap[K]>(name: K, value: V) => boolean;
+    [ChangeEventName]: (names: KeyOf<PropMap>[]) => void;
     [ResetEventName]: () => void;
+    [ErrorEventName]: ErrorListenerSignature<any[]>;
 };
 type StoreChangeEvents<PropMap extends BasePropMap> = {
     [K in KeyOf<PropMap>]: (value: PropMap[K], previousValue?: PropMap[K] | undefined) => void;

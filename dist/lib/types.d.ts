@@ -40,3 +40,10 @@ export declare enum ProxyType {
     RESOLVE_PIPE = "resolvePipe"
 }
 export type ReturnableProxyType = ProxyType.RESOLVE_ALL | ProxyType.RESOLVE_MERGE | ProxyType.RESOLVE_CONCAT | ProxyType.RESOLVE_FIRST | ProxyType.RESOLVE_LAST | ProxyType.RESOLVE_FIRST_NON_EMPTY | ProxyType.RESOLVE_PIPE | ProxyType.ALL | ProxyType.MERGE | ProxyType.FIRST | ProxyType.LAST | ProxyType.CONCAT | ProxyType.PIPE | ProxyType.RAW;
+export type ErrorResponse<Arguments extends any[] = any[]> = {
+    error: Error;
+    args: Arguments;
+    name?: MapKey;
+    type: "action" | "event" | "store-change" | "store-pipe" | "store-control";
+};
+export type ErrorListenerSignature<Arguments extends any[] = any[]> = (errorResponse: ErrorResponse<Arguments>) => void;

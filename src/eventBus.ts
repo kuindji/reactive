@@ -807,13 +807,13 @@ export function createEventBus<
 
     const suspendAll = (withQueue: boolean = false) => {
         for (const name in events) {
-            events[name].suspend(withQueue);
+            events.get(name).suspend(withQueue);
         }
     };
 
     const resumeAll = () => {
         for (const name in events) {
-            events[name].resume();
+            events.get(name).resume();
         }
     };
 
