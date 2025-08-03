@@ -93,7 +93,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                         ? error
                         : new Error(String(error)),
                     args: pipeArgs,
-                    type: "store",
+                    type: "store-pipe",
                     name,
                 });
                 if (control.get(ErrorEventName)?.hasListener()) {
@@ -120,7 +120,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                         ? error
                         : new Error(String(error)),
                     args: changeArgs,
-                    type: "store",
+                    type: "store-change",
                     name,
                 });
                 if (control.get(ErrorEventName)?.hasListener()) {
@@ -139,7 +139,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                             ? error
                             : new Error(String(error)),
                         args: [ name ],
-                        type: "store",
+                        type: "store-control",
                         name,
                     });
                     if (control.get(ErrorEventName)?.hasListener()) {

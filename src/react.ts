@@ -8,4 +8,3 @@ export * from "./react/useListenToEvent";
 export * from "./react/useListenToEventBus";
 export * from "./react/useStore";
 export * from "./react/useStoreState";
-export * from "./react/useStoreValue";

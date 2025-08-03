@@ -1,1324 +1,985 @@
 # @kuindji/reactive
 
-A comprehensive JavaScript/TypeScript utility library for building reactive applications with events, actions, stores, and React hooks.
+A JavaScript/TypeScript utility library for building reactive applications with events, actions, stores, and React hooks.
+
+[![npm version](https://badge.fury.io/js/%40kuindji%2Freactive.svg)](https://badge.fury.io/js/%40kuindji%2Freactive)
+[![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 
 ## Features
 
-- **Event System**: Powerful event emitter with advanced filtering, tagging, and return value handling
-- **Action System**: Async action handling with success/error responses and listeners
-- **Event Bus**: Centralized event management with event source integration
-- **Store**: Reactive state management with change events and data transformation
-- **React Hooks**: Seamless React integration for all core functionality
-- **TypeScript**: Full TypeScript support with advanced type inference
+- **Event System**: Event emitter with subscriber/dispatcher and collector modes
+- **Action System**: Async action handling with error management and response tracking
+- **Store System**: Reactive state management with change tracking and validation
+- **EventBus**: Centralized event management for complex applications
+- **ActionBus & ActionMap**: Organized action management with error handling
+- **React Integration**: Full React hooks support with error boundaries
+- **TypeScript**: First-class TypeScript support with full type safety
+- **Async Support**: Built-in async/await support for all operations
+- **Error Handling**: Comprehensive error handling and recovery mechanisms
 
 ## Installation
 
 ```bash
 npm install @kuindji/reactive
+# or
+yarn add @kuindji/reactive
+# or
+bun add @kuindji/reactive
 ```
 
 ## Table of Contents
 
-- [Events](#events)
-- [Actions](#actions)
-- [Event Bus](#event-bus)
+- [Event](#event)
+- [EventBus](#eventbus)
+- [Action](#action)
+- [ActionMap](#actionmap)
+- [ActionBus](#actionbus)
 - [Store](#store)
 - [React Hooks](#react-hooks)
-- [Types](#types)
+- [ErrorBoundary](#errorboundary)
+- [Examples](#examples)
 
-## Events
+## Event
 
-The event system provides a powerful event emitter with advanced features like filtering, tagging, and various return value handling modes.
+Event emitter with three distinct modes:
 
-### createEvent
+- **Subscriber/Dispatcher Mode**: Traditional event emitter pattern where listeners are notified of events
+- **Collector Mode**: Trigger collects data from listeners in various ways (first, last, all, merge, etc.)
+- **Pipe Mode**: Data flows through listeners in a pipeline, each transforming the data
 
-Creates a new event emitter with optional configuration.
+### Basic Usage
 
 ```typescript
 import { createEvent } from "@kuindji/reactive";
 
-const event = createEvent<(message: string) => void>();
+// Create a typed event
+// When creating event, provide a listener signature generic to make full event api typed.
+const userLoginEvent = createEvent<(userId: string, timestamp: Date) => void>();
+
+// Add listeners
+userLoginEvent.addListener((userId, timestamp) => {
+    console.log(`User ${userId} logged in at ${timestamp}`);
+});
+
+// Trigger the event
+userLoginEvent.trigger("user123", new Date());
 ```
 
-#### Event Options
+### Event Options
 
 ```typescript
-interface EventOptions {
-    /** Call this event this number of times; 0 for unlimited */
-    limit?: number | null;
-    /** Trigger newly added listeners automatically with last trigger arguments */
-    autoTrigger?: boolean | null;
-    /** A function that decides whether event should trigger a listener this time */
-    filter?:
-        | ((args: any[], listener: ListenerPrototype<BaseHandler>) => boolean)
-        | null;
-    /** TriggerFilter's this object, if needed */
-    filterContext?: object | null;
-    /** Call this event asynchronously */
-    async?: boolean | number | null;
-}
-```
-
-#### Methods
-
-##### addListener(handler, options?)
-
-Adds a listener to the event.
-
-**Aliases**: `on`, `listen`
-
-```typescript
-event.addListener((message: string) => {
-    console.log(message);
+// all settings are optional
+const event = createEvent({
+    async: boolean, // Call listeners asynchronously; default false
+    limit: number, // Event can be triggered 10 times; default 0 (unlimited)
+    autoTrigger: boolean, // Auto-trigger new listeners with last args; default false
+    maxListeners: number, // Maximum number of listeners; default: 1000
+    // default: undefined
+    filter: (args: TriggerArgs[], listener: ListenerOptions): boolean => {
+        // Custom filter logic
+        // args: arguments passed to trigger()
+        // listener: an object with listener options and handler itself
+        return true;
+    },
 });
 ```
 
-##### removeListener(handler, context?, tag?)
-
-Removes a listener from the event.
-
-**Aliases**: `un`, `off`, `remove`
+### Listener Options
 
 ```typescript
-event.removeListener(handler);
-```
-
-##### trigger(...args)
-
-Triggers the event with the given arguments.
-
-**Aliases**: `emit`, `dispatch`
-
-```typescript
-event.trigger("Hello, World!");
-```
-
-##### hasListener(handler?, context?, tag?)
-
-Checks if a listener exists.
-
-**Alias**: `has`
-
-```typescript
-const hasHandler = event.hasListener(handler);
-```
-
-##### removeAllListeners(tag?)
-
-Removes all listeners, optionally filtered by tag.
-
-```typescript
-event.removeAllListeners();
-event.removeAllListeners("my-tag");
-```
-
-##### suspend(withQueue?)
-
-Suspends event triggering, optionally queuing events.
-
-```typescript
-event.suspend();
-event.suspend(true); // Queue events
-```
-
-##### resume()
-
-Resumes event triggering and processes queued events.
-
-```typescript
-event.resume();
-```
-
-##### setOptions(options)
-
-Updates event options.
-
-```typescript
-event.setOptions({ limit: 10, async: true });
-```
-
-##### reset()
-
-Resets the event to initial state.
-
-```typescript
-event.reset();
-```
-
-##### isSuspended()
-
-Checks if the event is suspended.
-
-```typescript
-const suspended = event.isSuspended();
-```
-
-##### isQueued()
-
-Checks if events are being queued.
-
-```typescript
-const queued = event.isQueued();
-```
-
-##### withTags(tags, callback)
-
-Executes a callback with tag filtering.
-
-```typescript
-event.withTags([ "tag1", "tag2" ], () => {
-    event.trigger("filtered message");
+// all settings are optional
+event.addListener(handler, {
+    limit: number, // Call this listener 5 times; default 0 (unlimited)
+    first: boolean, // Add to beginning of listener list; default false
+    alwaysFirst: boolean, // Always call before other listeners; default false
+    alwaysLast: boolean, // Always call after other listeners; default false
+    start: number, // Start calling after 3rd trigger; default 0
+    context: object, // Listener context (this); default undefined
+    tags: string[], // Listener tags for filtering; default undefined
+    async: booleantrue, // Call this listener asynchronously; default false
+    extraData: object, // Custom data will be passed to filter()
 });
 ```
 
-##### promise(options?)
+### Collector
 
-Returns a promise that resolves when the event is triggered.
-
-```typescript
-const promise = event.promise();
-event.trigger("data");
-const result = await promise; // ["data"]
-```
-
-#### Return Value Methods
-
-##### first(...args)
-
-Returns the result of the first listener.
+Collector allows you to gather data from listeners.
 
 ```typescript
-const result = event.first("test");
-```
-
-##### resolveFirst(...args)
-
-Returns a promise that resolves with the first listener result.
-
-```typescript
-const result = await event.resolveFirst("test");
-```
-
-##### all(...args)
-
-Returns an array of all listener results.
-
-```typescript
-const results = event.all("test");
-```
-
-##### resolveAll(...args)
-
-Returns a promise that resolves with all listener results.
-
-```typescript
-const results = await event.resolveAll("test");
-```
-
-##### last(...args)
-
-Returns the result of the last listener.
-
-```typescript
-const result = event.last("test");
-```
-
-##### resolveLast(...args)
-
-Returns a promise that resolves with the last listener result.
-
-```typescript
-const result = await event.resolveLast("test");
-```
-
-##### merge(...args)
-
-Merges all listener results using Object.assign.
-
-```typescript
-const merged = event.merge("test");
-```
-
-##### resolveMerge(...args)
-
-Returns a promise that resolves with merged results.
-
-```typescript
-const merged = await event.resolveMerge("test");
-```
-
-##### concat(...args)
-
-Concatenates all listener results (flattens arrays).
-
-```typescript
-const concatenated = event.concat("test");
-```
-
-##### resolveConcat(...args)
-
-Returns a promise that resolves with concatenated results.
-
-```typescript
-const concatenated = await event.resolveConcat("test");
-```
-
-##### firstNonEmpty(...args)
-
-Returns the first non-null/undefined result.
-
-```typescript
-const result = event.firstNonEmpty("test");
-```
-
-##### resolveFirstNonEmpty(...args)
-
-Returns a promise that resolves with the first non-empty result.
-
-```typescript
-const result = await event.resolveFirstNonEmpty("test");
-```
-
-##### untilTrue(...args)
-
-Triggers listeners until one returns true.
-
-```typescript
-event.untilTrue("test");
-```
-
-##### untilFalse(...args)
-
-Triggers listeners until one returns false.
-
-```typescript
-event.untilFalse("test");
-```
-
-##### pipe(...args)
-
-Pipes the result of each listener to the next.
-
-```typescript
-const result = event.pipe("initial");
-```
-
-##### resolvePipe(...args)
-
-Returns a promise that resolves with the piped result.
-
-```typescript
-const result = await event.resolvePipe("initial");
-```
-
-##### raw(...args)
-
-Returns raw listener results without processing.
-
-```typescript
-const results = event.raw("test");
-```
-
-#### Listener Options
-
-```typescript
-interface ListenerOptions {
-    /** Call this listener asynchronously */
-    async?: boolean | number | null;
-    /** Call handler this number of times; 0 for unlimited */
-    limit?: number;
-    /** True to prepend to the list of listeners */
-    first?: boolean;
-    /** True to always run this listener before others */
-    alwaysFirst?: boolean;
-    /** True to always run this listener after others */
-    alwaysLast?: boolean;
-    /** Start calling listener after this number of calls */
-    start?: number;
-    /** Listener's context (this) object */
-    context?: object | null;
-    /** Listener tags */
-    tags?: string[];
-    /** Additional data passed to filter functions */
-    extraData?: any;
+type ApplicationData = {
+    user: {
+        username?: string;
+        role?: string;
+        loggedIn: boolean;
+    };
+    notifications: {
+        type: string;
+        message: string;
+    }[];
 }
+const event = createEvent(<() => Partial<ApplicationData>>);
+event.addListener(() => {
+    return {
+        user: {
+            username: "john",
+            role: "admin",
+            loggedIn: true
+        }
+    }
+});
+event.addListener(() => {
+    return {
+        notifications: [
+            {
+                type: "chat",
+                message: "You've got a new message!"
+            }
+        ]
+    }
+});
+
+
+const applicationData = event.merge();
 ```
 
-## Actions
+### Pipe
 
-The action system provides async action handling with success/error responses and listeners.
+Data flows through listeners in a pipeline, each transforming the data
 
-### createAction
+```typescript
+const event = createEvent((value: number) => number);
+event.addListener(value => value + value);
+event.addListener(value => value * value);
+const value = event.pipe(1); // value = 4
+```
 
-Creates a new action with automatic error handling and response formatting.
+### Event API
+
+#### Core Methods
+
+- `addListener(listener, options?)` - Add event listener
+  - **Aliases**: `on()`, `listen()`, `subscribe()`
+- `removeListener(listener, context?, tag?)` - Remove specific listener
+  - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
+- `hasListener(listener?, context?, tag?)` - Check if listener exists
+  - **Aliases**: `has()`
+- `removeAllListeners(tag?)` - Remove all listeners (optionally by tag)
+- `trigger(...args)` - Trigger the event
+  - **Aliases**: `emit()`, `dispatch()`
+
+#### Collector Methods
+
+- `first(...args)` - Get first listener's result
+- `last(...args)` - Get last listener's result
+- `all(...args)` - Get all listener results
+- `merge(...args)` - Merge all results (for arrays/objects)
+- `concat(...args)` - Concatenate all results
+- `firstNonEmpty(...args)` - Get first non-empty result
+- `untilTrue(...args)` - Stop when listener returns true
+- `untilFalse(...args)` - Stop when listener returns false
+- `pipe(...args)` - Pipe data through listeners
+
+#### Async Versions
+
+- `resolveFirst(...args)` - Async version of first()
+- `resolveLast(...args)` - Async version of last()
+- `resolveAll(...args)` - Async version of all()
+- `resolveMerge(...args)` - Async version of merge()
+- `resolveConcat(...args)` - Async version of concat()
+- `resolveFirstNonEmpty(...args)` - Async version of firstNonEmpty()
+- `resolvePipe(...args)` - Async version of pipe()
+
+#### Utility Methods
+
+- `promise(options?: ListenerOptions)` - Get a promise that resolves on next trigger
+- `suspend(withQueue?: boolean)` - Suspend event triggering; When `withQueue=true`, all trigger calls will be queued and replayed after resume()
+- `resume()` - Resume event triggering
+- `reset()` - Reset event state
+- `withTags(tags: string[], callback: () => CallbackResponse) => CallbackResponse` - Execute callback with specific tags
+
+## EventBus
+
+### Description
+
+EventBus provides centralized event management for applications. It allows you to define multiple named events and manage them together with features like event source integration, proxying, and interception.
+
+### Basic Usage
+
+```typescript
+import { createEventBus } from "@kuindji/reactive";
+
+// Define event signatures
+type AppEvents = {
+    userLogin: (userId: string) => void;
+    userLogout: (userId: string) => void;
+    dataUpdate: (data: any) => void;
+};
+
+// Create event bus
+const eventBus = createEventBus<AppEvents>();
+
+// Add listeners
+eventBus.on("userLogin", (userId) => {
+    console.log(`User ${userId} logged in`);
+});
+
+// Trigger events
+eventBus.trigger("userLogin", "user123");
+```
+
+### Relay
+
+Relay allows you to forward events from one EventBus to another EventBus.
+
+```typescript
+import { createEventBus, ProxyType } from "@kuindji/reactive";
+// Create event buses
+const mainBus = createEventBus<{
+    userLogin: (userId: string) => void;
+    userLogout: (userId: string) => void;
+    dataUpdate: (data: any) => void;
+}>();
+
+const externalBus = createEventBus<{
+    login: (userId: string) => void;
+    logout: (userId: string) => void;
+    update: (data: any) => void;
+}>();
+
+// Relay events from external bus to main bus
+mainBus.relay({
+    eventSource: externalBus,
+    remoteEventName: "login",
+    localEventName: "userLogin",
+});
+
+mainBus.relay({
+    eventSource: externalBus,
+    remoteEventName: "logout",
+    localEventName: "userLogout",
+});
+
+mainBus.relay({
+    eventSource: externalBus,
+    remoteEventName: "update",
+    localEventName: "dataUpdate",
+});
+
+// Listen to events on main bus
+mainBus.on("userLogin", (userId) => {
+    console.log(`User ${userId} logged in via relay`);
+});
+
+// Trigger on external bus - will be relayed to main bus
+externalBus.trigger("login", "user123");
+```
+
+#### Relay with Prefix
+
+You can use prefixes to organize relayed events:
+
+```typescript
+// Relay all events with a prefix
+mainBus.relay({
+    eventSource: externalBus,
+    remoteEventName: "*", // Relay all events
+    localEventNamePrefix: "external-",
+});
+
+// Now external events will be available as:
+// external-login, external-logout, external-update
+mainBus.on("external-login", (userId) => {
+    console.log(`External login: ${userId}`);
+});
+```
+
+#### Relay with Different Proxy Types
+
+You can control how relayed events handle return values:
+
+```typescript
+// Relay with pipe proxy type - data flows through listeners
+mainBus.relay({
+    eventSource: externalBus,
+    remoteEventName: "processData",
+    localEventName: "transformData",
+    proxyType: ProxyType.PIPE,
+});
+// now when you call remote "processData" event
+// it will passed through mainBus's "transformData" pipeline and returned to externalBus.
+const transformedData = externalBus.first("processData", { some: data });
+
+// Relay with merge proxy type - merge results from all listeners
+mainBus.relay({
+    eventSource: externalBus,
+    remoteEventName: "collectData",
+    localEventName: "aggregateData",
+    proxyType: ProxyType.MERGE,
+});
+
+// Relay with async resolve proxy type
+mainBus.relay({
+    eventSource: externalBus,
+    remoteEventName: "asyncOperation",
+    localEventName: "handleAsync",
+    proxyType: ProxyType.RESOLVE_ALL,
+});
+```
+
+#### Unrelay
+
+Stop relaying events:
+
+```typescript
+// Stop relaying specific event
+mainBus.unrelay({
+    eventSource: externalBus,
+    remoteEventName: "login",
+    localEventName: "userLogin",
+});
+
+// Stop relaying all events
+mainBus.unrelay({
+    eventSource: externalBus,
+    remoteEventName: "*",
+    localEventNamePrefix: "external-",
+});
+```
+
+### Event Source
+
+Event sources allow you to integrate with external event systems that follow the EventSource interface. This is useful for WebSocket connections, Node.js EventEmitter, or custom event systems.
+
+```typescript
+import { createEventBus } from "@kuindji/reactive";
+import { EventEmitter } from "events";
+
+// Create a Node.js EventEmitter as an event source
+const nodeEmitter = new EventEmitter();
+
+// Define the event source interface
+const eventSource = {
+    name: "node-emitter",
+    on: (name: string, fn: (...args: any[]) => void) => {
+        nodeEmitter.on(name, fn);
+    },
+    un: (name: string, fn: (...args: any[]) => void) => {
+        nodeEmitter.off(name, fn);
+    },
+    accepts: (name: string) => true, // Accept all events
+    proxyType: ProxyType.TRIGGER,
+};
+
+// Create event bus
+const eventBus = createEventBus<{
+    userAction: (action: string, userId: string) => void;
+    systemEvent: (event: string, data: any) => void;
+}>();
+
+// Add event source
+eventBus.addEventSource(eventSource);
+
+// Listen to events
+eventBus.on("userAction", (action, userId) => {
+    console.log(`User ${userId} performed action: ${action}`);
+});
+
+// Emit on the external source - will be relayed to event bus
+nodeEmitter.emit("userAction", "login", "user123");
+```
+
+#### WebSocket Event Source
+
+```typescript
+// Create WebSocket event source
+const createWebSocketEventSource = (ws: WebSocket) => ({
+    name: "websocket",
+    on: (name: string, fn: (...args: any[]) => void) => {
+        ws.addEventListener("message", (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === name) {
+                fn(data.payload);
+            }
+        });
+    },
+    un: (name: string, fn: (...args: any[]) => void) => {
+        ws.removeEventListener("message", fn);
+    },
+    accepts: (name: string) => true,
+    proxyType: ProxyType.TRIGGER,
+});
+
+// Usage
+const ws = new WebSocket("ws://localhost:8080");
+const wsEventSource = createWebSocketEventSource(ws);
+
+const eventBus = createEventBus<{
+    chatMessage: (message: string, userId: string) => void;
+    userJoined: (userId: string) => void;
+    userLeft: (userId: string) => void;
+}>();
+
+eventBus.addEventSource(wsEventSource);
+
+// Listen to WebSocket events
+eventBus.on("chatMessage", (message, userId) => {
+    console.log(`${userId}: ${message}`);
+});
+```
+
+#### Custom Event Source with Filtering
+
+```typescript
+// Create custom event source with filtering
+const createCustomEventSource = () => {
+    const listeners = new Map<string, Set<(...args: any[]) => void>>();
+
+    return {
+        name: "custom-source",
+        on: (name: string, fn: (...args: any[]) => void) => {
+            if (!listeners.has(name)) {
+                listeners.set(name, new Set());
+            }
+            listeners.get(name)!.add(fn);
+        },
+        un: (name: string, fn: (...args: any[]) => void) => {
+            listeners.get(name)?.delete(fn);
+        },
+        accepts: (name: string) => name.startsWith("app-"), // Only accept app-* events
+        proxyType: ProxyType.TRIGGER,
+
+        // Custom method to trigger events
+        trigger: (name: string, ...args: any[]) => {
+            listeners.get(name)?.forEach(fn => fn(...args));
+        },
+    };
+};
+
+const customSource = createCustomEventSource();
+const eventBus = createEventBus<{
+    appStart: () => void;
+    appStop: () => void;
+}>();
+
+eventBus.addEventSource(customSource);
+
+// Listen to custom events
+eventBus.on("appStart", () => {
+    console.log("Application started");
+});
+
+// Trigger on custom source
+customSource.trigger("appStart");
+```
+
+### EventBus API
+
+#### Core Methods
+
+- `addListener(name, handler, options?)` - Add listener to specific event
+  - **Aliases**: `on()`, `listen()`, `subscribe()`
+- `once(name, handler, options?)` - Add one-time listener
+- `removeListener(name, handler, context?, tag?)` - Remove listener
+  - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
+- `trigger(name, ...args)` - Trigger specific event
+  - **Aliases**: `emit()`, `dispatch()`
+- `get(name)` - Get event instance by name
+- `add(name, options?)` - Add new event to bus
+
+#### Collector Methods
+
+- `first(name, ...args)` - Get first listener result
+- `last(name, ...args)` - Get last listener result
+- `all(name, ...args)` - Get all listener results
+- `merge(name, ...args)` - Merge all results
+- `concat(name, ...args)` - Concatenate all results
+- `firstNonEmpty(name, ...args)` - Get first non-empty result
+- `untilTrue(name, ...args)` - Stop when listener returns true
+- `untilFalse(name, ...args)` - Stop when listener returns false
+- `pipe(name, ...args)` - Pipe data through listeners
+
+#### Async Versions
+
+- `resolveFirst(name, ...args)` - Async version of first()
+- `resolveLast(name, ...args)` - Async version of last()
+- `resolveAll(name, ...args)` - Async version of all()
+- `resolveMerge(name, ...args)` - Async version of merge()
+- `resolveConcat(name, ...args)` - Async version of concat()
+- `resolveFirstNonEmpty(name, ...args)` - Async version of firstNonEmpty()
+- `resolvePipe(name, ...args)` - Async version of pipe()
+
+#### Advanced Features
+
+- `intercept(fn)` - Intercept all event triggers
+- `stopIntercepting()` - Stop interception
+- `relay(options)` - Relay events from external sources
+- `unrelay(options)` - Stop relaying events
+- `addEventSource(source)` - Add external event source
+- `removeEventSource(source)` - Remove event source
+- `suspendAll(withQueue?)` - Suspend all events
+- `resumeAll()` - Resume all events
+- `reset()` - Reset all events
+- `withTags(tags, callback)` - Execute callback with specific tags
+
+## Action
+
+### Description
+
+Actions are async operations with built-in error handling and response tracking. They provide a structured way to handle async operations and their results.
+
+### Basic Usage
 
 ```typescript
 import { createAction } from "@kuindji/reactive";
 
-const fetchUser = createAction(async (id: string) => {
-    const response = await fetch(`/api/users/${id}`);
+// Define an async action
+const fetchUserAction = createAction(async (userId: string) => {
+    const response = await fetch(`/api/users/${userId}`);
+    if (!response.ok) {
+        throw new Error("User not found");
+    }
     return response.json();
 });
-```
 
-#### Methods
-
-##### invoke(...args)
-
-Invokes the action with the given arguments.
-
-```typescript
-const result = await fetchUser.invoke("123");
-// Returns: { response: userData, error: null, request: ["123"] }
-// Or: { response: null, error: "Error message", request: ["123"] }
-```
-
-##### addListener(handler)
-
-Adds a listener for successful action invocations.
-
-**Aliases**: `on`, `listen`
-
-```typescript
-fetchUser.addListener(({ response, error, request }) => {
+// Add listeners for success/error
+fetchUserAction.addListener(({ response, error, args }) => {
     if (error) {
-        console.error(error);
+        console.error("Action failed:", error);
     }
     else {
-        console.log(response);
+        console.log("User data:", response);
     }
 });
+
+// Invoke the action
+const result = await fetchUserAction.invoke("user123");
 ```
 
-##### removeListener(handler, context?, tag?)
+### Action API
 
-Removes a listener.
+#### Core Methods
 
-**Aliases**: `un`, `off`, `remove`
+- `invoke(...args)` - Execute the action
+- `addListener(handler, options?)` - Add response listener
+  - **Aliases**: `on()`, `listen()`, `subscribe()`
+- `removeListener(handler, context?, tag?)` - Remove listener
+  - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
+- `hasListener(handler?, context?, tag?)` - Check if listener exists
+  - **Aliases**: `has()`
+- `removeAllListeners(tag?)` - Remove all listeners
 
-```typescript
-fetchUser.removeListener(handler);
-```
+#### Error Handling
 
-##### removeAllListeners()
+- `addErrorListener(handler, context?)` - Add error listener
+- `removeErrorListener(handler, context?)` - Remove error listener
+- `hasErrorListeners()` - Check if error listeners exist
+- `removeAllErrorListeners(tag?)` - Remove all error listeners
 
-Removes all listeners.
+#### Utility Methods
 
-```typescript
-fetchUser.removeAllListeners();
-```
+- `promise(options?)` - Get promise for next invocation
+- `suspend(withQueue?)` - Suspend action execution
+- `resume()` - Resume action execution
+- `reset()` - Reset action state
 
-##### addErrorListener(handler)
+## ActionMap
 
-Adds a listener for action errors.
+### Description
 
-```typescript
-fetchUser.addErrorListener(({ error, request }) => {
-    console.error(`Action failed: ${error}`);
-});
-```
+ActionMap provides a way to organize multiple actions with centralized error handling. It's useful for managing related actions in a structured way.
 
-##### removeErrorListener(handler, context?, tag?)
-
-Removes an error listener.
-
-```typescript
-fetchUser.removeErrorListener(handler);
-```
-
-##### removeAllErrorListeners()
-
-Removes all error listeners.
+### Basic Usage
 
 ```typescript
-fetchUser.removeAllErrorListeners();
-```
+import { createActionMap } from "@kuindji/reactive";
 
-##### promise()
-
-Returns a promise that resolves when the action is invoked.
-
-```typescript
-const promise = fetchUser.promise();
-await fetchUser.invoke("123");
-const result = await promise;
-```
-
-##### errorPromise()
-
-Returns a promise that resolves when the action fails.
-
-```typescript
-const promise = fetchUser.errorPromise();
-await fetchUser.invoke("invalid-id");
-const error = await promise;
-```
-
-## Action Bus
-
-The action bus provides centralized action management with multiple named actions.
-
-### createActionBus
-
-Creates a new action bus for managing multiple actions.
-
-```typescript
-import { createActionBus } from "@kuindji/reactive";
-
-const actionBus = createActionBus({
-    fetchUser: async (id: string) => {
-        const response = await fetch(`/api/users/${id}`);
+// Define actions
+const actions = {
+    fetchUser: async (userId: string) => {
+        const response = await fetch(`/api/users/${userId}`);
         return response.json();
     },
-    updateUser: async (id: string, data: any) => {
-        const response = await fetch(`/api/users/${id}`, {
+    updateUser: async (userId: string, data: any) => {
+        const response = await fetch(`/api/users/${userId}`, {
             method: "PUT",
             body: JSON.stringify(data),
         });
         return response.json();
     },
-});
-```
-
-#### Methods
-
-##### add(name, action)
-
-Adds a new action to the bus.
-
-```typescript
-actionBus.add("deleteUser", async (id: string) => {
-    await fetch(`/api/users/${id}`, { method: "DELETE" });
-});
-```
-
-##### get(name)
-
-Gets an action by name.
-
-```typescript
-const fetchUserAction = actionBus.get("fetchUser");
-```
-
-##### invoke(name, ...args)
-
-Invokes an action by name.
-
-```typescript
-const result = await actionBus.invoke("fetchUser", "123");
-```
-
-##### on(name, handler, options?)
-
-Adds a listener for an action.
-
-**Alias**: `addListener`
-
-```typescript
-actionBus.on("fetchUser", ({ response, error, request }) => {
-    console.log(response);
-});
-```
-
-##### once(name, handler, options?)
-
-Adds a one-time listener for an action.
-
-```typescript
-actionBus.once("fetchUser", ({ response }) => {
-    console.log("First fetch completed:", response);
-});
-```
-
-##### un(name, handler, context?, tag?)
-
-Removes a listener for an action.
-
-**Aliases**: `removeListener`, `off`
-
-```typescript
-actionBus.un("fetchUser", handler);
-```
-
-##### onError(handler)
-
-Adds a listener for all action errors.
-
-```typescript
-actionBus.onError(({ name, error, request }) => {
-    console.error(`Action ${name} failed:`, error);
-});
-```
-
-##### unError(handler)
-
-Removes an error listener.
-
-```typescript
-actionBus.unError(handler);
-```
-
-## Event Bus
-
-The event bus provides centralized event management with event source integration.
-
-### createEventBus
-
-Creates a new event bus for managing multiple events.
-
-```typescript
-import { createEventBus } from '@kuindji/reactive';
-
-const eventBus = createEventBus({
-  userLogin: (user: any) => void,
-  userLogout: () => void,
-  dataUpdate: (data: any) => void
-});
-```
-
-#### Event Bus Options
-
-```typescript
-interface EventBusOptions {
-    /** Event-specific options */
-    eventOptions?: {
-        [key: MapKey]: EventOptions;
-    };
-    /** Include default events like "*" */
-    includeDefaultEvents?: boolean;
-}
-```
-
-#### Methods
-
-##### add(name, options?)
-
-Adds a new event to the bus.
-
-```typescript
-eventBus.add("customEvent");
-```
-
-##### get(name)
-
-Gets an event by name.
-
-```typescript
-const event = eventBus.get("userLogin");
-```
-
-##### on(name, handler, options?)
-
-Adds a listener for an event.
-
-**Aliases**: `addListener`, `listen`
-
-```typescript
-eventBus.on("userLogin", (user) => {
-    console.log("User logged in:", user);
-});
-```
-
-##### once(name, handler, options?)
-
-Adds a one-time listener for an event.
-
-```typescript
-eventBus.once("userLogin", (user) => {
-    console.log("First login:", user);
-});
-```
-
-##### un(name, handler, context?, tag?)
-
-Removes a listener for an event.
-
-**Aliases**: `removeListener`, `off`, `remove`
-
-```typescript
-eventBus.un("userLogin", handler);
-```
-
-##### trigger(name, ...args)
-
-Triggers an event by name.
-
-**Aliases**: `emit`, `dispatch`
-
-```typescript
-eventBus.trigger("userLogin", { id: "123", name: "John" });
-```
-
-##### promise(name, options?)
-
-Returns a promise that resolves when an event is triggered.
-
-```typescript
-const promise = eventBus.promise("userLogin");
-eventBus.trigger("userLogin", user);
-const result = await promise;
-```
-
-##### withTags(tags, callback)
-
-Executes a callback with tag filtering.
-
-```typescript
-eventBus.withTags([ "tag1", "tag2" ], () => {
-    eventBus.trigger("filteredEvent", "data");
-});
-```
-
-##### intercept(fn)
-
-Sets an interceptor function for all events.
-
-```typescript
-eventBus.intercept((name, args, tags, returnType) => {
-    console.log(`Event ${name} triggered with:`, args);
-    return true; // Allow event to proceed
-});
-```
-
-##### stopIntercepting()
-
-Removes the interceptor function.
-
-```typescript
-eventBus.stopIntercepting();
-```
-
-##### reset()
-
-Resets the event bus to initial state.
-
-```typescript
-eventBus.reset();
-```
-
-##### suspendAll(withQueue?)
-
-Suspends all events in the bus.
-
-```typescript
-eventBus.suspendAll();
-eventBus.suspendAll(true); // Queue events
-```
-
-##### resumeAll()
-
-Resumes all events in the bus.
-
-```typescript
-eventBus.resumeAll();
-```
-
-#### Return Value Methods
-
-All return value methods from the event system are available with the event name as the first parameter:
-
-- `first(name, ...args)`
-- `resolveFirst(name, ...args)`
-- `all(name, ...args)`
-- `resolveAll(name, ...args)`
-- `last(name, ...args)`
-- `resolveLast(name, ...args)`
-- `merge(name, ...args)`
-- `resolveMerge(name, ...args)`
-- `concat(name, ...args)`
-- `resolveConcat(name, ...args)`
-- `firstNonEmpty(name, ...args)`
-- `resolveFirstNonEmpty(name, ...args)`
-- `untilTrue(name, ...args)`
-- `untilFalse(name, ...args)`
-- `pipe(name, ...args)`
-- `resolvePipe(name, ...args)`
-- `raw(name, ...args)`
-
-#### Event Source Integration
-
-##### addEventSource(eventSource)
-
-Adds an event source for relaying events.
-
-```typescript
-const eventSource = {
-    name: "external",
-    on: (name, handler) => {/* ... */},
-    un: (name, handler) => {/* ... */},
-    accepts: (name) => true,
-    proxyType: ProxyType.TRIGGER,
+    deleteUser: async (userId: string) => {
+        await fetch(`/api/users/${userId}`, { method: "DELETE" });
+    },
 };
 
-eventBus.addEventSource(eventSource);
-```
-
-##### removeEventSource(eventSource)
-
-Removes an event source.
-
-```typescript
-eventBus.removeEventSource(eventSource);
-// or
-eventBus.removeEventSource("external");
-```
-
-##### relay(options)
-
-Relays events to an external event source.
-
-```typescript
-eventBus.relay({
-    eventSource: externalBus,
-    remoteEventName: "externalEvent",
-    localEventName: "localEvent",
-    proxyType: ProxyType.ALL,
-});
-```
-
-##### unrelay(options)
-
-Stops relaying events to an external event source.
-
-```typescript
-eventBus.unrelay({
-    eventSource: externalBus,
-    remoteEventName: "externalEvent",
-    localEventName: "localEvent",
-});
-```
-
-## Store
-
-The store provides reactive state management with change events and data transformation.
-
-### createStore
-
-Creates a new store for managing application state.
-
-```typescript
-import { createStore } from "@kuindji/reactive";
-
-const store = createStore({
-    user: null,
-    theme: "light",
-    settings: {},
-});
-```
-
-#### Methods
-
-##### set(key, value)
-
-Sets a single property value.
-
-```typescript
-store.set("user", { id: "123", name: "John" });
-```
-
-##### set(properties)
-
-Sets multiple properties at once.
-
-```typescript
-store.set({
-    user: { id: "123", name: "John" },
-    theme: "dark",
-});
-```
-
-##### asyncSet(key, value)
-
-Sets a property value asynchronously (next tick).
-
-```typescript
-store.asyncSet("user", { id: "123", name: "John" });
-```
-
-##### asyncSet(properties)
-
-Sets multiple properties asynchronously.
-
-```typescript
-store.asyncSet({
-    user: { id: "123", name: "John" },
-    theme: "dark",
-});
-```
-
-##### get(key)
-
-Gets a single property value.
-
-```typescript
-const user = store.get("user");
-```
-
-##### get(keys)
-
-Gets multiple property values as an object.
-
-```typescript
-const { user, theme } = store.get([ "user", "theme" ]);
-```
-
-##### getData()
-
-Gets all store data as an object.
-
-```typescript
-const allData = store.getData();
-```
-
-##### isEmpty()
-
-Checks if the store is empty or contains only null/undefined values.
-
-```typescript
-const empty = store.isEmpty();
-```
-
-##### batch(fn)
-
-Executes multiple set operations in a batch, triggering change events only once.
-
-```typescript
-store.batch(() => {
-    store.set("user", user);
-    store.set("theme", "dark");
-    store.set("settings", settings);
-});
-```
-
-##### reset()
-
-Clears all store data.
-
-```typescript
-store.reset();
-```
-
-##### onChange(handler)
-
-Adds a listener for property changes.
-
-```typescript
-store.onChange((names) => {
-    console.log("Properties changed:", names);
-});
-```
-
-##### removeOnChange(handler)
-
-Removes a change listener.
-
-```typescript
-store.removeOnChange(handler);
-```
-
-##### pipe(handler)
-
-Adds a data transformation listener.
-
-```typescript
-store.pipe("user", (user) => {
-    return { ...user, displayName: `${user.firstName} ${user.lastName}` };
-});
-```
-
-##### control(handler)
-
-Adds a control event listener.
-
-```typescript
-store.control("beforeChange", (name, value) => {
-    if (name === "user" && !value) {
-        return false; // Prevent setting user to null
-    }
-    return true;
-});
-```
-
-#### Store Events
-
-- `beforeChange`: Fired before a property changes, can return false to prevent the change
-- `change`: Fired when properties change, receives array of changed property names
-- `reset`: Fired when the store is reset
-
-## React Hooks
-
-The library provides React hooks for seamless integration with React components.
-
-### useEvent
-
-Creates an event that persists across component re-renders.
-
-```typescript
-import { useEvent } from "@kuindji/reactive/react";
-
-function MyComponent() {
-    const event = useEvent<(message: string) => void>();
-
-    useEffect(() => {
-        event.addListener((message) => {
-            console.log(message);
-        });
-    }, []);
-
-    return <button onClick={() => event.trigger("Hello!")}>Trigger</button>;
-}
-```
-
-### useEventBus
-
-Creates an event bus that persists across component re-renders.
-
-```typescript
-import { useEventBus } from '@kuindji/reactive/react';
-
-function MyComponent() {
-  const eventBus = useEventBus({
-    userLogin: (user: any) => void,
-    userLogout: () => void
-  });
-  
-  useEffect(() => {
-    eventBus.on("userLogin", (user) => {
-      console.log("User logged in:", user);
-    });
-  }, []);
-  
-  return <button onClick={() => eventBus.trigger("userLogin", user)}>Login</button>;
-}
-```
-
-### useEventListen
-
-Automatically manages event listener lifecycle.
-
-```typescript
-import { useEventListen } from "@kuindji/reactive/react";
-
-function MyComponent({ event }) {
-    useEventListen(event, (message) => {
-        console.log(message);
-    });
-
-    return <div>Listening to events...</div>;
-}
-```
-
-### useEventBusListen
-
-Automatically manages event bus listener lifecycle.
-
-```typescript
-import { useEventBusListen } from "@kuindji/reactive/react";
-
-function MyComponent({ eventBus }) {
-    useEventBusListen(eventBus, "userLogin", (user) => {
-        console.log("User logged in:", user);
-    });
-
-    return <div>Listening to user login events...</div>;
-}
-```
-
-### useAction
-
-Creates an action that persists across component re-renders.
-
-```typescript
-import { useAction } from "@kuindji/reactive/react";
-
-function MyComponent() {
-    const fetchUser = useAction(async (id: string) => {
-        const response = await fetch(`/api/users/${id}`);
-        return response.json();
-    });
-
-    useEffect(() => {
-        fetchUser.addListener(({ response, error }) => {
-            if (error) {
-                console.error(error);
-            }
-            else {
-                console.log(response);
-            }
-        });
-    }, []);
-
-    return <button onClick={() => fetchUser.invoke("123")}>Fetch User</button>;
-}
-```
-
-### useActionBus
-
-Creates an action bus that persists across component re-renders.
-
-```typescript
-import { useActionBus } from "@kuindji/reactive/react";
-
-function MyComponent() {
-    const actionBus = useActionBus({
-        fetchUser: async (id: string) => {
-            const response = await fetch(`/api/users/${id}`);
-            return response.json();
-        },
-    });
-
-    useEffect(() => {
-        actionBus.on("fetchUser", ({ response, error }) => {
-            if (error) {
-                console.error(error);
-            }
-            else {
-                console.log(response);
-            }
-        });
-    }, []);
-
-    return (
-        <button onClick={() => actionBus.invoke("fetchUser", "123")}>
-            Fetch User
-        </button>
-    );
-}
-```
-
-### useActionListen
-
-Automatically manages action listener lifecycle.
-
-```typescript
-import { useActionListen } from "@kuindji/reactive/react";
-
-function MyComponent({ action }) {
-    useActionListen(action, ({ response, error }) => {
-        if (error) {
-            console.error(error);
-        }
-        else {
-            console.log(response);
-        }
-    });
-
-    return <div>Listening to action results...</div>;
-}
-```
-
-### useStore
-
-Creates a store that persists across component re-renders.
-
-```typescript
-import { useStore } from "@kuindji/reactive/react";
-
-function MyComponent() {
-    const store = useStore({
-        user: null,
-        theme: "light",
-    });
-
-    useEffect(() => {
-        store.onChange((names) => {
-            console.log("Properties changed:", names);
-        });
-    }, []);
-
-    return (
-        <button onClick={() => store.set("theme", "dark")}>
-            Toggle Theme
-        </button>
-    );
-}
-```
-
-### useStoreState
-
-Creates a React state that syncs with a store property.
-
-```typescript
-import { useStoreState } from "@kuindji/reactive/react";
-
-function MyComponent({ store }) {
-    const [ user, setUser ] = useStoreState(store, "user");
-
-    return (
-        <div>
-            <p>User: {user?.name || "Not logged in"}</p>
-            <button onClick={() => setUser({ id: "123", name: "John" })}>
-                Set User
-            </button>
-            <button onClick={() => setUser(null)}>
-                Clear User
-            </button>
-        </div>
-    );
-}
-```
-
-### useStoreValue
-
-Creates a read-only React state that syncs with a store property.
-
-```typescript
-import { useStoreValue } from "@kuindji/reactive/react";
-
-function MyComponent({ store }) {
-    const theme = useStoreValue(store, "theme");
-
-    return (
-        <div className={`theme-${theme}`}>
-            Current theme: {theme}
-        </div>
-    );
-}
-```
-
-## Types
-
-### TriggerReturnType
-
-Enum for different return value handling modes:
-
-- `RAW`: Returns raw listener results
-- `ALL`: Returns array of all listener results
-- `CONCAT`: Concatenates all listener results (flattens arrays)
-- `MERGE`: Merges all listener results using Object.assign
-- `LAST`: Returns the result of the last listener
-- `PIPE`: Pipes the result of each listener to the next
-- `FIRST`: Returns the result of the first listener
-- `UNTIL_TRUE`: Triggers listeners until one returns true
-- `UNTIL_FALSE`: Triggers listeners until one returns false
-- `FIRST_NON_EMPTY`: Returns the first non-null/undefined result
-
-### ProxyType
-
-Enum for event source proxy types:
-
-- `TRIGGER`: Simple event triggering
-- `RAW`: Raw result handling
-- `ALL`: All results handling
-- `CONCAT`: Concatenated results handling
-- `MERGE`: Merged results handling
-- `LAST`: Last result handling
-- `PIPE`: Piped results handling
-- `FIRST`: First result handling
-- `UNTIL_TRUE`: Until true handling
-- `UNTIL_FALSE`: Until false handling
-- `FIRST_NON_EMPTY`: First non-empty handling
-- `RESOLVE_ALL`: Promise-based all results handling
-- `RESOLVE_MERGE`: Promise-based merged results handling
-- `RESOLVE_CONCAT`: Promise-based concatenated results handling
-- `RESOLVE_FIRST`: Promise-based first result handling
-- `RESOLVE_FIRST_NON_EMPTY`: Promise-based first non-empty handling
-- `RESOLVE_LAST`: Promise-based last result handling
-- `RESOLVE_PIPE`: Promise-based piped results handling
-
-## Examples
-
-### Basic Event Usage
-
-```typescript
-import { createEvent } from "@kuindji/reactive";
-
-const userEvent = createEvent<(user: any) => void>();
-
-userEvent.addListener((user) => {
-    console.log("User updated:", user);
+// type ErrorResponse = {
+//     args: TriggerArgs[],
+//     error: Error,
+//     name?: ActionName,
+//     type?: "action"
+// }
+
+// Create action map with error handling
+const actionMap = createActionMap(actions, (errorResponse: ErrorResponse) => {
+    console.error("Action failed:", errorResponse);
 });
 
-userEvent.trigger({ id: "123", name: "John" });
+// Use actions
+const user = await actionMap.fetchUser.invoke("user123");
+await actionMap.updateUser.invoke("user123", { name: "John" });
 ```
 
-### Action with Error Handling
+### ActionMap API
+
+The ActionMap returns an object where each key corresponds to an action with the same API as individual actions created with `createAction()`.
+
+## ActionBus
+
+### Description
+
+ActionBus provides centralized action management similar to EventBus but for actions. It allows you to dynamically add and manage actions with built-in error handling.
+
+### Basic Usage
 
 ```typescript
-import { createAction } from "@kuindji/reactive";
+import { createActionBus } from "@kuindji/reactive";
 
-const fetchUser = createAction(async (id: string) => {
-    const response = await fetch(`/api/users/${id}`);
-    if (!response.ok) {
-        throw new Error("Failed to fetch user");
-    }
+type Actions = {
+    fetchUser: (userId: string) => Promise<UserData>;
+    updateUser: (userId: string, data: UserData) => Promise<UserData>;
+};
+
+// Create action bus
+const actionBus = createActionBus<Actions>();
+
+// Add actions
+actionBus.add("fetchUser", async (userId) => {
+    const response = await fetch(`/api/users/${userId}`);
     return response.json();
 });
 
-fetchUser.addListener(({ response, error }) => {
+actionBus.add("updateUser", async (userId, data) => {
+    const response = await fetch(`/api/users/${userId}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+    });
+    return response.json();
+});
+
+// Add listeners
+actionBus.on("fetchUser", ({ response, error }) => {
     if (error) {
-        console.error("Error:", error);
+        console.error("Failed to fetch user:", error);
     }
     else {
-        console.log("User:", response);
+        console.log("User fetched:", response);
     }
 });
 
-await fetchUser.invoke("123");
+// Invoke actions
+const user = await actionBus.invoke("fetchUser", "user123");
 ```
 
-### Store with React Integration
+### ActionBus API
+
+#### Core Methods
+
+- `add(name, action)` - Add action to bus
+- `get(name)` - Get action by name
+- `invoke(name, ...args)` - Invoke action by name
+- `addListener(name, handler, options?)` - Add listener to action
+  - **Aliases**: `on()`, `listen()`, `subscribe()`
+- `once(name, handler, options?)` - Add one-time listener
+- `removeListener(name, handler, context?, tag?)` - Remove listener
+  - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
+- `has(name)` - Check if action exists
+- `remove(name)` - Remove action
+
+#### Error Handling
+
+- `addErrorListener(handler)` - Add global error listener
+- `removeErrorListener(handler)` - Remove global error listener
+- `hasErrorListeners()` - Check if error listeners exist
+
+## Store
+
+### Description
+
+Store provides reactive state management with change tracking, validation, and event-driven updates. It's designed for managing application state with full TypeScript support.
+
+### Basic Usage
 
 ```typescript
 import { createStore } from "@kuindji/reactive";
-import { useStoreState } from "@kuindji/reactive/react";
 
-const store = createStore({
-    user: null,
-    theme: "light",
+// Define store schema
+type UserStore = {
+    id: string;
+    name: string;
+    email: string;
+    isLoggedIn: boolean;
+};
+
+// Create store with initial data
+const userStore = createStore<UserStore>({
+    id: "",
+    name: "",
+    email: "",
+    isLoggedIn: false,
 });
 
-function UserProfile() {
-    const [ user, setUser ] = useStoreState(store, "user");
-    const [ theme, setTheme ] = useStoreState(store, "theme");
+// Listen to changes
+userStore.onChange("name", (newName, oldName) => {
+    console.log(`Name changed from ${oldName} to ${newName}`);
+});
+
+// Update store
+userStore.set("name", "John Doe");
+userStore.set("isLoggedIn", true);
+
+// Get values
+const name = userStore.get("name");
+const userData = userStore.get([ "name", "email" ]); // { name: string, email: string }
+```
+
+### Store API
+
+#### Core Methods
+
+- `set(key, value)` - Set single property
+- `set(data)` - Set multiple properties
+- `asyncSet(key, value)` - Async set single property
+- `asyncSet(data)` - Async set multiple properties
+- `get(key)` - Get single property
+- `get(keys)` - Get multiple properties
+- `isEmpty()` - Check if store is empty
+- `getData()` - Get all store data
+- `reset()` - Reset store to initial state
+
+#### Event Methods
+
+- `onChange(key, handler)` - Listen to property changes
+- `pipe(key, handler)` - Add data transformation pipeline
+- `control(event, handler)` - Control store events
+
+#### Control Events
+
+- `beforeChange` - Fired before property changes (can prevent change)
+- `change` - Fired after properties change
+- `reset` - Fired when store is reset
+- `error` - Fired when errors occur
+
+#### Utility Methods
+
+- `batch(fn)` - Batch multiple changes
+
+## React Hooks
+
+### Description
+
+The library provides comprehensive React hooks for integrating reactive functionality into React components with automatic cleanup and error handling.
+
+### Basic Usage
+
+```typescript
+import {  useListenToEvent } from "@kuindji/reactive/react";
+
+const event = createEvent(() => void);
+
+function FirstComponent() {
+    
+    // Use in component
+    const handleClick = () => {
+        event.trigger();
+    };
 
     return (
-        <div className={`theme-${theme}`}>
-            {user
-                ? (
-                    <div>
-                        <h1>{user.name}</h1>
-                        <button
-                            onClick={() =>
-                                setTheme(theme === "light" ? "dark" : "light")}>
-                            Toggle Theme
-                        </button>
-                    </div>
-                )
-                : (
-                    <button
-                        onClick={() => setUser({ id: "123", name: "John" })}>
-                        Login
-                    </button>
-                )}
+        <div>
+            <button onClick={handleClick}>Trigger event</button>
         </div>
+    );
+}
+
+function AnotherComponent() {
+    const handler = useCallback(
+        () => {
+            console.log("something happened in first component")
+        },
+        []
+    );
+    useListenToEvent(event, handler);
+}
+```
+
+### Available Hooks
+
+Create and use event
+
+```typescript
+const event = useEvent(
+    listenerOptions?: ListenerOptions,
+    listener?: Function,
+    errorListener?: (errorResponse) => void
+);
+```
+
+Listen to event
+
+```typescript
+useListenToEvent(
+    event: Event, 
+    listener?: Function, 
+    errorListener?: (errorResponse) => void
+)
+```
+
+Create and use event bus
+
+```typescript
+type EventBus = {
+    eventName: Function
+}
+type EventBusOptions = {
+    eventName: EventOptions
+}
+const eventBus = useEventBus<EventBus>(
+    options?: EventBusOptions,
+    allEventsListener?: Function,
+    errorListener?: (errorResponse) => void
+);
+```
+
+Listen to bus events
+
+```typescript
+useListenToEventBus(
+    eventBus: EventBus,
+    eventName: string,
+    listener: Function,
+    listenerOptions?: ListenerOptions,
+    errorListener?: (errorResponse) => void
+)
+```
+
+Create and use action
+
+```typescript
+const action = useAction(
+    action: Function,
+    listener?: Function,
+    errorListener?: (errorResponse) => void
+);
+```
+
+Listen to action events
+
+```typescript
+useListenToAction(
+    action: Action,
+    listener?: Function,
+    errorListener?: (errorResponse) => void
+)
+```
+
+Create and use action map
+
+```typescript
+const actionMap = useActionMap(
+    actions: {
+        actionName: Function
+    },
+    errorListener?: (errorResponse) => void
+)
+```
+
+Create and use action bus
+
+```typescript
+type ActionsMap = {
+    actionName: FunctionSignature
+}
+const actionBus = useActionBus<ActionsMap>(
+    initialActions: Partial<ActionsMap>,
+    errorListener?: (errorResponse) => void
+)
+```
+
+Create and use data store
+
+```typescript
+type PropTypes = {
+    propName: number
+}
+const store = useStore<PropTypes>(
+    initialData: Partial<PropTypes>,
+    config: {
+        onChange: {
+            [K in keyof PropTypes]: (
+                value: PropTypes[K],
+                prevValue: PropTypes[K] | undefined
+            ) => void
+        };
+        pipes: {
+            [K in keyof PropTypes]: (
+                value: PropTypes[K]
+            ) => PropTypes[K]
+        };
+        control: {
+            beforeChange: (name, value) => boolean;
+            change: (names) => void;
+            error: (errorResponse) => void;
+            reset: () => void;
+        }
+    }
+);
+```
+
+Use store value as state
+
+```typescript
+const [ value, setValue ] = useStoreStore(
+    store: Store,
+    key: string
+)
+```
+
+## ErrorBoundary
+
+### Description
+
+ErrorBoundary provides catch-all error listener for actions and events. Without ErrorBoundary (or with empty "listener") and without error listener passed directly to them they will re-throw errors from listeners.
+
+### Basic Usage
+
+```typescript
+import { ErrorBoundary } from "@kuindji/reactive/react";
+
+function App() {
+    return (
+        <ErrorBoundary
+            listener={(errorResponse) => {
+                console.error("Reactive error:", errorResponse);
+                // Send to error reporting service
+            }}>
+            <UserComponent />
+        </ErrorBoundary>
     );
 }
 ```
 
-### Event Bus with Multiple Events
+### ErrorBoundary API
 
-```typescript
-import { createEventBus } from '@kuindji/reactive';
-
-const appEvents = createEventBus({
-  userLogin: (user: any) => void,
-  userLogout: () => void,
-  dataUpdate: (data: any) => void
-});
-
-appEvents.on("userLogin", (user) => {
-  console.log("User logged in:", user);
-});
-
-appEvents.on("userLogout", () => {
-  console.log("User logged out");
-});
-
-appEvents.trigger("userLogin", { id: "123", name: "John" });
-appEvents.trigger("userLogout");
-```
+- `children` - React children to render
+- `listener` - Error listener function (optional)
 
 ## License
 
-ISC
+ISC License
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Support
+
+If you encounter any issues or have questions, please [open an issue](https://github.com/kuindji/reactive/issues) on GitHub.
