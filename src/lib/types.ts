@@ -62,7 +62,7 @@ export type ErrorResponse<Arguments extends any[] = any[]> = {
     error: Error;
     args: Arguments;
     name?: MapKey;
-    type: "action" | "event";
+    type: "action" | "event" | "store";
 };
 
 export type ErrorListenerSignature<Arguments extends any[] = any[]> = (

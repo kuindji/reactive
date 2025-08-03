@@ -1,5 +1,10 @@
 import { createEventBus, EventBusDefinitionHelper } from "./eventBus";
-import { ApiType, KeyOf, MapKey } from "./lib/types";
+import type {
+    ApiType,
+    ErrorListenerSignature,
+    KeyOf,
+    MapKey,
+} from "./lib/types";
 
 export interface BasePropMap {
     [key: MapKey]: any;
@@ -8,6 +13,7 @@ export interface BasePropMap {
 export const BeforeChangeEventName = "beforeChange";
 export const ChangeEventName = "change";
 export const ResetEventName = "reset";
+export const ErrorEventName = "error";
 
 type StoreControlEvents<PropMap extends BasePropMap> = {
     [BeforeChangeEventName]: <K extends KeyOf<PropMap>, V extends PropMap[K]>(
@@ -16,6 +22,7 @@ type StoreControlEvents<PropMap extends BasePropMap> = {
     ) => boolean;
     [ChangeEventName]: (names: KeyOf<PropMap>[]) => void;
     [ResetEventName]: () => void;
+    [ErrorEventName]: ErrorListenerSignature<any[]>;
 };
 
 type StoreChangeEvents<PropMap extends BasePropMap> = {
@@ -76,7 +83,25 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
             }
 
             const pipeArgs = [ value ] as PipeEvents[K]["arguments"];
-            const newValue = pipe.pipe(name, ...pipeArgs);
+            let newValue: any;
+            try {
+                newValue = pipe.pipe(name, ...pipeArgs);
+            }
+            catch (error) {
+                control.trigger(ErrorEventName, {
+                    error: error instanceof Error
+                        ? error
+                        : new Error(String(error)),
+                    args: pipeArgs,
+                    type: "store",
+                    name,
+                });
+                if (control.get(ErrorEventName)?.hasListener()) {
+                    return false;
+                }
+                throw error;
+            }
+
             if (newValue !== undefined) {
                 value = newValue;
             }
@@ -86,10 +111,42 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                 value,
                 prev,
             ] as unknown as ChangeEvents[K]["arguments"];
-            changes.trigger(name, ...changeArgs);
+            try {
+                changes.trigger(name, ...changeArgs);
+            }
+            catch (error) {
+                control.trigger(ErrorEventName, {
+                    error: error instanceof Error
+                        ? error
+                        : new Error(String(error)),
+                    args: changeArgs,
+                    type: "store",
+                    name,
+                });
+                if (control.get(ErrorEventName)?.hasListener()) {
+                    return true;
+                }
+                throw error;
+            }
 
             if (triggerChange) {
-                control.trigger(ChangeEventName, [ name ]);
+                try {
+                    control.trigger(ChangeEventName, [ name ]);
+                }
+                catch (error) {
+                    control.trigger(ErrorEventName, {
+                        error: error instanceof Error
+                            ? error
+                            : new Error(String(error)),
+                        args: [ name ],
+                        type: "store",
+                        name,
+                    });
+                    if (control.get(ErrorEventName)?.hasListener()) {
+                        return true;
+                    }
+                    throw error;
+                }
             }
             return true;
         }
