@@ -41,7 +41,19 @@ export function useEventBus<
     );
 
     const eventBus = useMemo(
-        () => createEventBus<EventsMap>(eventBusOptions),
+        () => {
+            const eventBus = createEventBus<EventsMap>(eventBusOptions);
+            if (allEventsListener) {
+                eventBus.addAllEventsListener(allEventsListener);
+            }
+            if (errorListener) {
+                eventBus.addErrorListener(errorListener);
+            }
+            if (boundaryErrorListener) {
+                eventBus.addErrorListener(boundaryErrorListener);
+            }
+            return eventBus;
+        },
         [],
     );
 
@@ -57,12 +69,16 @@ export function useEventBus<
 
     useEffect(
         () => {
-            if (allEventsListenerRef.current) {
-                eventBus.removeAllEventsListener(allEventsListenerRef.current);
-            }
-            allEventsListenerRef.current = allEventsListener;
-            if (allEventsListener) {
-                eventBus.addAllEventsListener(allEventsListener);
+            if (allEventsListenerRef.current !== allEventsListener) {
+                if (allEventsListenerRef.current) {
+                    eventBus.removeAllEventsListener(
+                        allEventsListenerRef.current,
+                    );
+                }
+                allEventsListenerRef.current = allEventsListener;
+                if (allEventsListener) {
+                    eventBus.addAllEventsListener(allEventsListener);
+                }
             }
         },
         [ allEventsListener ],
@@ -70,12 +86,14 @@ export function useEventBus<
 
     useEffect(
         () => {
-            if (errorListenerRef.current) {
-                eventBus.removeErrorListener(errorListenerRef.current);
-            }
-            errorListenerRef.current = errorListener;
-            if (errorListener) {
-                eventBus.addErrorListener(errorListener);
+            if (errorListenerRef.current !== errorListener) {
+                if (errorListenerRef.current) {
+                    eventBus.removeErrorListener(errorListenerRef.current);
+                }
+                errorListenerRef.current = errorListener;
+                if (errorListener) {
+                    eventBus.addErrorListener(errorListener);
+                }
             }
         },
         [ errorListener ],
@@ -83,12 +101,16 @@ export function useEventBus<
 
     useEffect(
         () => {
-            if (boundaryErrorListenerRef.current) {
-                eventBus.removeErrorListener(boundaryErrorListenerRef.current);
-            }
-            boundaryErrorListenerRef.current = boundaryErrorListener;
-            if (boundaryErrorListener) {
-                eventBus.addErrorListener(boundaryErrorListener);
+            if (boundaryErrorListenerRef.current !== boundaryErrorListener) {
+                if (boundaryErrorListenerRef.current) {
+                    eventBus.removeErrorListener(
+                        boundaryErrorListenerRef.current,
+                    );
+                }
+                boundaryErrorListenerRef.current = boundaryErrorListener;
+                if (boundaryErrorListener) {
+                    eventBus.addErrorListener(boundaryErrorListener);
+                }
             }
         },
         [ boundaryErrorListener ],

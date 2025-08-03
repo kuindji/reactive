@@ -2,9 +2,9 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "bun:test";
 import { useCallback, useEffect } from "react";
 import { useEventBus } from "../../src/react/useEventBus";
-import { useEventBusListen } from "../../src/react/useListenToEventBus";
+import { useListenToEventBus } from "../../src/react/useListenToEventBus";
 
-describe("useEventListen", () => {
+describe("useListenToEventBus", () => {
     it("should listen to event", () => {
         let triggered = false;
         function Component() {
@@ -18,7 +18,7 @@ describe("useEventListen", () => {
                 [],
             );
 
-            useEventBusListen(eventBus, "a", handler);
+            useListenToEventBus(eventBus, "a", handler);
 
             useEffect(
                 () => {

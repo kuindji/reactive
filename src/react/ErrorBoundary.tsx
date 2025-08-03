@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useRef } from "react";
+import { createContext, useCallback, useContext, useRef } from "react";
 import type { ErrorListenerSignature, ErrorResponse } from "../lib/types";
 
 export type ErrorBoundaryProps = {

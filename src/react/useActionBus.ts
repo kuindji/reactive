@@ -1,6 +1,7 @@
 import { useContext, useEffect, useMemo, useRef } from "react";
 import type { ActionResponse, ListenerSignature } from "../action";
-import { type BaseActionsMap, createActionBus } from "../actionBus";
+import type { BaseActionsMap } from "../actionBus";
+import { createActionBus } from "../actionBus";
 import type { ErrorListenerSignature, ErrorResponse } from "../lib/types";
 import { ErrorBoundaryContext } from "./ErrorBoundary";
 

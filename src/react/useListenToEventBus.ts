@@ -3,6 +3,8 @@ import type { BaseEventBus } from "../../src/eventBus";
 import type { ErrorListenerSignature, KeyOf } from "../../src/lib/types";
 import type { ListenerOptions } from "../event";
 
+export type { BaseEventBus, ErrorListenerSignature, ListenerOptions };
+
 export function useListenToEventBus<
     TEventBus extends BaseEventBus,
     TKey extends KeyOf<TEventBus["__type"]["eventSignatures"]>,

@@ -1,9 +1,6 @@
 import { useContext, useEffect, useMemo, useRef } from "react";
-import {
-    type ActionResponse,
-    createAction,
-    type ListenerSignature,
-} from "../action";
+import { createAction } from "../action";
+import type { ActionResponse, ListenerSignature } from "../action";
 import type {
     BaseHandler,
     ErrorListenerSignature,
@@ -13,6 +10,7 @@ import { ErrorBoundaryContext } from "./ErrorBoundary";
 
 export type {
     ActionResponse,
+    BaseHandler,
     ErrorListenerSignature,
     ErrorResponse,
     ListenerSignature,

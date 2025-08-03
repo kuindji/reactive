@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef } from "react";
-import { type BaseEvent, ListenerOptions } from "../../src/event";
+import type { BaseEvent, ListenerOptions } from "../../src/event";
+import type { ErrorListenerSignature } from "../lib/types";
+
+export type { BaseEvent, ErrorListenerSignature, ListenerOptions };
 
 export function useListenToEvent<
     TEvent extends BaseEvent,

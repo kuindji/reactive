@@ -2,10 +2,10 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "bun:test";
 import { useCallback, useEffect } from "react";
 import { useAction } from "../../src/react/useAction";
-import { useActionListen } from "../../src/react/useListenToAction";
+import { useListenToAction } from "../../src/react/useListenToAction";
 
-describe("useActionListen", () => {
-    it("should listen to event via useActionListen", () => {
+describe("useAction", () => {
+    it("should listen to event via useListenToAction", () => {
         let triggered = false;
         function Component() {
             const action = useAction((a: number): string => a.toString());
@@ -23,7 +23,7 @@ describe("useActionListen", () => {
                 [],
             );
 
-            useActionListen(action, handler);
+            useListenToAction(action, handler);
 
             useEffect(
                 () => {

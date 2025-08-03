@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
-import { BaseAction, BaseActionDefinition } from "../action";
+import type { BaseAction, BaseActionDefinition } from "../action";
+
+export type { BaseAction };
 
 export function useListenToAction<
     TAction extends BaseAction,
@@ -8,12 +10,12 @@ export function useListenToAction<
     TErrorListenerSignature
         extends TAction["__type"]["errorListenerSignature"] =
             TAction["__type"]["errorListenerSignature"],
-    ActionDefinition extends BaseActionDefinition = TAction["__type"],
 >(
     action: TAction,
     listener: TListenerSignature | null,
     errorListener?: TErrorListenerSignature,
 ) {
+    type ActionDefinition = TAction["__type"];
     const listenerRef = useRef<TListenerSignature>(listener);
     const actionRef = useRef<TAction>(action);
     const errorListenerRef = useRef<TErrorListenerSignature>(errorListener);
