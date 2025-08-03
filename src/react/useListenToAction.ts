@@ -1,20 +1,28 @@
 import { useCallback, useEffect, useRef } from "react";
 import { BaseAction, BaseActionDefinition } from "../action";
 
-export function useActionListen<
+export function useListenToAction<
     TAction extends BaseAction,
     TListenerSignature extends TAction["__type"]["listenerSignature"] =
         TAction["__type"]["listenerSignature"],
+    TErrorListenerSignature
+        extends TAction["__type"]["errorListenerSignature"] =
+            TAction["__type"]["errorListenerSignature"],
     ActionDefinition extends BaseActionDefinition = TAction["__type"],
->(action: TAction, handler: TListenerSignature) {
-    const handlerRef = useRef<TListenerSignature>(handler);
+>(
+    action: TAction,
+    listener: TListenerSignature | null,
+    errorListener?: TErrorListenerSignature,
+) {
+    const listenerRef = useRef<TListenerSignature>(listener);
     const actionRef = useRef<TAction>(action);
+    const errorListenerRef = useRef<TErrorListenerSignature>(errorListener);
 
-    handlerRef.current = handler;
+    listenerRef.current = listener;
 
     const genericHandler = useCallback(
         (arg: ActionDefinition["listenerArgument"]) => {
-            handlerRef.current(arg);
+            listenerRef.current?.(arg);
         },
         [],
     );
@@ -23,6 +31,11 @@ export function useActionListen<
         () => {
             return () => {
                 actionRef.current.removeListener(genericHandler);
+                if (errorListenerRef.current) {
+                    actionRef.current.removeErrorListener(
+                        errorListenerRef.current,
+                    );
+                }
             };
         },
         [],
@@ -35,5 +48,22 @@ export function useActionListen<
             actionRef.current.addListener(genericHandler);
         },
         [ action ],
+    );
+
+    useEffect(
+        () => {
+            if (errorListenerRef.current !== errorListener) {
+                if (errorListenerRef.current) {
+                    actionRef.current.removeErrorListener(
+                        errorListenerRef.current,
+                    );
+                }
+                errorListenerRef.current = errorListener;
+                if (errorListener) {
+                    actionRef.current.addErrorListener(errorListener);
+                }
+            }
+        },
+        [ errorListener ],
     );
 }

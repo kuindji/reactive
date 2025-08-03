@@ -109,6 +109,9 @@ export type EventDefinitionHelper<
     arguments: Parameters<ListenerSignature>;
     returnType: ReturnType<ListenerSignature>;
     options: EventOptions<ListenerSignature>;
+    errorListenerSignature: ErrorListenerSignature<
+        Parameters<ListenerSignature>
+    >;
 };
 
 export function createEvent<

@@ -3,7 +3,7 @@ import { createEvent, ListenerOptions } from "./event";
 import type {
     ApiType,
     BaseHandler,
-    ErrorResponse,
+    ErrorListenerSignature,
     KeyOf,
     MapKey,
 } from "./lib/types";
@@ -11,12 +11,6 @@ import type {
 export interface BaseActionsMap {
     [key: MapKey]: BaseHandler;
 }
-
-export type AnyErrorResponse = ErrorResponse<any[]> & { name: MapKey; };
-
-export type ErrorEventSignature = (
-    ...args: [ AnyErrorResponse ]
-) => void;
 
 type GetActionTypesMap<
     ActionsMap extends BaseActionsMap,
@@ -39,13 +33,20 @@ export type ActionBusDefinitionHelper<ActionsMap extends BaseActionsMap> = {
 
 export function createActionBus<ActionsMap extends BaseActionsMap>(
     initialActions: ActionsMap = {} as ActionsMap,
+    errorListener?: ErrorListenerSignature<any[]>,
 ) {
     type ActionBus = ActionBusDefinitionHelper<ActionsMap>;
     type ActionTypes = ActionBus["actionTypes"];
     type Actions = ActionBus["actions"];
 
     const actions = new Map<KeyOf<Actions>, any>();
-    const errorEvent = createEvent<ErrorEventSignature>();
+    const errorEvent = createEvent<ErrorListenerSignature<any[]>>();
+
+    if (errorListener) {
+        errorEvent.addListener(({ error, args }) => {
+            errorEvent.emit({ error, args, type: "action" });
+        });
+    }
 
     const add = (name: MapKey, action: BaseHandler) => {
         if (!actions.has(name)) {

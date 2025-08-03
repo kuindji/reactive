@@ -1,26 +1,30 @@
 import { useCallback, useEffect, useRef } from "react";
-import { type BaseEventBus } from "../../src/eventBus";
-import { KeyOf } from "../../src/lib/types";
-import { ListenerOptions } from "../event";
+import type { BaseEventBus } from "../../src/eventBus";
+import type { ErrorListenerSignature, KeyOf } from "../../src/lib/types";
+import type { ListenerOptions } from "../event";
 
-export function useEventBusListen<
+export function useListenToEventBus<
     TEventBus extends BaseEventBus,
     TKey extends KeyOf<TEventBus["__type"]["eventSignatures"]>,
-    THandler extends TEventBus["__type"]["eventSignatures"][TKey],
+    TListener extends TEventBus["__type"]["eventSignatures"][TKey],
 >(
     eventBus: TEventBus,
     eventName: TKey,
-    handler: THandler,
+    listener: TListener,
     options?: ListenerOptions,
+    errorListener?: ErrorListenerSignature<any[]>,
 ) {
-    const handlerRef = useRef<THandler>(handler);
+    const listenerRef = useRef<TListener>(listener);
     const eventBusRef = useRef<TEventBus>(eventBus);
+    const errorListenerRef = useRef<ErrorListenerSignature<any[]>>(
+        errorListener,
+    );
 
-    handlerRef.current = handler;
+    listenerRef.current = listener;
 
     const genericHandler = useCallback(
-        (...args: Parameters<THandler>) => {
-            return handlerRef.current(...args);
+        (...args: Parameters<TListener>) => {
+            return listenerRef.current(...args);
         },
         [],
     );
@@ -28,7 +32,12 @@ export function useEventBusListen<
     useEffect(
         () => {
             return () => {
-                eventBusRef.current.off(eventName, genericHandler);
+                eventBusRef.current.removeListener(eventName, genericHandler);
+                if (errorListenerRef.current) {
+                    eventBusRef.current.removeErrorListener(
+                        errorListenerRef.current,
+                    );
+                }
             };
         },
         [],
@@ -36,10 +45,27 @@ export function useEventBusListen<
 
     useEffect(
         () => {
-            eventBusRef.current.off(eventName, genericHandler);
+            eventBusRef.current.removeListener(eventName, genericHandler);
             eventBusRef.current = eventBus;
-            eventBusRef.current.on(eventName, genericHandler, options);
+            eventBusRef.current.addListener(eventName, genericHandler, options);
         },
         [ eventBus ],
+    );
+
+    useEffect(
+        () => {
+            if (errorListenerRef.current !== errorListener) {
+                if (errorListenerRef.current) {
+                    eventBusRef.current.removeErrorListener(
+                        errorListenerRef.current,
+                    );
+                }
+                errorListenerRef.current = errorListener;
+                if (errorListener) {
+                    eventBusRef.current.addErrorListener(errorListener);
+                }
+            }
+        },
+        [ errorListener ],
     );
 }

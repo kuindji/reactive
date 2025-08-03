@@ -19,9 +19,7 @@ export type {
 
 export function useActionMap<M extends BaseActionsMap>(
     actions: M,
-    onAnyError?:
-        | ErrorListenerSignature<any[]>
-        | ErrorListenerSignature<any[]>[],
+    errorListener?: ErrorListenerSignature<any[]>,
 ) {
     const boundaryErrorListener = useContext(
         ErrorBoundaryContext,
@@ -30,7 +28,7 @@ export function useActionMap<M extends BaseActionsMap>(
     const actionMap = useMemo(
         () => {
             const errorListeners = [
-                ...(Array.isArray(onAnyError) ? onAnyError : [ onAnyError ]),
+                ...(errorListener ? [ errorListener ] : []),
                 ...(boundaryErrorListener ? [ boundaryErrorListener ] : []),
             ].filter(l => l !== undefined);
             const actionMap = createActionMap(actions, errorListeners);
@@ -42,12 +40,12 @@ export function useActionMap<M extends BaseActionsMap>(
         () => {
             if (changeRef.current > 0) {
                 throw new Error(
-                    "useActionMap() does not support changing actions or onAnyError",
+                    "useActionMap() does not support changing actions or errorListener",
                 );
             }
             changeRef.current++;
         },
-        [ actions, onAnyError, boundaryErrorListener ],
+        [ actions, errorListener, boundaryErrorListener ],
     );
     return actionMap as Simplify<typeof actionMap>;
 }

@@ -1,19 +1,25 @@
 import { useCallback, useEffect, useRef } from "react";
 import { type BaseEvent, ListenerOptions } from "../../src/event";
 
-export function useEventListen<
+export function useListenToEvent<
     TEvent extends BaseEvent,
-    TEventSignature extends TEvent["__type"]["signature"] =
-        TEvent["__type"]["signature"],
->(event: TEvent, handler: TEventSignature, options?: ListenerOptions) {
-    const handlerRef = useRef<TEventSignature>(handler);
+    TListenerSignature extends TEvent["__type"]["signature"],
+    TErrorListenerSignature extends TEvent["__type"]["errorListenerSignature"],
+>(
+    event: TEvent,
+    listener: TListenerSignature,
+    options?: ListenerOptions,
+    errorListener?: TErrorListenerSignature,
+) {
+    const listenerRef = useRef<TListenerSignature>(listener);
     const eventRef = useRef<TEvent>(event);
+    const errorListenerRef = useRef<TErrorListenerSignature>(errorListener);
 
-    handlerRef.current = handler;
+    listenerRef.current = listener;
 
     const genericHandler = useCallback(
-        (...args: Parameters<TEventSignature>) => {
-            return handlerRef.current(...args);
+        (...args: Parameters<TListenerSignature>) => {
+            return listenerRef.current(...args);
         },
         [],
     );
@@ -34,5 +40,22 @@ export function useEventListen<
             eventRef.current.addListener(genericHandler, options);
         },
         [ event ],
+    );
+
+    useEffect(
+        () => {
+            if (errorListenerRef.current !== errorListener) {
+                if (errorListenerRef.current) {
+                    eventRef.current.removeErrorListener(
+                        errorListenerRef.current,
+                    );
+                }
+                errorListenerRef.current = errorListener;
+                if (errorListener) {
+                    eventRef.current.addErrorListener(errorListener);
+                }
+            }
+        },
+        [ errorListener ],
     );
 }

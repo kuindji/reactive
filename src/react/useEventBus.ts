@@ -25,8 +25,8 @@ export function useEventBus<
     EventsMap extends BaseEventMap = DefaultEventMap,
 >(
     eventBusOptions?: EventBusOptions<EventsMap>,
-    errorListener?: ErrorListenerSignature<any[]>,
     allEventsListener?: BaseHandler,
+    errorListener?: ErrorListenerSignature<any[]>,
 ) {
     const boundaryErrorListener = useContext(
         ErrorBoundaryContext,
