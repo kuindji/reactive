@@ -16,4 +16,19 @@ describe("action basic", () => {
             done();
         });
     });
+
+    it("should work when untyped", (done) => {
+        const a = createAction(function(a) {
+            return a + a;
+        });
+
+        a.addListener(({ response }) => {
+            expect(response).toBe(2);
+        });
+
+        a.invoke(1).then(({ response }) => {
+            expect(response).toBe(2);
+            done();
+        });
+    });
 });

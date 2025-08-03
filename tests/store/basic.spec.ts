@@ -149,4 +149,12 @@ describe("store basic", () => {
         expect(changedKeys).toEqual([ "a", "b" ]);
         expect(controlChangeTriggered).toBe(true);
     });
+
+    it("performs basic get/set operations", () => {
+        const store = createStore();
+
+        store.set("a", 4);
+        expect(store.get("a")).toBe(4);
+        expect(store.get([ "a" ])).toEqual({ a: 4 });
+    });
 });

@@ -1,5 +1,0 @@
-* From every hook return all types that may be needed when using hook
-* Forward these types from main modules
-* Test error handling in all apis
-* Test untyped apis
-* Test ErrorBoundary

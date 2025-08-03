@@ -48,4 +48,17 @@ describe("eventBus", () => {
 
         expect(triggered).toEqual([ "event", [ 1 ], null ]);
     });
+
+    it("should work when untyped", () => {
+        const o = createEventBus();
+        let arg;
+
+        o.on("event", (value) => {
+            arg = value;
+        });
+
+        o.trigger("event", 1);
+
+        expect(arg).toBe(1);
+    });
 });

@@ -35,4 +35,16 @@ describe("event basic", () => {
 
         expect(triggered).toEqual([ 1, 2, 3 ]);
     });
+
+    it("should work when untyped", () => {
+        const o = createEvent();
+        let arg;
+
+        o.addListener((value) => {
+            arg = value;
+        });
+
+        o.trigger(1);
+        expect(arg).toBe(1);
+    });
 });

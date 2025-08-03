@@ -44,4 +44,27 @@ describe("actionBus basic", () => {
             done();
         });
     });
+
+    it("should work when untyped", (done) => {
+        const promises: Promise<any>[] = [];
+        const bus = createActionBus();
+
+        bus.add("sum", function(a) {
+            return a + a;
+        });
+
+        bus.on("sum", ({ response }) => {
+            expect(response).toBe(2);
+        });
+
+        promises.push(
+            bus.invoke("sum", 1).then(({ response }) => {
+                expect(response).toBe(2);
+            }),
+        );
+
+        Promise.all(promises).then(() => {
+            done();
+        });
+    });
 });
