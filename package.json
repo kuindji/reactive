@@ -1,6 +1,6 @@
 {
     "name": "@kuindji/reactive",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "A JavaScript/TypeScript utility library for building reactive applications with events, actions, stores, and React hooks",
     "keywords": [
         "events",
@@ -38,7 +38,7 @@
             "types": "./dist/react.d.ts"
         }
     },
-    "main": "src/index.ts",
+    "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "directories": {
         "test": "tests"
