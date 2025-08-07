@@ -1,19 +1,21 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ErrorEventName = exports.ResetEventName = exports.ChangeEventName = exports.BeforeChangeEventName = void 0;
+exports.EffectEventName = exports.ErrorEventName = exports.ResetEventName = exports.ChangeEventName = exports.BeforeChangeEventName = void 0;
 exports.createStore = createStore;
 const eventBus_1 = require("./eventBus");
-exports.BeforeChangeEventName = "beforeChange";
+exports.BeforeChangeEventName = "before";
 exports.ChangeEventName = "change";
 exports.ResetEventName = "reset";
 exports.ErrorEventName = "error";
+exports.EffectEventName = "effect";
 function createStore(initialData = {}) {
     const data = new Map(Object.entries(initialData));
     const changes = (0, eventBus_1.createEventBus)();
     const pipe = (0, eventBus_1.createEventBus)();
     const control = (0, eventBus_1.createEventBus)();
+    let effectKeys = [];
     const _set = (name, value, triggerChange = true) => {
-        var _a, _b, _c;
+        var _a, _b, _c, _d, _e;
         const prev = data.get(name);
         if (prev !== value) {
             if (control.firstNonEmpty(exports.BeforeChangeEventName, name, value)
@@ -64,9 +66,23 @@ function createStore(initialData = {}) {
                 }
                 throw error;
             }
-            if (triggerChange) {
+            if ((_c = control.get(exports.EffectEventName)) === null || _c === void 0 ? void 0 : _c.hasListener()) {
                 try {
-                    control.trigger(exports.ChangeEventName, [name]);
+                    const isIntercepting = control.isIntercepting();
+                    if (!isIntercepting) {
+                        const interceptor = (name, args) => {
+                            if (name === exports.ChangeEventName) {
+                                effectKeys.push(...args[0]);
+                                return false;
+                            }
+                            return true;
+                        };
+                        control.intercept(interceptor);
+                    }
+                    control.trigger(exports.EffectEventName, name, value);
+                    if (!isIntercepting) {
+                        control.stopIntercepting();
+                    }
                 }
                 catch (error) {
                     control.trigger(exports.ErrorEventName, {
@@ -77,7 +93,29 @@ function createStore(initialData = {}) {
                         type: "store-control",
                         name,
                     });
-                    if ((_c = control.get(exports.ErrorEventName)) === null || _c === void 0 ? void 0 : _c.hasListener()) {
+                    if ((_d = control.get(exports.ErrorEventName)) === null || _d === void 0 ? void 0 : _d.hasListener()) {
+                        return true;
+                    }
+                    throw error;
+                }
+            }
+            if (triggerChange) {
+                try {
+                    control.trigger(exports.ChangeEventName, [name, ...effectKeys]);
+                    if (!control.isIntercepting()) {
+                        effectKeys = [];
+                    }
+                }
+                catch (error) {
+                    control.trigger(exports.ErrorEventName, {
+                        error: error instanceof Error
+                            ? error
+                            : new Error(String(error)),
+                        args: [name],
+                        type: "store-control",
+                        name,
+                    });
+                    if ((_e = control.get(exports.ErrorEventName)) === null || _e === void 0 ? void 0 : _e.hasListener()) {
                         return true;
                     }
                     throw error;
@@ -99,6 +137,7 @@ function createStore(initialData = {}) {
         }, 0);
     }
     function set(name, value) {
+        var _a;
         if ((typeof name === "string")
             && value !== undefined) {
             _set(name, value);
@@ -110,7 +149,28 @@ function createStore(initialData = {}) {
                     changedKeys.push(k);
                 }
             });
-            control.trigger(exports.ChangeEventName, changedKeys);
+            try {
+                control.trigger(exports.ChangeEventName, [
+                    ...changedKeys,
+                    ...effectKeys,
+                ]);
+                if (!control.isIntercepting()) {
+                    effectKeys = [];
+                }
+            }
+            catch (error) {
+                control.trigger(exports.ErrorEventName, {
+                    error: error instanceof Error
+                        ? error
+                        : new Error(String(error)),
+                    args: [name],
+                    type: "store-control",
+                });
+                if ((_a = control.get(exports.ErrorEventName)) === null || _a === void 0 ? void 0 : _a.hasListener()) {
+                    return true;
+                }
+                throw error;
+            }
         }
         else {
             throw new Error(`Invalid key: ${String(name)}`);
@@ -184,10 +244,10 @@ function createStore(initialData = {}) {
         reset,
         onChange: changes.addListener,
         removeOnChange: changes.removeListener,
-        pipe: pipe.addListener,
-        removePipe: pipe.removeListener,
         control: control.addListener,
         removeControl: control.removeListener,
+        pipe: pipe.addListener,
+        removePipe: pipe.removeListener,
     };
     return api;
 }

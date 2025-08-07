@@ -137,6 +137,9 @@ function createEventBus(eventBusOptions) {
     const stopIntercepting = () => {
         interceptor = null;
     };
+    const isIntercepting = () => {
+        return interceptor !== null;
+    };
     const get = (name) => {
         return _getOrAddEvent(name);
     };
@@ -492,6 +495,7 @@ function createEventBus(eventBusOptions) {
         withTags,
         intercept,
         stopIntercepting,
+        isIntercepting,
         reset,
         suspendAll,
         resumeAll,

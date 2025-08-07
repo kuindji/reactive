@@ -81,6 +81,7 @@ export declare function useEventBus<EventsMap extends BaseEventMap = DefaultEven
     readonly withTags: <T extends (...args: any[]) => any>(tags: string[], callback: T) => ReturnType<T>;
     readonly intercept: (fn: (name: import("../lib/types").MapKey, args: any[], tags: string[] | null, returnType: import("../lib/types").TriggerReturnType | null) => boolean) => void;
     readonly stopIntercepting: () => void;
+    readonly isIntercepting: () => boolean;
     readonly reset: () => void;
     readonly suspendAll: (withQueue?: boolean) => void;
     readonly resumeAll: () => void;

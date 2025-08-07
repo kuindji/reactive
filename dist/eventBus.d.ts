@@ -86,6 +86,7 @@ export declare function createEventBus<EventsMap extends BaseEventMap = DefaultE
     readonly withTags: <T extends (...args: any[]) => any>(tags: string[], callback: T) => ReturnType<T>;
     readonly intercept: (fn: InterceptorFunction) => void;
     readonly stopIntercepting: () => void;
+    readonly isIntercepting: () => boolean;
     readonly reset: () => void;
     readonly suspendAll: (withQueue?: boolean) => void;
     readonly resumeAll: () => void;

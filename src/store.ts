@@ -140,7 +140,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                 try {
                     const isIntercepting = control.isIntercepting();
                     if (!isIntercepting) {
-                        const interceptor = (name, args) => {
+                        const interceptor = (name: MapKey, args: any[]) => {
                             if (name === ChangeEventName) {
                                 effectKeys.push(...args[0]);
                                 return false;
