@@ -74,6 +74,14 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     const control = createEventBus<Store["controlEvents"]>();
     let effectKeys: KeyOf<PropMap>[] = [];
 
+    const effectInterceptor = (name: MapKey, args: any[]) => {
+        if (name === ChangeEventName) {
+            effectKeys.push(...args[0]);
+            return false;
+        }
+        return true;
+    };
+
     const _set = <K extends KeyOf<PropMap>, V extends PropMap[K]>(
         name: K,
         value: V,
@@ -140,14 +148,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                 try {
                     const isIntercepting = control.isIntercepting();
                     if (!isIntercepting) {
-                        const interceptor = (name: MapKey, args: any[]) => {
-                            if (name === ChangeEventName) {
-                                effectKeys.push(...args[0]);
-                                return false;
-                            }
-                            return true;
-                        };
-                        control.intercept(interceptor);
+                        control.intercept(effectInterceptor);
                     }
                     control.trigger(EffectEventName, name, value);
                     if (!isIntercepting) {
@@ -244,6 +245,12 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         }
         else if (typeof name === "object") {
             const changedKeys: MapKey[] = [];
+            const isIntercepting = control.isIntercepting();
+            const hasEffectListener = control.get(EffectEventName)
+                ?.hasListener();
+            if (hasEffectListener && !isIntercepting) {
+                control.intercept(effectInterceptor);
+            }
             Object.entries(name).forEach(([ k, v ]) => {
                 if (_set(k, v, false)) {
                     changedKeys.push(k);
@@ -254,8 +261,9 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                     ...changedKeys,
                     ...effectKeys,
                 ]);
-                if (!control.isIntercepting()) {
+                if (hasEffectListener && !isIntercepting) {
                     effectKeys = [];
+                    control.stopIntercepting();
                 }
             }
             catch (error) {

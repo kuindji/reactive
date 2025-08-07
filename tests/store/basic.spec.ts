@@ -182,4 +182,33 @@ describe("store basic", () => {
         expect(store.get("b")).toBe(3);
         expect(effectTriggered).toBe(true);
     });
+
+    it("should trigger effect event when setting multiple properties", () => {
+        const store = createStore({
+            a: 1,
+            b: 2,
+            c: 3,
+        });
+        let effectTriggered = false;
+
+        store.control(ChangeEventName, (names) => {
+            expect(names).toEqual([ "a", "b", "c" ]);
+        });
+
+        store.control(EffectEventName, (name, value) => {
+            effectTriggered = true;
+            if (name === "a") {
+                store.set("c", 6);
+            }
+        });
+
+        store.set({
+            a: 4,
+            b: 5,
+        });
+        expect(store.get("a")).toBe(4);
+        expect(store.get("b")).toBe(5);
+        expect(store.get("c")).toBe(6);
+        expect(effectTriggered).toBe(true);
+    });
 });
