@@ -22,5 +22,6 @@ __exportStar(require("./react/useEventBus"), exports);
 __exportStar(require("./react/useListenToAction"), exports);
 __exportStar(require("./react/useListenToEvent"), exports);
 __exportStar(require("./react/useListenToEventBus"), exports);
+__exportStar(require("./react/useListenToStoreChanges"), exports);
 __exportStar(require("./react/useStore"), exports);
 __exportStar(require("./react/useStoreState"), exports);

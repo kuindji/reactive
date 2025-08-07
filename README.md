@@ -937,9 +937,20 @@ const store = useStore<PropTypes>(
 Use store value as state
 
 ```typescript
-const [ value, setValue ] = useStoreStore(
+const [ value: TypeOfValue, setValue: (value: TypeOfValue) => void ] = useStoreState(
     store: Store,
-    key: string
+    key: KeyInStore
+)
+```
+
+Listen to value changes
+
+```typescript
+useListenToStoreChanges(
+    store: Store,
+    key: KeyInStore,
+    listener: (value: TypeOfValue, previousValue?: TypeOfValue) => void
+    listenerOptions?: ListenerOptions
 )
 ```
 

@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "bun:test";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
+import { useListenToStoreChanges } from "../../src/react/useListenToStoreChanges";
 import { useStore } from "../../src/react/useStore";
 import { ChangeEventName } from "../../src/store";
 
@@ -57,5 +58,36 @@ describe("useStore", () => {
         expect(onChangeTriggered).toBe(true);
         expect(pipeTriggered).toBe(true);
         expect(controlTriggered).toBe(true);
+    });
+
+    it("should listen to a single event", () => {
+        let onChangeTriggered = false;
+        function Component() {
+            const store = useStore(initialData);
+            const listener = useCallback(
+                (a: number) => {
+                    onChangeTriggered = true;
+                },
+                [],
+            );
+            useListenToStoreChanges(store, "a", listener);
+
+            useEffect(
+                () => {
+                    store.set("a", 2);
+                },
+                [],
+            );
+
+            return null;
+        }
+
+        function App() {
+            return <Component />;
+        }
+
+        render(<App />);
+
+        expect(onChangeTriggered).toBe(true);
     });
 });
