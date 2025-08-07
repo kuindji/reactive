@@ -10,10 +10,11 @@ export interface BasePropMap {
     [key: MapKey]: any;
 }
 
-export const BeforeChangeEventName = "beforeChange";
+export const BeforeChangeEventName = "before";
 export const ChangeEventName = "change";
 export const ResetEventName = "reset";
 export const ErrorEventName = "error";
+export const EffectEventName = "effect";
 
 type StoreControlEvents<PropMap extends BasePropMap> = {
     [BeforeChangeEventName]: <K extends KeyOf<PropMap>, V extends PropMap[K]>(
@@ -23,6 +24,10 @@ type StoreControlEvents<PropMap extends BasePropMap> = {
     [ChangeEventName]: (names: KeyOf<PropMap>[]) => void;
     [ResetEventName]: () => void;
     [ErrorEventName]: ErrorListenerSignature<any[]>;
+    [EffectEventName]: <K extends KeyOf<PropMap>, V extends PropMap[K]>(
+        name: K,
+        value: V,
+    ) => void;
 };
 
 type StoreChangeEvents<PropMap extends BasePropMap> = {
@@ -67,6 +72,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     const changes = createEventBus<Store["changeEvents"]>();
     const pipe = createEventBus<Store["pipeEvents"]>();
     const control = createEventBus<Store["controlEvents"]>();
+    let effectKeys: KeyOf<PropMap>[] = [];
 
     const _set = <K extends KeyOf<PropMap>, V extends PropMap[K]>(
         name: K,
@@ -105,6 +111,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
             if (newValue !== undefined) {
                 value = newValue;
             }
+
             data.set(name, value);
 
             const changeArgs = [
@@ -129,9 +136,46 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                 throw error;
             }
 
+            if (control.get(EffectEventName)?.hasListener()) {
+                try {
+                    const isIntercepting = control.isIntercepting();
+                    if (!isIntercepting) {
+                        const interceptor = (name, args) => {
+                            if (name === ChangeEventName) {
+                                effectKeys.push(...args[0]);
+                                return false;
+                            }
+                            return true;
+                        };
+                        control.intercept(interceptor);
+                    }
+                    control.trigger(EffectEventName, name, value);
+                    if (!isIntercepting) {
+                        control.stopIntercepting();
+                    }
+                }
+                catch (error) {
+                    control.trigger(ErrorEventName, {
+                        error: error instanceof Error
+                            ? error
+                            : new Error(String(error)),
+                        args: [ name ],
+                        type: "store-control",
+                        name,
+                    });
+                    if (control.get(ErrorEventName)?.hasListener()) {
+                        return true;
+                    }
+                    throw error;
+                }
+            }
+
             if (triggerChange) {
                 try {
-                    control.trigger(ChangeEventName, [ name ]);
+                    control.trigger(ChangeEventName, [ name, ...effectKeys ]);
+                    if (!control.isIntercepting()) {
+                        effectKeys = [];
+                    }
                 }
                 catch (error) {
                     control.trigger(ErrorEventName, {
@@ -205,7 +249,28 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                     changedKeys.push(k);
                 }
             });
-            control.trigger(ChangeEventName, changedKeys);
+            try {
+                control.trigger(ChangeEventName, [
+                    ...changedKeys,
+                    ...effectKeys,
+                ]);
+                if (!control.isIntercepting()) {
+                    effectKeys = [];
+                }
+            }
+            catch (error) {
+                control.trigger(ErrorEventName, {
+                    error: error instanceof Error
+                        ? error
+                        : new Error(String(error)),
+                    args: [ name ],
+                    type: "store-control",
+                });
+                if (control.get(ErrorEventName)?.hasListener()) {
+                    return true;
+                }
+                throw error;
+            }
         }
         else {
             throw new Error(`Invalid key: ${String(name)}`);
@@ -301,10 +366,10 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         reset,
         onChange: changes.addListener,
         removeOnChange: changes.removeListener,
-        pipe: pipe.addListener,
-        removePipe: pipe.removeListener,
         control: control.addListener,
         removeControl: control.removeListener,
+        pipe: pipe.addListener,
+        removePipe: pipe.removeListener,
     } as const;
     return api as ApiType<Store, typeof api>;
 }

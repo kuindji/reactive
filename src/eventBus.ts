@@ -293,6 +293,10 @@ export function createEventBus<
         interceptor = null;
     };
 
+    const isIntercepting = () => {
+        return interceptor !== null;
+    };
+
     const get = <K extends KeyOf<Events>>(name: K) => {
         return _getOrAddEvent(name);
     };
@@ -972,6 +976,7 @@ export function createEventBus<
         withTags,
         intercept,
         stopIntercepting,
+        isIntercepting,
         reset,
         suspendAll,
         resumeAll,
