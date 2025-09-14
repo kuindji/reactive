@@ -19,26 +19,26 @@ export const EffectEventName = "effect";
 type StoreControlEvents<PropMap extends BasePropMap> = {
     [BeforeChangeEventName]: <K extends KeyOf<PropMap>, V extends PropMap[K]>(
         name: K,
-        value: V,
+        value: V | undefined,
     ) => boolean;
     [ChangeEventName]: (names: KeyOf<PropMap>[]) => void;
     [ResetEventName]: () => void;
     [ErrorEventName]: ErrorListenerSignature<any[]>;
     [EffectEventName]: <K extends KeyOf<PropMap>, V extends PropMap[K]>(
         name: K,
-        value: V,
+        value: V | undefined,
     ) => void;
 };
 
 type StoreChangeEvents<PropMap extends BasePropMap> = {
     [K in KeyOf<PropMap>]: (
-        value: PropMap[K],
+        value: PropMap[K] | undefined,
         previousValue?: PropMap[K] | undefined,
     ) => void;
 };
 
 type StorePipeEvents<PropMap extends BasePropMap> = {
-    [K in KeyOf<PropMap>]: (value: PropMap[K]) => PropMap[K];
+    [K in KeyOf<PropMap>]: (value: PropMap[K] | undefined) => PropMap[K];
 };
 
 export type StoreDefinitionHelper<
@@ -84,7 +84,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
 
     const _set = <K extends KeyOf<PropMap>, V extends PropMap[K]>(
         name: K,
-        value: V,
+        value: V | undefined,
         triggerChange: boolean = true,
     ) => {
         const prev = data.get(name) as V | undefined;
@@ -150,7 +150,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                     if (!isIntercepting) {
                         control.intercept(effectInterceptor);
                     }
-                    control.trigger(EffectEventName, name, value);
+                    control.trigger(EffectEventName, name, value!);
                     if (!isIntercepting) {
                         control.stopIntercepting();
                     }
@@ -200,7 +200,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
 
     function asyncSet<K extends KeyOf<PropMap>>(
         key: K,
-        value: PropMap[K],
+        value: PropMap[K] | undefined,
     ): void;
     function asyncSet(key: Partial<PropMap>): void;
     function asyncSet<
@@ -212,10 +212,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         value?: V,
     ) {
         setTimeout(() => {
-            if (
-                (typeof name === "string")
-                && value !== undefined
-            ) {
+            if (typeof name === "string") {
                 set(name, value);
             }
             else if (typeof name === "object") {
@@ -226,7 +223,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
 
     function set<K extends KeyOf<PropMap>>(
         key: K,
-        value: PropMap[K],
+        value: PropMap[K] | undefined,
     ): void;
     function set(key: Partial<PropMap>): void;
     function set<
@@ -237,10 +234,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         name: K,
         value?: V,
     ) {
-        if (
-            (typeof name === "string")
-            && value !== undefined
-        ) {
+        if (typeof name === "string") {
             _set(name, value);
         }
         else if (typeof name === "object") {
