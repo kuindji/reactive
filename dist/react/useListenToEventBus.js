@@ -8,7 +8,8 @@ function useListenToEventBus(eventBus, eventName, listener, options, errorListen
     const errorListenerRef = (0, react_1.useRef)(errorListener);
     listenerRef.current = listener;
     const genericHandler = (0, react_1.useCallback)((...args) => {
-        return listenerRef.current(...args);
+        var _a;
+        return (_a = listenerRef.current) === null || _a === void 0 ? void 0 : _a.call(listenerRef, ...args);
     }, []);
     (0, react_1.useEffect)(() => {
         return () => {

@@ -14,6 +14,13 @@ function createStore(initialData = {}) {
     const pipe = (0, eventBus_1.createEventBus)();
     const control = (0, eventBus_1.createEventBus)();
     let effectKeys = [];
+    const effectInterceptor = (name, args) => {
+        if (name === exports.ChangeEventName) {
+            effectKeys.push(...args[0]);
+            return false;
+        }
+        return true;
+    };
     const _set = (name, value, triggerChange = true) => {
         var _a, _b, _c, _d, _e;
         const prev = data.get(name);
@@ -70,14 +77,7 @@ function createStore(initialData = {}) {
                 try {
                     const isIntercepting = control.isIntercepting();
                     if (!isIntercepting) {
-                        const interceptor = (name, args) => {
-                            if (name === exports.ChangeEventName) {
-                                effectKeys.push(...args[0]);
-                                return false;
-                            }
-                            return true;
-                        };
-                        control.intercept(interceptor);
+                        control.intercept(effectInterceptor);
                     }
                     control.trigger(exports.EffectEventName, name, value);
                     if (!isIntercepting) {
@@ -127,8 +127,7 @@ function createStore(initialData = {}) {
     };
     function asyncSet(name, value) {
         setTimeout(() => {
-            if ((typeof name === "string")
-                && value !== undefined) {
+            if (typeof name === "string") {
                 set(name, value);
             }
             else if (typeof name === "object") {
@@ -137,13 +136,17 @@ function createStore(initialData = {}) {
         }, 0);
     }
     function set(name, value) {
-        var _a;
-        if ((typeof name === "string")
-            && value !== undefined) {
+        var _a, _b;
+        if (typeof name === "string") {
             _set(name, value);
         }
         else if (typeof name === "object") {
             const changedKeys = [];
+            const isIntercepting = control.isIntercepting();
+            const hasEffectListener = (_a = control.get(exports.EffectEventName)) === null || _a === void 0 ? void 0 : _a.hasListener();
+            if (hasEffectListener && !isIntercepting) {
+                control.intercept(effectInterceptor);
+            }
             Object.entries(name).forEach(([k, v]) => {
                 if (_set(k, v, false)) {
                     changedKeys.push(k);
@@ -154,8 +157,9 @@ function createStore(initialData = {}) {
                     ...changedKeys,
                     ...effectKeys,
                 ]);
-                if (!control.isIntercepting()) {
+                if (hasEffectListener && !isIntercepting) {
                     effectKeys = [];
+                    control.stopIntercepting();
                 }
             }
             catch (error) {
@@ -166,7 +170,7 @@ function createStore(initialData = {}) {
                     args: [name],
                     type: "store-control",
                 });
-                if ((_a = control.get(exports.ErrorEventName)) === null || _a === void 0 ? void 0 : _a.hasListener()) {
+                if ((_b = control.get(exports.ErrorEventName)) === null || _b === void 0 ? void 0 : _b.hasListener()) {
                     return true;
                 }
                 throw error;

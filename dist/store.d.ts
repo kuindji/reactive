@@ -9,17 +9,17 @@ export declare const ResetEventName = "reset";
 export declare const ErrorEventName = "error";
 export declare const EffectEventName = "effect";
 type StoreControlEvents<PropMap extends BasePropMap> = {
-    [BeforeChangeEventName]: <K extends KeyOf<PropMap>, V extends PropMap[K]>(name: K, value: V) => boolean;
+    [BeforeChangeEventName]: <K extends KeyOf<PropMap>, V extends PropMap[K]>(name: K, value: V | undefined) => boolean;
     [ChangeEventName]: (names: KeyOf<PropMap>[]) => void;
     [ResetEventName]: () => void;
     [ErrorEventName]: ErrorListenerSignature<any[]>;
-    [EffectEventName]: <K extends KeyOf<PropMap>, V extends PropMap[K]>(name: K, value: V) => void;
+    [EffectEventName]: <K extends KeyOf<PropMap>, V extends PropMap[K]>(name: K, value: V | undefined) => void;
 };
 type StoreChangeEvents<PropMap extends BasePropMap> = {
-    [K in KeyOf<PropMap>]: (value: PropMap[K], previousValue?: PropMap[K] | undefined) => void;
+    [K in KeyOf<PropMap>]: (value: PropMap[K] | undefined, previousValue?: PropMap[K] | undefined) => void;
 };
 type StorePipeEvents<PropMap extends BasePropMap> = {
-    [K in KeyOf<PropMap>]: (value: PropMap[K]) => PropMap[K];
+    [K in KeyOf<PropMap>]: (value: PropMap[K] | undefined) => PropMap[K];
 };
 export type StoreDefinitionHelper<PropMap extends BasePropMap> = {
     propTypes: PropMap;
@@ -32,14 +32,14 @@ export type StoreDefinitionHelper<PropMap extends BasePropMap> = {
 };
 export declare function createStore<PropMap extends BasePropMap = BasePropMap>(initialData?: Partial<PropMap>): ApiType<StoreDefinitionHelper<PropMap>, {
     readonly set: {
-        <K extends KeyOf<PropMap>>(key: K, value: PropMap[K]): void;
+        <K extends KeyOf<PropMap>>(key: K, value: PropMap[K] | undefined): void;
         (key: Partial<PropMap>): void;
     };
     readonly get: <K extends (KeyOf<PropMap>) | Array<KeyOf<PropMap>>>(key: K) => K extends KeyOf<PropMap> ? PropMap[K] : K extends KeyOf<PropMap>[] ? { [AK in K[number]]: PropMap[AK]; } : never;
     readonly getData: () => PropMap;
     readonly batch: (fn: () => void) => void;
     readonly asyncSet: {
-        <K extends KeyOf<PropMap>>(key: K, value: PropMap[K]): void;
+        <K extends KeyOf<PropMap>>(key: K, value: PropMap[K] | undefined): void;
         (key: Partial<PropMap>): void;
     };
     readonly isEmpty: () => boolean;
