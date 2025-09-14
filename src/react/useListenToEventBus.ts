@@ -26,7 +26,7 @@ export function useListenToEventBus<
 
     const genericHandler = useCallback(
         (...args: Parameters<TListener>) => {
-            return listenerRef.current(...args);
+            return listenerRef.current?.(...args);
         },
         [],
     );
