@@ -1,23 +1,24 @@
 import { useCallback, useEffect, useRef } from "react";
+import type { BaseActionBus } from "../actionBus";
 import type { ListenerOptions } from "../event";
-import type { BaseEventBus } from "../eventBus";
 import type { ErrorListenerSignature, KeyOf } from "../lib/types";
 
-export type { BaseEventBus, ErrorListenerSignature, ListenerOptions };
+export type { BaseActionBus, ErrorListenerSignature, ListenerOptions };
 
-export function useListenToEventBus<
-    TEventBus extends BaseEventBus,
-    TKey extends KeyOf<TEventBus["__type"]["eventSignatures"]>,
-    TListener extends TEventBus["__type"]["eventSignatures"][TKey],
+export function useListenToActionBus<
+    TActionBus extends BaseActionBus,
+    TKey extends KeyOf<TActionBus["__type"]["actions"]>,
+    TListener
+        extends TActionBus["__type"]["actions"][TKey]["listenerSignature"],
 >(
-    eventBus: TEventBus,
-    eventName: TKey,
+    actionBus: TActionBus,
+    actionName: TKey,
     listener: TListener,
     options?: ListenerOptions,
     errorListener?: ErrorListenerSignature<any[]>,
 ) {
     const listenerRef = useRef<TListener>(listener);
-    const eventBusRef = useRef<TEventBus>(eventBus);
+    const actionBusRef = useRef<TActionBus>(actionBus);
     const errorListenerRef = useRef<ErrorListenerSignature<any[]>>(
         errorListener,
     );
@@ -25,8 +26,8 @@ export function useListenToEventBus<
     listenerRef.current = listener;
 
     const genericHandler = useCallback(
-        (...args: Parameters<TListener>) => {
-            return listenerRef.current?.(...args);
+        (arg: TActionBus["__type"]["actions"][TKey]["listenerArgument"]) => {
+            return listenerRef.current?.(arg);
         },
         [],
     );
@@ -34,9 +35,9 @@ export function useListenToEventBus<
     useEffect(
         () => {
             return () => {
-                eventBusRef.current.removeListener(eventName, genericHandler);
+                actionBusRef.current.removeListener(actionName, genericHandler);
                 if (errorListenerRef.current) {
-                    eventBusRef.current.removeErrorListener(
+                    actionBusRef.current.removeErrorListener(
                         errorListenerRef.current,
                     );
                 }
@@ -47,24 +48,28 @@ export function useListenToEventBus<
 
     useEffect(
         () => {
-            eventBusRef.current.removeListener(eventName, genericHandler);
-            eventBusRef.current = eventBus;
-            eventBusRef.current.addListener(eventName, genericHandler, options);
+            actionBusRef.current.removeListener(actionName, genericHandler);
+            actionBusRef.current = actionBus;
+            actionBusRef.current.addListener(
+                actionName,
+                genericHandler,
+                options,
+            );
         },
-        [ eventBus ],
+        [ actionBus ],
     );
 
     useEffect(
         () => {
             if (errorListenerRef.current !== errorListener) {
                 if (errorListenerRef.current) {
-                    eventBusRef.current.removeErrorListener(
+                    actionBusRef.current.removeErrorListener(
                         errorListenerRef.current,
                     );
                 }
                 errorListenerRef.current = errorListener;
                 if (errorListener) {
-                    eventBusRef.current.addErrorListener(errorListener);
+                    actionBusRef.current.addErrorListener(errorListener);
                 }
             }
         },

@@ -20,6 +20,7 @@ __exportStar(require("./react/useActionMap"), exports);
 __exportStar(require("./react/useEvent"), exports);
 __exportStar(require("./react/useEventBus"), exports);
 __exportStar(require("./react/useListenToAction"), exports);
+__exportStar(require("./react/useListenToActionBus"), exports);
 __exportStar(require("./react/useListenToEvent"), exports);
 __exportStar(require("./react/useListenToEventBus"), exports);
 __exportStar(require("./react/useListenToStoreChanges"), exports);

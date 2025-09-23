@@ -4,6 +4,7 @@ export * from "./react/useActionMap";
 export * from "./react/useEvent";
 export * from "./react/useEventBus";
 export * from "./react/useListenToAction";
+export * from "./react/useListenToActionBus";
 export * from "./react/useListenToEvent";
 export * from "./react/useListenToEventBus";
 export * from "./react/useListenToStoreChanges";
