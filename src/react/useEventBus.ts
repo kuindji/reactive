@@ -27,7 +27,7 @@ export function useEventBus<
     eventBusOptions?: EventBusOptions<EventsMap>,
     allEventsListener?: BaseHandler,
     errorListener?: ErrorListenerSignature<any[]>,
-) {
+): ReturnType<typeof createEventBus<EventsMap>> {
     const boundaryErrorListener = useContext(
         ErrorBoundaryContext,
     ) as ErrorListenerSignature<any[]>;

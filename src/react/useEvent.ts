@@ -23,7 +23,7 @@ export function useEvent<
     eventOptions: EventOptions<Listener> = {},
     listener?: Listener | null,
     errorListener?: ErrorListener | null,
-) {
+): ReturnType<typeof createEvent<Listener>> {
     const boundaryErrorListener = useContext(
         ErrorBoundaryContext,
     ) as ErrorListener;

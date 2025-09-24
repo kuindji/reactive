@@ -20,7 +20,7 @@ export type {
 export function useActionMap<M extends BaseActionsMap>(
     actions: M,
     errorListener?: ErrorListenerSignature<any[]>,
-) {
+): ReturnType<typeof createActionMap<M>> {
     const boundaryErrorListener = useContext(
         ErrorBoundaryContext,
     ) as ErrorListenerSignature<any[]> | null;

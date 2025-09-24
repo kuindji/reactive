@@ -24,7 +24,7 @@ export function useAction<
     actionSignature: ActionSignature,
     listener?: Listener | null,
     errorListener?: ErrorListener | null,
-) {
+): ReturnType<typeof createAction<ActionSignature>> {
     const boundaryErrorListener = useContext(
         ErrorBoundaryContext,
     ) as ErrorListener;

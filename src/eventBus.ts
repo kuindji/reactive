@@ -1,3 +1,4 @@
+import type { OmitIndexSignature } from "type-fest";
 import { createEvent } from "./event";
 import type {
     EventDefinitionHelper,
@@ -8,7 +9,6 @@ import {
     ApiType,
     BaseHandler,
     ErrorListenerSignature,
-    ErrorResponse,
     KeyOf,
     MapKey,
     ProxyType,

@@ -1,23 +1,6 @@
 import type { ActionResponse, ListenerSignature } from "../action";
 import type { BaseActionsMap } from "../actionBus";
-import type { ErrorListenerSignature, ErrorResponse, Simplify } from "../lib/types";
+import { createActionMap } from "../actionMap";
+import type { ErrorListenerSignature, ErrorResponse } from "../lib/types";
 export type { ActionResponse, BaseActionsMap, ErrorListenerSignature, ErrorResponse, ListenerSignature, };
-export declare function useActionMap<M extends BaseActionsMap>(actions: M, errorListener?: ErrorListenerSignature<any[]>): Simplify<{ [key in import("../lib/types").KeyOf<M>]: {
-    readonly invoke: (...args: Parameters<M[key]>) => Promise<ActionResponse<Awaited<ReturnType<M[key]>>, Parameters<M[key]>>>;
-    readonly addListener: (handler: ListenerSignature<M[key]>, listenerOptions?: import("..").ListenerOptions) => void;
-    readonly on: (handler: ListenerSignature<M[key]>, listenerOptions?: import("..").ListenerOptions) => void;
-    readonly subscribe: (handler: ListenerSignature<M[key]>, listenerOptions?: import("..").ListenerOptions) => void;
-    readonly listen: (handler: ListenerSignature<M[key]>, listenerOptions?: import("..").ListenerOptions) => void;
-    readonly removeAllListeners: (tag?: string) => void;
-    readonly removeListener: (handler: ListenerSignature<M[key]>, context?: object | null, tag?: string | null) => boolean;
-    readonly un: (handler: ListenerSignature<M[key]>, context?: object | null, tag?: string | null) => boolean;
-    readonly off: (handler: ListenerSignature<M[key]>, context?: object | null, tag?: string | null) => boolean;
-    readonly remove: (handler: ListenerSignature<M[key]>, context?: object | null, tag?: string | null) => boolean;
-    readonly unsubscribe: (handler: ListenerSignature<M[key]>, context?: object | null, tag?: string | null) => boolean;
-    readonly promise: (options?: import("..").ListenerOptions) => Promise<[arg: ActionResponse<Awaited<ReturnType<M[key]>>, Parameters<M[key]>>]>;
-    readonly addErrorListener: (handler: ErrorListenerSignature<Parameters<M[key]>>, listenerOptions?: import("..").ListenerOptions) => void;
-    readonly removeAllErrorListeners: (tag?: string) => void;
-    readonly removeErrorListener: (handler: ErrorListenerSignature<Parameters<M[key]>>, context?: object | null, tag?: string | null) => boolean;
-    readonly errorPromise: (options?: import("..").ListenerOptions) => Promise<[errorResponse: ErrorResponse<Parameters<M[key]>>]>;
-    __type: import("../action").ActionDefinitionHelper<M[key]>;
-}; }>;
+export declare function useActionMap<M extends BaseActionsMap>(actions: M, errorListener?: ErrorListenerSignature<any[]>): ReturnType<typeof createActionMap<M>>;

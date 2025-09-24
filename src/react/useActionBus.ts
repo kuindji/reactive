@@ -15,7 +15,10 @@ export type {
 
 export function useActionBus<
     ActionsMap extends BaseActionsMap = BaseActionsMap,
->(initialActions?: ActionsMap, errorListener?: ErrorListenerSignature<any[]>) {
+>(
+    initialActions?: ActionsMap,
+    errorListener?: ErrorListenerSignature<any[]>,
+): ReturnType<typeof createActionBus<ActionsMap>> {
     const boundaryErrorListener = useContext(
         ErrorBoundaryContext,
     ) as ErrorListenerSignature<any[]> | null;

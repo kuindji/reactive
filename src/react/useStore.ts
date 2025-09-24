@@ -32,7 +32,10 @@ export function useStore<
         pipes?: Partial<Store["pipeEvents"]>;
         control?: Partial<Store["controlEvents"]>;
     },
->(initialData: Partial<PropMap> = {}, config?: Config) {
+>(
+    initialData: Partial<PropMap> = {},
+    config?: Config,
+): ReturnType<typeof createStore<PropMap>> {
     const store = useMemo(
         () => {
             const store = createStore<PropMap>(initialData);
