@@ -20,6 +20,6 @@ function useActionMap(actions, errorListener) {
             throw new Error("useActionMap() does not support changing actions or errorListener");
         }
         changeRef.current++;
-    }, [actions, errorListener, boundaryErrorListener]);
+    }, [actions, errorListener !== null && errorListener !== void 0 ? errorListener : null, boundaryErrorListener !== null && boundaryErrorListener !== void 0 ? boundaryErrorListener : null]);
     return actionMap;
 }

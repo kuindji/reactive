@@ -45,7 +45,7 @@ export function useActionMap<M extends BaseActionsMap>(
             }
             changeRef.current++;
         },
-        [ actions, errorListener, boundaryErrorListener ],
+        [ actions, errorListener ?? null, boundaryErrorListener ?? null ],
     );
     return actionMap as Simplify<typeof actionMap>;
 }

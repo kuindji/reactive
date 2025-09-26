@@ -24,10 +24,12 @@ function useEventBus(eventBusOptions, allEventsListener, errorListener) {
         return eventBus;
     }, []);
     (0, react_1.useEffect)(() => {
-        if (updateRef.current > 0) {
-            throw new Error("EventBus options can't be updated");
+        if (eventBusOptions) {
+            if (updateRef.current > 0) {
+                throw new Error("EventBus options can't be updated");
+            }
+            updateRef.current++;
         }
-        updateRef.current++;
     }, [eventBusOptions]);
     (0, react_1.useEffect)(() => {
         if (allEventsListenerRef.current !== allEventsListener) {
