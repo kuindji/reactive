@@ -49,7 +49,7 @@ export declare function createEventBus<EventsMap extends BaseEventMap = DefaultE
     /** @alias addListener */
     readonly subscribe: <K extends KeyOf<GetEventsMap<EventsMap>>, H extends GetEventsMap<EventsMap>[K]["signature"]>(name: K, handler: H, options?: ListenerOptions) => void;
     readonly once: <K extends KeyOf<GetEventsMap<EventsMap>>, H extends GetEventsMap<EventsMap>[K]["signature"]>(name: K, handler: H, options?: ListenerOptions) => void;
-    readonly promise: <K extends KeyOf<GetEventsMap<EventsMap>>>(name: K, options?: ListenerOptions) => Promise<Parameters<EventsMap[K]>>;
+    readonly promise: <K extends KeyOf<GetEventsMap<EventsMap>>>(name: K, options?: ListenerOptions) => Promise<GetEventsMap<EventsMap>[K]["arguments"]>;
     readonly removeListener: <K extends KeyOf<GetEventsMap<EventsMap>>, H extends GetEventsMap<EventsMap>[K]["signature"]>(name: K, handler: H, context?: object | null, tag?: string | null) => void;
     /** @alias removeListener */
     readonly un: <K extends KeyOf<GetEventsMap<EventsMap>>, H extends GetEventsMap<EventsMap>[K]["signature"]>(name: K, handler: H, context?: object | null, tag?: string | null) => void;

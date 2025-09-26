@@ -360,7 +360,7 @@ export function createEventBus<
         options?: ListenerOptions,
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
-        return e.promise(options);
+        return e.promise(options) as Promise<Events[K]["arguments"]>;
     };
 
     const un = <

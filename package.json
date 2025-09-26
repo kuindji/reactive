@@ -1,7 +1,50 @@
 {
     "name": "@kuindji/reactive",
-    "version": "1.0.11",
+    "version": "1.0.12",
+    "author": "Ivan Kuindzhi",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/kuindji/reactive.git"
+    },
+    "main": "dist/index.js",
+    "devDependencies": {
+        "@happy-dom/global-registrator": "^18.0.1",
+        "@testing-library/dom": "^10.4.1",
+        "@testing-library/jest-dom": "^6.6.4",
+        "@testing-library/react": "^16.3.0",
+        "@types/bun": "^1.2.19",
+        "@types/react": "^19.1.9",
+        "@typescript-eslint/eslint-plugin": "^8.38.0",
+        "react": "^19.1.1",
+        "typescript": "^5",
+        "typescript-eslint": "^8.38.0"
+    },
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "require": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        },
+        "./react": {
+            "import": "./dist/react.js",
+            "require": "./dist/react.js",
+            "types": "./dist/react.d.ts"
+        }
+    },
+    "bugs": {
+        "url": "https://github.com/kuindji/reactive/issues"
+    },
     "description": "A JavaScript/TypeScript utility library for building reactive applications with events, actions, stores, and React hooks",
+    "directories": {
+        "test": "tests"
+    },
+    "engines": {
+        "node": ">=16.0.0"
+    },
+    "files": [
+        "dist/**/*"
+    ],
+    "homepage": "https://github.com/kuindji/reactive#readme",
     "keywords": [
         "events",
         "actions",
@@ -15,56 +58,13 @@
         "event-bus",
         "action-bus"
     ],
-    "homepage": "https://github.com/kuindji/reactive#readme",
-    "bugs": {
-        "url": "https://github.com/kuindji/reactive/issues"
-    },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/kuindji/reactive.git"
-    },
     "license": "ISC",
-    "author": "Ivan Kuindzhi",
-    "type": "commonjs",
-    "exports": {
-        ".": {
-            "import": "./dist/index.js",
-            "require": "./dist/index.js",
-            "types": "./dist/index.d.ts"
-        },
-        "./react": {
-            "import": "./dist/react.js",
-            "require": "./dist/react.js",
-            "types": "./dist/react.d.ts"
-        }
-    },
-    "main": "dist/index.js",
-    "types": "dist/index.d.ts",
-    "directories": {
-        "test": "tests"
-    },
-    "files": [
-        "dist/**/*"
-    ],
     "scripts": {
         "build": "tsc -p ./tsconfig-build.json",
         "lint": "bun eslint .",
         "test": "bun test tests/**/*.spec.ts*"
     },
-    "devDependencies": {
-        "@happy-dom/global-registrator": "^18.0.1",
-        "@testing-library/dom": "^10.4.1",
-        "@testing-library/jest-dom": "^6.6.4",
-        "@testing-library/react": "^16.3.0",
-        "@types/bun": "^1.2.19",
-        "@types/react": "^19.1.9",
-        "@typescript-eslint/eslint-plugin": "^8.38.0",
-        "react": "^19.1.1",
-        "typescript": "^5",
-        "typescript-eslint": "^8.38.0"
-    },
-    "engines": {
-        "node": ">=16.0.0"
-    },
-    "sideEffects": false
+    "sideEffects": false,
+    "type": "commonjs",
+    "types": "dist/index.d.ts"
 }
