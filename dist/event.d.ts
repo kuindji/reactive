@@ -124,6 +124,7 @@ export declare function createEvent<ListenerSignature extends BaseHandler>(event
     readonly resolveFirst: (...args: Parameters<ListenerSignature>) => Promise<Awaited<ReturnType<ListenerSignature>> | undefined>;
     readonly all: (...args: Parameters<ListenerSignature>) => ReturnType<ListenerSignature>[];
     readonly resolveAll: (...args: Parameters<ListenerSignature>) => Promise<Awaited<ReturnType<ListenerSignature>>[]>;
+    readonly resolve: (...args: Parameters<ListenerSignature>) => Promise<Awaited<ReturnType<ListenerSignature>>[]>;
     readonly last: (...args: Parameters<ListenerSignature>) => ReturnType<ListenerSignature> | undefined;
     readonly resolveLast: (...args: Parameters<ListenerSignature>) => Promise<Awaited<ReturnType<ListenerSignature>> | undefined>;
     readonly merge: (...args: Parameters<ListenerSignature>) => ReturnType<ListenerSignature> | undefined;

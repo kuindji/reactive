@@ -959,6 +959,7 @@ export function createEventBus<
         resolveFirst,
         all,
         resolveAll,
+        resolve: resolveAll,
         last,
         resolveLast,
         merge,

@@ -479,6 +479,7 @@ function createEventBus(eventBusOptions) {
         resolveFirst,
         all,
         resolveAll,
+        resolve: resolveAll,
         last,
         resolveLast,
         merge,

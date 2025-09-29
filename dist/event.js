@@ -520,6 +520,7 @@ function createEvent(eventOptions = {}) {
         resolveFirst,
         all,
         resolveAll,
+        resolve: resolveAll,
         last,
         resolveLast,
         merge,
