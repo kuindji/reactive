@@ -4,26 +4,30 @@ import { useCallback, useEffect } from "react";
 import { createEventBus } from "../../src/eventBus";
 import { useEventBus } from "../../src/react/useEventBus";
 import { useListenToEventBus } from "../../src/react/useListenToEventBus";
+import { eventBus as moduleEventBus } from "./eventBus";
+import "./eventBusEvents";
 
 describe("useListenToEventBus", () => {
     it("should listen to event", () => {
-        let triggered = false;
+        let triggered = 0;
         function Component() {
             const eventBus = useEventBus<{ a: (a: number) => string; }>();
 
             const handler = useCallback(
                 (a: number) => {
-                    triggered = true;
+                    triggered++;
                     return "test";
                 },
                 [],
             );
 
             useListenToEventBus(eventBus, "a", handler);
+            useListenToEventBus(moduleEventBus, "a", handler);
 
             useEffect(
                 () => {
                     eventBus.trigger("a", 1);
+                    moduleEventBus.trigger("a", 1);
                 },
                 [],
             );
@@ -37,7 +41,7 @@ describe("useListenToEventBus", () => {
 
         render(<App />);
 
-        expect(triggered).toBe(true);
+        expect(triggered).toBe(2);
     });
 
     it("should listen to event from multiple hooks", () => {
