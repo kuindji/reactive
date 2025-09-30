@@ -39,7 +39,7 @@ export function useStoreState<
     useEffect(
         () => {
             return () => {
-                storeRef.current.onChange(keyRef.current, onChange);
+                storeRef.current.removeOnChange(keyRef.current, onChange);
             };
         },
         [],

@@ -19,7 +19,7 @@ function useStoreState(store, key) {
     }, []);
     (0, react_1.useEffect)(() => {
         return () => {
-            storeRef.current.onChange(keyRef.current, onChange);
+            storeRef.current.removeOnChange(keyRef.current, onChange);
         };
     }, []);
     (0, react_1.useEffect)(() => {
