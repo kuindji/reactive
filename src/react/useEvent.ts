@@ -27,7 +27,6 @@ export function useEvent<
     const boundaryErrorListener = useContext(
         ErrorBoundaryContext,
     ) as ErrorListener;
-    const updateRef = useRef(0);
     const listenerRef = useRef<Listener | null>(listener);
     const errorListenerRef = useRef<ErrorListener | null>(errorListener);
     const boundaryErrorListenerRef = useRef<ErrorListener | null>(
@@ -48,16 +47,6 @@ export function useEvent<
             return event;
         },
         [],
-    );
-
-    useEffect(
-        () => {
-            if (updateRef.current > 0) {
-                throw new Error("Event cannot be updated");
-            }
-            updateRef.current++;
-        },
-        [ event ],
     );
 
     useEffect(
@@ -104,6 +93,26 @@ export function useEvent<
             }
         },
         [ boundaryErrorListener ],
+    );
+
+    useEffect(
+        () => {
+            return () => {
+                if (listenerRef.current) {
+                    event.removeListener(listenerRef.current);
+                    listenerRef.current = null;
+                }
+                if (errorListenerRef.current) {
+                    event.removeErrorListener(errorListenerRef.current);
+                    errorListenerRef.current = null;
+                }
+                if (boundaryErrorListenerRef.current) {
+                    event.removeErrorListener(boundaryErrorListenerRef.current);
+                    boundaryErrorListenerRef.current = null;
+                }
+            };
+        },
+        [],
     );
 
     return event;

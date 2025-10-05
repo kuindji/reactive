@@ -6,7 +6,6 @@ const event_1 = require("../event");
 const ErrorBoundary_1 = require("./ErrorBoundary");
 function useEvent(eventOptions = {}, listener, errorListener) {
     const boundaryErrorListener = (0, react_1.useContext)(ErrorBoundary_1.ErrorBoundaryContext);
-    const updateRef = (0, react_1.useRef)(0);
     const listenerRef = (0, react_1.useRef)(listener);
     const errorListenerRef = (0, react_1.useRef)(errorListener);
     const boundaryErrorListenerRef = (0, react_1.useRef)(boundaryErrorListener);
@@ -23,12 +22,6 @@ function useEvent(eventOptions = {}, listener, errorListener) {
         }
         return event;
     }, []);
-    (0, react_1.useEffect)(() => {
-        if (updateRef.current > 0) {
-            throw new Error("Event cannot be updated");
-        }
-        updateRef.current++;
-    }, [event]);
     (0, react_1.useEffect)(() => {
         if (listenerRef.current !== listener) {
             if (listenerRef.current) {
@@ -62,5 +55,22 @@ function useEvent(eventOptions = {}, listener, errorListener) {
             }
         }
     }, [boundaryErrorListener]);
+    (0, react_1.useEffect)(() => {
+        return () => {
+            if (listenerRef.current) {
+                event.removeListener(listenerRef.current);
+                listenerRef.current = null;
+            }
+            if (errorListenerRef.current) {
+                event.removeErrorListener(errorListenerRef.current);
+                errorListenerRef.current = null;
+            }
+            if (boundaryErrorListenerRef.current) {
+                event.removeErrorListener(boundaryErrorListenerRef.current);
+                boundaryErrorListenerRef.current = null;
+            }
+            event.removeAllListeners();
+        };
+    }, []);
     return event;
 }

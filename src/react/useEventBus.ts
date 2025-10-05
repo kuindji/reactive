@@ -32,12 +32,16 @@ export function useEventBus<
         ErrorBoundaryContext,
     ) as ErrorListenerSignature<any[]>;
     const updateRef = useRef(0);
-    const errorListenerRef = useRef<ErrorListenerSignature<any[]>>(
-        errorListener,
+    const errorListenerRef = useRef<ErrorListenerSignature<any[]> | null>(
+        errorListener || null,
     );
-    const allEventsListenerRef = useRef<BaseHandler>(allEventsListener);
-    const boundaryErrorListenerRef = useRef<ErrorListenerSignature<any[]>>(
-        boundaryErrorListener,
+    const allEventsListenerRef = useRef<BaseHandler | null>(
+        allEventsListener || null,
+    );
+    const boundaryErrorListenerRef = useRef<
+        ErrorListenerSignature<any[]> | null
+    >(
+        boundaryErrorListener || null,
     );
 
     const eventBus = useMemo(
@@ -77,7 +81,7 @@ export function useEventBus<
                         allEventsListenerRef.current,
                     );
                 }
-                allEventsListenerRef.current = allEventsListener;
+                allEventsListenerRef.current = allEventsListener || null;
                 if (allEventsListener) {
                     eventBus.addAllEventsListener(allEventsListener);
                 }
@@ -92,7 +96,7 @@ export function useEventBus<
                 if (errorListenerRef.current) {
                     eventBus.removeErrorListener(errorListenerRef.current);
                 }
-                errorListenerRef.current = errorListener;
+                errorListenerRef.current = errorListener || null;
                 if (errorListener) {
                     eventBus.addErrorListener(errorListener);
                 }
@@ -109,13 +113,39 @@ export function useEventBus<
                         boundaryErrorListenerRef.current,
                     );
                 }
-                boundaryErrorListenerRef.current = boundaryErrorListener;
+                boundaryErrorListenerRef.current = boundaryErrorListener
+                    || null;
                 if (boundaryErrorListener) {
                     eventBus.addErrorListener(boundaryErrorListener);
                 }
             }
         },
         [ boundaryErrorListener ],
+    );
+
+    useEffect(
+        () => {
+            return () => {
+                if (allEventsListenerRef.current) {
+                    eventBus.removeAllEventsListener(
+                        allEventsListenerRef.current,
+                    );
+                    allEventsListenerRef.current = null;
+                }
+                if (errorListenerRef.current) {
+                    eventBus.removeErrorListener(errorListenerRef.current);
+                    errorListenerRef.current = null;
+                }
+                if (boundaryErrorListenerRef.current) {
+                    eventBus.removeErrorListener(
+                        boundaryErrorListenerRef.current,
+                    );
+                    boundaryErrorListenerRef.current = null;
+                }
+                updateRef.current = 0;
+            };
+        },
+        [],
     );
 
     return eventBus;
