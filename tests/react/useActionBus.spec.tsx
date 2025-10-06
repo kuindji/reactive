@@ -28,6 +28,7 @@ describe("useListenToActionBus", () => {
     it("should listen to action bus", (done) => {
         let squareTriggered = false;
         let lcTriggered = false;
+        let beforeLcTriggered = false;
         let onAnyErrorTriggered = false;
         let anyErrorMessage = "";
         function Component() {
@@ -45,6 +46,12 @@ describe("useListenToActionBus", () => {
                 },
                 [],
             );
+            const onBeforeLcAction = useCallback(
+                (s: string) => {
+                    beforeLcTriggered = true;
+                },
+                [],
+            );
             const onLcAction = useCallback(
                 (response: ActionResponse) => {
                     lcTriggered = true;
@@ -55,7 +62,10 @@ describe("useListenToActionBus", () => {
             const actionBus = useActionBus(actions, onAnyError);
 
             useListenToActionBus(actionBus, "square", onSquareAction);
-            useListenToActionBus(actionBus, "lc", onLcAction);
+            useListenToActionBus(actionBus, "lc", {
+                listener: onLcAction,
+                beforeActionListener: onBeforeLcAction,
+            });
 
             useEffect(
                 () => {
@@ -77,6 +87,7 @@ describe("useListenToActionBus", () => {
         setTimeout(() => {
             expect(squareTriggered).toBe(true);
             expect(lcTriggered).toBe(true);
+            expect(beforeLcTriggered).toBe(true);
             expect(onAnyErrorTriggered).toBe(true);
             expect(anyErrorMessage).toBe("test");
             done();

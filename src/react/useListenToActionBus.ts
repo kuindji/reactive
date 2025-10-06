@@ -10,17 +10,34 @@ export function useListenToActionBus<
     TKey extends KeyOf<TActionBus["__type"]["actions"]>,
     TListener
         extends TActionBus["__type"]["actions"][TKey]["listenerSignature"],
+    TBeforeActionListener
+        extends TActionBus["__type"]["actions"][TKey]["beforeActionSignature"],
 >(
     actionBus: TActionBus,
     actionName: TKey,
-    listener: TListener,
-    options?: ListenerOptions,
-    errorListener?: ErrorListenerSignature<any[]>,
+    listener: TListener | {
+        listener: TListener;
+        options?: ListenerOptions;
+        errorListener?: ErrorListenerSignature<any[]> | null;
+        beforeActionListener?: TBeforeActionListener | null;
+    },
+    options?: ListenerOptions | null,
+    errorListener?: ErrorListenerSignature<any[]> | null,
+    beforeActionListener?: TBeforeActionListener | null,
 ) {
-    const listenerRef = useRef<TListener>(listener);
+    if (listener && typeof listener !== "function") {
+        options = listener.options;
+        errorListener = listener.errorListener;
+        beforeActionListener = listener.beforeActionListener;
+        listener = listener.listener;
+    }
     const actionBusRef = useRef<TActionBus>(actionBus);
-    const errorListenerRef = useRef<ErrorListenerSignature<any[]>>(
-        errorListener,
+    const listenerRef = useRef<TListener>(listener);
+    const errorListenerRef = useRef<ErrorListenerSignature<any[]> | null>(
+        null,
+    );
+    const beforeActionListenerRef = useRef<TBeforeActionListener | null>(
+        null,
     );
 
     listenerRef.current = listener;
@@ -41,6 +58,12 @@ export function useListenToActionBus<
                         errorListenerRef.current,
                     );
                 }
+                if (beforeActionListenerRef.current) {
+                    actionBusRef.current.get(actionName)
+                        .removeBeforeActionListener(
+                            beforeActionListenerRef.current,
+                        );
+                }
             };
         },
         [],
@@ -53,7 +76,7 @@ export function useListenToActionBus<
             actionBusRef.current.addListener(
                 actionName,
                 genericHandler,
-                options,
+                options || undefined,
             );
         },
         [ actionBus ],
@@ -67,12 +90,33 @@ export function useListenToActionBus<
                         errorListenerRef.current,
                     );
                 }
-                errorListenerRef.current = errorListener;
+                errorListenerRef.current = errorListener || null;
                 if (errorListener) {
                     actionBusRef.current.addErrorListener(errorListener);
                 }
             }
         },
         [ errorListener ],
+    );
+
+    useEffect(
+        () => {
+            if (beforeActionListenerRef.current !== beforeActionListener) {
+                if (beforeActionListenerRef.current) {
+                    actionBusRef.current.get(actionName)
+                        .removeBeforeActionListener(
+                            beforeActionListenerRef.current,
+                        );
+                }
+                beforeActionListenerRef.current = beforeActionListener || null;
+                if (beforeActionListener) {
+                    actionBusRef.current.get(actionName)
+                        .addBeforeActionListener(
+                            beforeActionListener,
+                        );
+                }
+            }
+        },
+        [ beforeActionListener ],
     );
 }
