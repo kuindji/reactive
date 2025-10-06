@@ -15,8 +15,8 @@ export function useListenToActionBus<
 >(
     actionBus: TActionBus,
     actionName: TKey,
-    listener: TListener | {
-        listener: TListener;
+    listener?: TListener | null | {
+        listener?: TListener;
         options?: ListenerOptions;
         errorListener?: ErrorListenerSignature<any[]> | null;
         beforeActionListener?: TBeforeActionListener | null;
@@ -32,7 +32,7 @@ export function useListenToActionBus<
         listener = listener.listener;
     }
     const actionBusRef = useRef<TActionBus>(actionBus);
-    const listenerRef = useRef<TListener>(listener);
+    const listenerRef = useRef<TListener | null>(listener || null);
     const errorListenerRef = useRef<ErrorListenerSignature<any[]> | null>(
         null,
     );
@@ -40,7 +40,9 @@ export function useListenToActionBus<
         null,
     );
 
-    listenerRef.current = listener;
+    listenerRef.current = listener || null;
+    errorListenerRef.current = errorListener || null;
+    beforeActionListenerRef.current = beforeActionListener || null;
 
     const genericHandler = useCallback(
         (arg: TActionBus["__type"]["actions"][TKey]["listenerArgument"]) => {
@@ -49,21 +51,29 @@ export function useListenToActionBus<
         [],
     );
 
+    const genericBeforeActionHandler = useCallback(
+        (...args: Parameters<TBeforeActionListener>) => {
+            return beforeActionListenerRef.current?.(...args) || undefined;
+        },
+        [],
+    );
+
+    const genericErrorListener = useCallback(
+        (
+            arg: TActionBus["__type"]["actions"][TKey]["errorListenerArgument"],
+        ) => {
+            return errorListenerRef.current?.(arg);
+        },
+        [],
+    );
+
     useEffect(
         () => {
             return () => {
                 actionBusRef.current.removeListener(actionName, genericHandler);
-                if (errorListenerRef.current) {
-                    actionBusRef.current.removeErrorListener(
-                        errorListenerRef.current,
-                    );
-                }
-                if (beforeActionListenerRef.current) {
-                    actionBusRef.current.get(actionName)
-                        .removeBeforeActionListener(
-                            beforeActionListenerRef.current,
-                        );
-                }
+                actionBusRef.current.get(actionName)
+                    .removeBeforeActionListener(genericBeforeActionHandler);
+                actionBusRef.current.removeErrorListener(genericErrorListener);
             };
         },
         [],
@@ -72,51 +82,19 @@ export function useListenToActionBus<
     useEffect(
         () => {
             actionBusRef.current.removeListener(actionName, genericHandler);
+            actionBusRef.current.get(actionName)
+                .removeBeforeActionListener(genericBeforeActionHandler);
+            actionBusRef.current.removeErrorListener(genericErrorListener);
             actionBusRef.current = actionBus;
             actionBusRef.current.addListener(
                 actionName,
                 genericHandler,
                 options || undefined,
             );
+            actionBusRef.current.get(actionName)
+                .addBeforeActionListener(genericBeforeActionHandler);
+            actionBusRef.current.addErrorListener(genericErrorListener);
         },
         [ actionBus ],
-    );
-
-    useEffect(
-        () => {
-            if (errorListenerRef.current !== errorListener) {
-                if (errorListenerRef.current) {
-                    actionBusRef.current.removeErrorListener(
-                        errorListenerRef.current,
-                    );
-                }
-                errorListenerRef.current = errorListener || null;
-                if (errorListener) {
-                    actionBusRef.current.addErrorListener(errorListener);
-                }
-            }
-        },
-        [ errorListener ],
-    );
-
-    useEffect(
-        () => {
-            if (beforeActionListenerRef.current !== beforeActionListener) {
-                if (beforeActionListenerRef.current) {
-                    actionBusRef.current.get(actionName)
-                        .removeBeforeActionListener(
-                            beforeActionListenerRef.current,
-                        );
-                }
-                beforeActionListenerRef.current = beforeActionListener || null;
-                if (beforeActionListener) {
-                    actionBusRef.current.get(actionName)
-                        .addBeforeActionListener(
-                            beforeActionListener,
-                        );
-                }
-            }
-        },
-        [ beforeActionListener ],
     );
 }
