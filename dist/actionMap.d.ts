@@ -19,5 +19,9 @@ export declare function createActionMap<M extends BaseActionsMap>(actions: M, on
     readonly removeAllErrorListeners: (tag?: string) => void;
     readonly removeErrorListener: (handler: ErrorListenerSignature<Parameters<M[key]>>, context?: object | null, tag?: string | null) => boolean;
     readonly errorPromise: (options?: import("./event").ListenerOptions) => Promise<[errorResponse: ErrorResponse<Parameters<M[key]>>]>;
+    readonly addBeforeActionListener: (handler: import("./action").BeforeActionSignature<M[key]>, listenerOptions?: import("./event").ListenerOptions) => void;
+    readonly removeAllBeforeActionListeners: (tag?: string) => void;
+    readonly removeBeforeActionListener: (handler: import("./action").BeforeActionSignature<M[key]>, context?: object | null, tag?: string | null) => boolean;
+    readonly beforeActionPromise: (options?: import("./event").ListenerOptions) => Promise<Parameters<M[key]>>;
     __type: import("./action").ActionDefinitionHelper<M[key]>;
 }; };

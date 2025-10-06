@@ -1,6 +1,10 @@
 import { useContext, useEffect, useMemo, useRef } from "react";
 import { createAction } from "../action";
-import type { ActionResponse, ListenerSignature } from "../action";
+import type {
+    ActionResponse,
+    BeforeActionSignature,
+    ListenerSignature,
+} from "../action";
 import type {
     BaseHandler,
     ErrorListenerSignature,
@@ -20,10 +24,12 @@ export function useAction<
     ActionSignature extends BaseHandler,
     Listener extends ListenerSignature<ActionSignature>,
     ErrorListener extends ErrorListenerSignature<Parameters<ActionSignature>>,
+    BeforeActionListener extends BeforeActionSignature<ActionSignature>,
 >(
     actionSignature: ActionSignature,
     listener?: Listener | null,
     errorListener?: ErrorListener | null,
+    beforeActionListener?: BeforeActionListener | null,
 ): ReturnType<typeof createAction<ActionSignature>> {
     const boundaryErrorListener = useContext(
         ErrorBoundaryContext,
@@ -33,6 +39,9 @@ export function useAction<
     const errorListenerRef = useRef<ErrorListener | null>(errorListener);
     const boundaryErrorListenerRef = useRef<ErrorListener | null>(
         boundaryErrorListener,
+    );
+    const beforeActionListenerRef = useRef<BeforeActionListener | null>(
+        beforeActionListener,
     );
 
     const action = useMemo(
@@ -46,6 +55,9 @@ export function useAction<
             }
             if (boundaryErrorListenerRef.current) {
                 action.addErrorListener(boundaryErrorListenerRef.current);
+            }
+            if (beforeActionListenerRef.current) {
+                action.addBeforeActionListener(beforeActionListenerRef.current);
             }
             return action;
         },
@@ -108,6 +120,47 @@ export function useAction<
             }
         },
         [ boundaryErrorListener ],
+    );
+
+    useEffect(
+        () => {
+            if (beforeActionListenerRef.current !== beforeActionListener) {
+                if (beforeActionListenerRef.current) {
+                    action.removeBeforeActionListener(
+                        beforeActionListenerRef.current,
+                    );
+                }
+                beforeActionListenerRef.current = beforeActionListener ?? null;
+                if (beforeActionListener) {
+                    action.addBeforeActionListener(beforeActionListener);
+                }
+            }
+        },
+        [ beforeActionListener ],
+    );
+
+    useEffect(
+        () => {
+            return () => {
+                if (listenerRef.current) {
+                    listenerRef.current = null;
+                }
+                if (errorListenerRef.current) {
+                    errorListenerRef.current = null;
+                }
+                if (boundaryErrorListenerRef.current) {
+                    boundaryErrorListenerRef.current = null;
+                }
+                if (beforeActionListenerRef.current) {
+                    beforeActionListenerRef.current = null;
+                }
+                action.removeAllListeners();
+                action.removeAllBeforeActionListeners();
+                action.removeAllErrorListeners();
+                updateRef.current = 0;
+            };
+        },
+        [],
     );
 
     return action;

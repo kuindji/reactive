@@ -9,6 +9,7 @@ export type ActionResponse<Response extends any = any, Args extends any[] = any[
     args: Args;
 };
 export type ListenerSignature<ActionSignature extends BaseHandler> = (arg: ActionResponse<Awaited<ReturnType<ActionSignature>>, Parameters<ActionSignature>>) => void;
+export type BeforeActionSignature<ActionSignature extends BaseHandler> = (...args: Parameters<ActionSignature>) => false | void | Promise<false | void>;
 export type ActionDefinitionHelper<A extends BaseHandler> = {
     actionSignature: A;
     actionArguments: Parameters<A>;
@@ -17,6 +18,7 @@ export type ActionDefinitionHelper<A extends BaseHandler> = {
     errorResponseType: ErrorResponse<Parameters<A>>;
     listenerArgument: ActionResponse<Awaited<ReturnType<A>>, Parameters<A>>;
     listenerSignature: ListenerSignature<A>;
+    beforeActionSignature: BeforeActionSignature<A>;
     errorListenerArgument: ErrorResponse<Parameters<A>>;
     errorListenerSignature: ErrorListenerSignature<Parameters<A>>;
 };
@@ -44,6 +46,10 @@ export declare function createAction<A extends BaseHandler>(action: A): ApiType<
     readonly removeAllErrorListeners: (tag?: string) => void;
     readonly removeErrorListener: (handler: ErrorListenerSignature<Parameters<A>>, context?: object | null, tag?: string | null) => boolean;
     readonly errorPromise: (options?: import("./event").ListenerOptions) => Promise<[errorResponse: ErrorResponse<Parameters<A>>]>;
+    readonly addBeforeActionListener: (handler: BeforeActionSignature<A>, listenerOptions?: import("./event").ListenerOptions) => void;
+    readonly removeAllBeforeActionListeners: (tag?: string) => void;
+    readonly removeBeforeActionListener: (handler: BeforeActionSignature<A>, context?: object | null, tag?: string | null) => boolean;
+    readonly beforeActionPromise: (options?: import("./event").ListenerOptions) => Promise<Parameters<A>>;
 }>;
 export type BaseActionDefinition = ActionDefinitionHelper<(...args: [any]) => any>;
 export type BaseAction = ReturnType<typeof createAction<(...args: [any]) => any>>;

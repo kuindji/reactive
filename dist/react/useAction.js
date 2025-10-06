@@ -4,12 +4,13 @@ exports.useAction = useAction;
 const react_1 = require("react");
 const action_1 = require("../action");
 const ErrorBoundary_1 = require("./ErrorBoundary");
-function useAction(actionSignature, listener, errorListener) {
+function useAction(actionSignature, listener, errorListener, beforeActionListener) {
     const boundaryErrorListener = (0, react_1.useContext)(ErrorBoundary_1.ErrorBoundaryContext);
     const updateRef = (0, react_1.useRef)(0);
     const listenerRef = (0, react_1.useRef)(listener);
     const errorListenerRef = (0, react_1.useRef)(errorListener);
     const boundaryErrorListenerRef = (0, react_1.useRef)(boundaryErrorListener);
+    const beforeActionListenerRef = (0, react_1.useRef)(beforeActionListener);
     const action = (0, react_1.useMemo)(() => {
         const action = (0, action_1.createAction)(actionSignature);
         if (listenerRef.current) {
@@ -20,6 +21,9 @@ function useAction(actionSignature, listener, errorListener) {
         }
         if (boundaryErrorListenerRef.current) {
             action.addErrorListener(boundaryErrorListenerRef.current);
+        }
+        if (beforeActionListenerRef.current) {
+            action.addBeforeActionListener(beforeActionListenerRef.current);
         }
         return action;
     }, []);
@@ -62,5 +66,36 @@ function useAction(actionSignature, listener, errorListener) {
             }
         }
     }, [boundaryErrorListener]);
+    (0, react_1.useEffect)(() => {
+        if (beforeActionListenerRef.current !== beforeActionListener) {
+            if (beforeActionListenerRef.current) {
+                action.removeBeforeActionListener(beforeActionListenerRef.current);
+            }
+            beforeActionListenerRef.current = beforeActionListener !== null && beforeActionListener !== void 0 ? beforeActionListener : null;
+            if (beforeActionListener) {
+                action.addBeforeActionListener(beforeActionListener);
+            }
+        }
+    }, [beforeActionListener]);
+    (0, react_1.useEffect)(() => {
+        return () => {
+            if (listenerRef.current) {
+                listenerRef.current = null;
+            }
+            if (errorListenerRef.current) {
+                errorListenerRef.current = null;
+            }
+            if (boundaryErrorListenerRef.current) {
+                boundaryErrorListenerRef.current = null;
+            }
+            if (beforeActionListenerRef.current) {
+                beforeActionListenerRef.current = null;
+            }
+            action.removeAllListeners();
+            action.removeAllBeforeActionListeners();
+            action.removeAllErrorListeners();
+            updateRef.current = 0;
+        };
+    }, []);
     return action;
 }

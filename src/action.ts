@@ -26,6 +26,10 @@ export type ListenerSignature<ActionSignature extends BaseHandler> = (
     >,
 ) => void;
 
+export type BeforeActionSignature<ActionSignature extends BaseHandler> = (
+    ...args: Parameters<ActionSignature>
+) => false | void | Promise<false | void>;
+
 export type ActionDefinitionHelper<A extends BaseHandler> = {
     actionSignature: A;
     actionArguments: Parameters<A>;
@@ -34,6 +38,7 @@ export type ActionDefinitionHelper<A extends BaseHandler> = {
     errorResponseType: ErrorResponse<Parameters<A>>;
     listenerArgument: ActionResponse<Awaited<ReturnType<A>>, Parameters<A>>;
     listenerSignature: ListenerSignature<A>;
+    beforeActionSignature: BeforeActionSignature<A>;
     errorListenerArgument: ErrorResponse<Parameters<A>>;
     errorListenerSignature: ErrorListenerSignature<Parameters<A>>;
 };
@@ -50,6 +55,14 @@ export function createAction<A extends BaseHandler>(action: A) {
     } = createEvent<Action["listenerSignature"]>();
 
     const {
+        all: triggerBeforeAction,
+        addListener: addBeforeActionListener,
+        removeAllListeners: removeAllBeforeActionListeners,
+        removeListener: removeBeforeActionListener,
+        promise: beforeActionPromise,
+    } = createEvent<Action["beforeActionSignature"]>();
+
+    const {
         trigger: triggerError,
         addListener: addErrorListener,
         removeAllListeners: removeAllErrorListeners,
@@ -62,6 +75,21 @@ export function createAction<A extends BaseHandler>(action: A) {
         ...args: Action["actionArguments"]
     ): Promise<Action["responseType"]> => {
         try {
+            const beforeResults = triggerBeforeAction(...args);
+            for (let before of beforeResults) {
+                if (before instanceof Promise) {
+                    before = await before;
+                }
+                if (before === false) {
+                    const response = {
+                        response: null,
+                        error: "Action cancelled",
+                        args: args,
+                    };
+                    trigger(response);
+                    return response;
+                }
+            }
             let result = action(...args);
             if (result instanceof Promise) {
                 result = await result;
@@ -119,6 +147,11 @@ export function createAction<A extends BaseHandler>(action: A) {
         removeAllErrorListeners,
         removeErrorListener,
         errorPromise,
+
+        addBeforeActionListener,
+        removeAllBeforeActionListeners,
+        removeBeforeActionListener,
+        beforeActionPromise,
     } as const;
 
     return api as ApiType<Action, typeof api>;

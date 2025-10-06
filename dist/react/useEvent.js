@@ -69,7 +69,6 @@ function useEvent(eventOptions = {}, listener, errorListener) {
                 event.removeErrorListener(boundaryErrorListenerRef.current);
                 boundaryErrorListenerRef.current = null;
             }
-            event.removeAllListeners();
         };
     }, []);
     return event;

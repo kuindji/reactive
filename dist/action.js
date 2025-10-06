@@ -13,9 +13,25 @@ exports.createAction = createAction;
 const event_1 = require("./event");
 function createAction(action) {
     const { trigger, addListener, removeAllListeners, removeListener, promise, } = (0, event_1.createEvent)();
+    const { all: triggerBeforeAction, addListener: addBeforeActionListener, removeAllListeners: removeAllBeforeActionListeners, removeListener: removeBeforeActionListener, promise: beforeActionPromise, } = (0, event_1.createEvent)();
     const { trigger: triggerError, addListener: addErrorListener, removeAllListeners: removeAllErrorListeners, removeListener: removeErrorListener, promise: errorPromise, hasListener: hasErrorListeners, } = (0, event_1.createEvent)();
     const invoke = (...args) => __awaiter(this, void 0, void 0, function* () {
         try {
+            const beforeResults = triggerBeforeAction(...args);
+            for (let before of beforeResults) {
+                if (before instanceof Promise) {
+                    before = yield before;
+                }
+                if (before === false) {
+                    const response = {
+                        response: null,
+                        error: "Action cancelled",
+                        args: args,
+                    };
+                    trigger(response);
+                    return response;
+                }
+            }
             let result = action(...args);
             if (result instanceof Promise) {
                 result = yield result;
@@ -72,6 +88,10 @@ function createAction(action) {
         removeAllErrorListeners,
         removeErrorListener,
         errorPromise,
+        addBeforeActionListener,
+        removeAllBeforeActionListeners,
+        removeBeforeActionListener,
+        beforeActionPromise,
     };
     return api;
 }
