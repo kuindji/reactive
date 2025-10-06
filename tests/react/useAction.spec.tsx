@@ -7,6 +7,7 @@ import { useListenToAction } from "../../src/react/useListenToAction";
 describe("useAction", () => {
     it("should listen to event via useListenToAction", () => {
         let triggered = false;
+        let beforeTriggered = false;
         function Component() {
             const action = useAction((a: number): string => a.toString());
 
@@ -23,7 +24,15 @@ describe("useAction", () => {
                 [],
             );
 
-            useListenToAction(action, handler);
+            const beforeHandler = useCallback(
+                (a: number) => {
+                    expect(a).toBe(1);
+                    beforeTriggered = true;
+                },
+                [],
+            );
+
+            useListenToAction(action, handler, null, beforeHandler);
 
             useEffect(
                 () => {
@@ -42,6 +51,7 @@ describe("useAction", () => {
         render(<App />);
 
         expect(triggered).toBe(true);
+        expect(beforeTriggered).toBe(true);
     });
 
     it("should listen to event via useAction", () => {
