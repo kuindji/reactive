@@ -1,3 +1,4 @@
+export * from "./react/ErrorBoundary";
 export * from "./react/useAction";
 export * from "./react/useActionBus";
 export * from "./react/useActionMap";

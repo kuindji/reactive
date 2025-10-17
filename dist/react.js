@@ -14,6 +14,7 @@ var __exportStar = (this && this.__exportStar) || function(m, exports) {
     for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports, p)) __createBinding(exports, m, p);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+__exportStar(require("./react/ErrorBoundary"), exports);
 __exportStar(require("./react/useAction"), exports);
 __exportStar(require("./react/useActionBus"), exports);
 __exportStar(require("./react/useActionMap"), exports);
