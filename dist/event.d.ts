@@ -73,7 +73,7 @@ export interface EventOptions<ListenerSignature extends BaseHandler> extends Bas
     filterContext?: object | null;
     /**
      * Maximum number of listeners to add
-     * @default 1000
+     * @default 0
      */
     maxListeners?: number;
 }

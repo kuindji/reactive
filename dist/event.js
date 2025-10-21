@@ -15,7 +15,7 @@ function createEvent(eventOptions = {}) {
     let lastTrigger = null;
     let sortListeners = false;
     let currentTagsFilter = null;
-    const options = Object.assign({ async: null, limit: null, autoTrigger: null, filter: null, filterContext: null, maxListeners: 1000 }, eventOptions);
+    const options = Object.assign({ async: null, limit: null, autoTrigger: null, filter: null, filterContext: null, maxListeners: 0 }, eventOptions);
     const addListener = (handler, listenerOptions = {}) => {
         if (!handler) {
             return;
@@ -23,7 +23,7 @@ function createEvent(eventOptions = {}) {
         if (listeners.find((l) => l.handler === handler && l.context === listenerOptions.context)) {
             return;
         }
-        if (listeners.length >= options.maxListeners) {
+        if (options.maxListeners && listeners.length >= options.maxListeners) {
             throw new Error(`Max listeners (${options.maxListeners}) reached`);
         }
         const listener = Object.assign({ handler, called: 0, count: 0, index: listeners.length, start: 1, context: null, tags: [], extraData: null, first: false, alwaysFirst: false, alwaysLast: false, limit: 0, async: null }, listenerOptions);

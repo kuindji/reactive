@@ -97,7 +97,7 @@ export interface EventOptions<
     filterContext?: object | null;
     /**
      * Maximum number of listeners to add
-     * @default 1000
+     * @default 0
      */
     maxListeners?: number;
 }
@@ -139,7 +139,7 @@ export function createEvent<
         autoTrigger: null,
         filter: null,
         filterContext: null,
-        maxListeners: 1000,
+        maxListeners: 0,
         ...eventOptions,
     };
 
@@ -159,7 +159,7 @@ export function createEvent<
             return;
         }
 
-        if (listeners.length >= options.maxListeners!) {
+        if (options.maxListeners && listeners.length >= options.maxListeners!) {
             throw new Error(`Max listeners (${options.maxListeners}) reached`);
         }
 
