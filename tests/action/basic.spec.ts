@@ -11,14 +11,14 @@ describe("action basic", () => {
             expect(response).toBe(2);
         });
 
-        action.invoke(1).then(({ response }) => {
+        void action.invoke(1).then(({ response }) => {
             expect(response).toBe(2);
             done();
         });
     });
 
     it("should work when untyped", (done) => {
-        const action = createAction(function(a) {
+        const action = createAction(function(a: number) {
             return a + a;
         });
 
@@ -26,7 +26,7 @@ describe("action basic", () => {
             expect(response).toBe(2);
         });
 
-        action.invoke(1).then(({ response }) => {
+        void action.invoke(1).then(({ response }) => {
             expect(response).toBe(2);
             done();
         });
@@ -57,10 +57,10 @@ describe("action basic", () => {
             }
         });
 
-        action.invoke(1).then(({ response }) => {
+        void action.invoke(1).then(({ response }) => {
             expect(response).toBe(null);
         });
-        action.invoke(2).then(({ response }) => {
+        void action.invoke(2).then(({ response }) => {
             expect(response).toBe(4);
             expect(beforeTriggered).toBe(true);
             expect(afterTriggered).toBe(true);

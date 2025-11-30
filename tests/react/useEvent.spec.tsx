@@ -11,7 +11,7 @@ describe("useListenToEvent", () => {
             const event = useEvent<(a: number) => string>();
 
             const handler = useCallback(
-                (a: number) => {
+                (_a: number) => {
                     triggered = true;
                     return "test";
                 },
@@ -43,7 +43,7 @@ describe("useListenToEvent", () => {
         let triggered = false;
         function Component() {
             const handler = useCallback(
-                (a: number) => {
+                (_a: number) => {
                     triggered = true;
                     return "test";
                 },
@@ -93,7 +93,7 @@ describe("useListenToEvent", () => {
             );
             const event = useEvent(
                 {},
-                (a: number): string => {
+                (_a: number): string => {
                     throw new Error("test");
                 },
                 handler,

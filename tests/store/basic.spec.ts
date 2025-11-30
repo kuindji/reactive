@@ -48,7 +48,7 @@ describe("store basic", () => {
 
         store.control(BeforeChangeEventName, (name, value) => {
             expect("a").toEqual(name);
-            expect(value).toEqual(2 as any);
+            expect(value).toEqual(2);
             triggered = true;
             return false;
         });
@@ -170,7 +170,7 @@ describe("store basic", () => {
             expect(names).toEqual([ "a", "b" ]);
         });
 
-        store.control(EffectEventName, (name, value) => {
+        store.control(EffectEventName, (name, _value) => {
             effectTriggered = true;
             if (name === "a") {
                 store.set("b", 3);
@@ -195,7 +195,7 @@ describe("store basic", () => {
             expect(names).toEqual([ "a", "b", "c" ]);
         });
 
-        store.control(EffectEventName, (name, value) => {
+        store.control(EffectEventName, (name, _value) => {
             effectTriggered = true;
             if (name === "a") {
                 store.set("c", 6);

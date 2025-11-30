@@ -12,13 +12,13 @@ describe("ErrorBoundary", () => {
     it("should listen to action errors", () => {
         let triggered = false;
         function Component() {
-            const action = useAction((a: number): string => {
+            const action = useAction((_a: number): string => {
                 throw new Error("test");
             });
 
             useEffect(
                 () => {
-                    action.invoke(1);
+                    void action.invoke(1);
                 },
                 [],
             );
@@ -52,7 +52,7 @@ describe("ErrorBoundary", () => {
     it("should listen to event errors", () => {
         let triggered = false;
         function Component() {
-            const event = useEvent({}, (a: string): string => {
+            const event = useEvent({}, (_a: string): string => {
                 throw new Error("test");
             });
 
@@ -94,9 +94,9 @@ describe("ErrorBoundary", () => {
         function Component() {
             const eventBus = useEventBus<{ a: (a: string) => string; }>();
 
-            useEffect(
+                useEffect(
                 () => {
-                    eventBus.addListener("a", (a: string) => {
+                    eventBus.addListener("a", (_a: string) => {
                         throw new Error("test");
                     });
                     eventBus.trigger("a", "test");
@@ -141,14 +141,14 @@ describe("ErrorBoundary", () => {
         let triggered = false;
         function Component() {
             const actionMap = useActionMap({
-                a: (a: string) => {
+                a: (_a: string) => {
                     throw new Error("test");
                 },
             });
 
             useEffect(
                 () => {
-                    actionMap.a.invoke("test");
+                    void actionMap.a.invoke("test");
                 },
                 [],
             );
@@ -190,14 +190,14 @@ describe("ErrorBoundary", () => {
         let triggered = false;
         function Component() {
             const actionBus = useActionBus<{ a: (a: string) => string; }>({
-                a: (a: string) => {
+                a: (_a: string) => {
                     throw new Error("test");
                 },
             });
 
             useEffect(
                 () => {
-                    actionBus.invoke("a", "test");
+                    void actionBus.invoke("a", "test");
                 },
                 [],
             );
@@ -238,13 +238,13 @@ describe("ErrorBoundary", () => {
     it("should should pass to outer boundary", () => {
         let triggered = false;
         function Component() {
-            const action = useAction((a: number): string => {
+            const action = useAction((_a: number): string => {
                 throw new Error("test");
             });
 
             useEffect(
                 () => {
-                    action.invoke(1);
+                    void action.invoke(1);
                 },
                 [],
             );

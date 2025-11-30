@@ -51,9 +51,9 @@ describe("eventBus", () => {
 
     it("should work when untyped", () => {
         const o = createEventBus();
-        let arg;
+        let arg: unknown;
 
-        o.on("event", (value) => {
+        o.on("event", (value: unknown) => {
             arg = value;
         });
 

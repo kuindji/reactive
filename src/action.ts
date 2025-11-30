@@ -7,8 +7,8 @@ import type {
 } from "./lib/types";
 
 export type ActionResponse<
-    Response extends any = any,
-    Args extends any[] = any[],
+    Response = any,
+    Args extends unknown[] = unknown[],
 > = {
     response: Response;
     error: null;
@@ -158,8 +158,8 @@ export function createAction<A extends BaseHandler>(action: A) {
 }
 
 export type BaseActionDefinition = ActionDefinitionHelper<
-    (...args: [ any ]) => any
+    (...args: [any]) => any
 >;
 export type BaseAction = ReturnType<
-    typeof createAction<(...args: [ any ]) => any>
+    typeof createAction<(...args: [any]) => any>
 >;

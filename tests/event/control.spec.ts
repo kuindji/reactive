@@ -56,27 +56,29 @@ describe("event control", () => {
 
     it("should indicate if it has a listener or not", () => {
         const o = createEvent<() => void>();
+        const contextL = function() {};
+        const contextL2 = function() {};
         const context = {
-            l: function() {},
-            l2: function() {},
+            l: contextL,
+            l2: contextL2,
         };
         const l = function() {};
 
         o.addListener(l);
-        o.addListener(context.l, { context });
+        o.addListener(contextL, { context });
 
         expect(o.hasListener()).toBe(true);
         expect(o.hasListener(l)).toBe(true);
-        expect(o.hasListener(context.l, context)).toBe(true);
-        expect(o.hasListener(context.l2)).toBe(false);
-        expect(o.hasListener(context.l2, context)).toBe(false);
+        expect(o.hasListener(contextL, context)).toBe(true);
+        expect(o.hasListener(contextL2)).toBe(false);
+        expect(o.hasListener(contextL2, context)).toBe(false);
 
         o.removeAllListeners();
         expect(o.hasListener()).toBe(false);
         expect(o.hasListener(l)).toBe(false);
-        expect(o.hasListener(context.l, context)).toBe(false);
-        expect(o.hasListener(context.l2)).toBe(false);
-        expect(o.hasListener(context.l2, context)).toBe(false);
+        expect(o.hasListener(contextL, context)).toBe(false);
+        expect(o.hasListener(contextL2)).toBe(false);
+        expect(o.hasListener(contextL2, context)).toBe(false);
     });
 
     it("should work with tags", () => {

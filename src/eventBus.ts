@@ -227,43 +227,56 @@ export function createEventBus<
                 && listener.localEventNamePrefix === localEventNamePrefix,
         );
         if (!listener) {
-            listener = {
+            const createListenerFn = (): ((...args: any[]) => any) => {
+                if (remoteEventName === "*") {
+                    return (eventName: MapKey, args: any[]) => {
+                        let computedName: MapKey;
+                        if (localEventName) {
+                            computedName = localEventName;
+                        }
+                        else if (localEventNamePrefix) {
+                            computedName = `${localEventNamePrefix}${String(eventName)}`;
+                        }
+                        else {
+                            computedName = eventName;
+                        }
+                        return _trigger(
+                            computedName as KeyOf<Events>,
+                            args as Events[KeyOf<Events>]["arguments"],
+                            returnType,
+                            resolve,
+                        );
+                    };
+                }
+                return (...args: any[]) => {
+                    let computedName: MapKey;
+                    if (localEventName) {
+                        computedName = localEventName;
+                    }
+                    else if (localEventNamePrefix) {
+                        computedName = `${localEventNamePrefix}${String(remoteEventName)}`;
+                    }
+                    else {
+                        computedName = remoteEventName;
+                    }
+                    return _trigger(
+                        computedName as KeyOf<Events>,
+                        args as Events[KeyOf<Events>]["arguments"],
+                        returnType,
+                        resolve,
+                    );
+                };
+            };
+            const proxyListener: ProxyListener = {
                 localEventName,
                 remoteEventName,
                 localEventNamePrefix,
                 returnType,
                 resolve,
-                listener: remoteEventName === "*"
-                    ? (eventName: MapKey, args: any[]) => {
-                        const name = localEventName
-                            ? localEventName
-                            : localEventNamePrefix
-                            ? `${localEventNamePrefix}${eventName as string}`
-                            : eventName;
-                        return _trigger(
-                            name,
-                            // @ts-expect-error
-                            args,
-                            returnType,
-                            resolve,
-                        );
-                    }
-                    : (...args: any[]) => {
-                        const name = localEventName
-                            ? localEventName
-                            : localEventNamePrefix
-                            ? `${localEventNamePrefix}${remoteEventName as string}`
-                            : remoteEventName;
-                        return _trigger(
-                            name,
-                            // @ts-expect-error
-                            args,
-                            returnType,
-                            resolve,
-                        );
-                    },
+                listener: createListenerFn(),
             };
-            proxyListeners.push(listener);
+            listener = proxyListener;
+            proxyListeners.push(proxyListener);
         }
         return listener;
     };
@@ -310,7 +323,6 @@ export function createEventBus<
     ) => {
         const e: EventTypes[K] = _getOrAddEvent(name);
         eventSources.forEach((evs) => {
-            name;
             if (
                 evs.eventSource.accepts === false
                 || (typeof evs.eventSource.accepts === "function"
@@ -372,11 +384,11 @@ export function createEventBus<
         context?: object | null,
         tag?: string | null,
     ) => {
-        const e: EventTypes[K] = events.get(name);
+        const e = events.get(name) as EventTypes[K] | undefined;
         if (e) {
             e.removeListener(handler as any, context, tag);
         }
-        if (eventSources.length > 0) {
+        if (eventSources.length > 0 && e) {
             const isEmpty = !e.hasListener();
             eventSources.forEach((evs) => {
                 const inx = evs.subscribed.indexOf(name);
@@ -431,7 +443,7 @@ export function createEventBus<
         }
         const e: EventTypes[K] = _getOrAddEvent(name);
         const runner = () => {
-            let result;
+            let result: unknown;
             switch (returnType) {
                 case TriggerReturnType.RAW:
                     result = e.raw(...args);
@@ -473,11 +485,12 @@ export function createEventBus<
                     break;
                 default:
                     e.trigger(...args);
+                    return undefined;
             }
             return result;
         };
         try {
-            let result;
+            let result: unknown;
             if (currentTagsFilter) {
                 result = e.withTags(currentTagsFilter, runner);
             }
@@ -521,13 +534,13 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.FIRST,
             false,
-        ) as ReturnType<typeof e.first>;
+        ) as ReturnType<E["first"]>;
     };
 
     const resolveFirst = <
@@ -537,13 +550,13 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.FIRST,
             true,
-        ) as ReturnType<typeof e.resolveFirst>;
+        ) as ReturnType<E["resolveFirst"]>;
     };
 
     const all = <
@@ -553,9 +566,9 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(name, args, TriggerReturnType.ALL, false) as ReturnType<
-            typeof e.all
+            E["all"]
         >;
     };
 
@@ -566,13 +579,13 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.ALL,
             true,
-        ) as ReturnType<typeof e.resolveAll>;
+        ) as ReturnType<E["resolveAll"]>;
     };
 
     const last = <
@@ -582,13 +595,13 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.LAST,
             false,
-        ) as ReturnType<typeof e.last>;
+        ) as ReturnType<E["last"]>;
     };
 
     const resolveLast = <
@@ -598,13 +611,13 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.LAST,
             true,
-        ) as ReturnType<typeof e.resolveLast>;
+        ) as ReturnType<E["resolveLast"]>;
     };
 
     const merge = <
@@ -614,13 +627,13 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.MERGE,
             false,
-        ) as ReturnType<typeof e.merge>;
+        ) as ReturnType<E["merge"]>;
     };
 
     const resolveMerge = <
@@ -630,13 +643,13 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.MERGE,
             true,
-        ) as ReturnType<typeof e.resolveMerge>;
+        ) as ReturnType<E["resolveMerge"]>;
     };
 
     const concat = <
@@ -646,13 +659,13 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.CONCAT,
             false,
-        ) as ReturnType<typeof e.concat>;
+        ) as ReturnType<E["concat"]>;
     };
 
     const resolveConcat = <
@@ -662,13 +675,13 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.CONCAT,
             true,
-        ) as ReturnType<typeof e.resolveConcat>;
+        ) as ReturnType<E["resolveConcat"]>;
     };
 
     const firstNonEmpty = <
@@ -678,13 +691,13 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.FIRST_NON_EMPTY,
             false,
-        ) as ReturnType<typeof e.firstNonEmpty>;
+        ) as ReturnType<E["firstNonEmpty"]>;
     };
 
     const resolveFirstNonEmpty = <
@@ -694,13 +707,13 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.FIRST_NON_EMPTY,
             true,
-        ) as ReturnType<typeof e.resolveFirstNonEmpty>;
+        ) as ReturnType<E["resolveFirstNonEmpty"]>;
     };
 
     const untilTrue = <
@@ -710,13 +723,13 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.UNTIL_TRUE,
             false,
-        ) as ReturnType<typeof e.untilTrue>;
+        ) as ReturnType<E["untilTrue"]>;
     };
 
     const untilFalse = <
@@ -726,13 +739,13 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.UNTIL_FALSE,
             false,
-        ) as ReturnType<typeof e.untilFalse>;
+        ) as ReturnType<E["untilFalse"]>;
     };
 
     const pipe = <
@@ -742,13 +755,13 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.PIPE,
             false,
-        ) as ReturnType<typeof e.pipe>;
+        ) as ReturnType<E["pipe"]>;
     };
 
     const resolvePipe = <
@@ -758,13 +771,13 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.PIPE,
             true,
-        ) as ReturnType<typeof e.resolvePipe>;
+        ) as ReturnType<E["resolvePipe"]>;
     };
 
     const raw = <
@@ -774,24 +787,23 @@ export function createEventBus<
         name: K,
         ...args: A
     ) => {
-        const e: EventTypes[K] = _getOrAddEvent(name);
+        type E = EventTypes[K];
         return _trigger(
             name,
             args,
             TriggerReturnType.RAW,
             false,
-        ) as ReturnType<typeof e.raw>;
+        ) as ReturnType<E["raw"]>;
     };
 
-    const withTags = <T extends (...args: any[]) => any>(
+    const withTags = <R>(
         tags: string[],
-        callback: T,
-    ) => {
-        type R = ReturnType<T>;
+        callback: () => R,
+    ): R => {
         currentTagsFilter = tags;
         const result = callback();
         currentTagsFilter = null;
-        return result as R;
+        return result;
     };
 
     const reset = () => {
@@ -809,15 +821,15 @@ export function createEventBus<
     };
 
     const suspendAll = (withQueue: boolean = false) => {
-        for (const name in events) {
-            events.get(name).suspend(withQueue);
-        }
+        events.forEach((event: EventTypes[KeyOf<Events>]) => {
+            event.suspend(withQueue);
+        });
     };
 
     const resumeAll = () => {
-        for (const name in events) {
-            events.get(name).resume();
-        }
+        events.forEach((event: EventTypes[KeyOf<Events>]) => {
+            event.resume();
+        });
     };
 
     const relay = ({
@@ -829,7 +841,7 @@ export function createEventBus<
     }: {
         eventSource: RelaySource;
         remoteEventName: MapKey;
-        localEventName?: any;
+        localEventName?: MapKey | null;
         proxyType?: ProxyType;
         localEventNamePrefix?: string | null;
     }) => {
@@ -862,7 +874,7 @@ export function createEventBus<
     }: {
         eventSource: RelaySource;
         remoteEventName: MapKey;
-        localEventName?: any;
+        localEventName?: MapKey | null;
         proxyType?: ProxyType;
         localEventNamePrefix?: string | null;
     }) => {
@@ -911,19 +923,23 @@ export function createEventBus<
         );
         if (inx !== -1) {
             const evs = eventSources[inx];
-            evs.subscribed.forEach((name: MapKey) => {
+            evs.subscribed.forEach((subscribedName: MapKey) => {
                 const { returnType, resolve } =
                     proxyReturnTypeToTriggerReturnType(
                         evs.eventSource.proxyType || ProxyType.TRIGGER,
                     );
                 const listener = _getProxyListener({
                     localEventName: null,
-                    remoteEventName: name,
+                    remoteEventName: subscribedName,
                     returnType,
                     resolve,
                     localEventNamePrefix: null,
                 });
-                evs.eventSource.un(name, listener.listener, evs.eventSource);
+                evs.eventSource.un(
+                    subscribedName,
+                    listener.listener,
+                    evs.eventSource,
+                );
             });
             eventSources.splice(inx, 1);
         }

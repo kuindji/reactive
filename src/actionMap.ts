@@ -30,7 +30,7 @@ export function createActionMap<M extends BaseActionsMap>(
 
     const errorListenersMap: ErrorListenersMap = {} as ErrorListenersMap;
     for (const key in actions) {
-        (errorListenersMap as any)[key] = (
+        (errorListenersMap as Record<string, unknown>)[key] = (
             errorResponse: ErrorResponse<any[]>,
         ) => {
             if (Array.isArray(onAnyError)) {

@@ -27,7 +27,7 @@ describe("useStore", () => {
                     pipes: {
                         a: (a) => {
                             pipeTriggered = true;
-                            return a * a;
+                            return a! * a!;
                         },
                     },
                     control: {
@@ -65,7 +65,7 @@ describe("useStore", () => {
         function Component() {
             const store = useStore(initialData);
             const listener = useCallback(
-                (a: number) => {
+                (_a: number | undefined) => {
                     onChangeTriggered = true;
                 },
                 [],

@@ -32,7 +32,7 @@ describe("actionBus basic", () => {
             expect(response).toBe(4);
         });
 
-        bus.invoke("multiply", 2);
+        void bus.invoke("multiply", 2);
 
         bus.on("delay", ({ response }) => {
             expect(response).toBe(3);
@@ -40,16 +40,16 @@ describe("actionBus basic", () => {
 
         promises.push(bus.invoke("delay", 3));
 
-        Promise.all(promises).then(() => {
+        void Promise.all(promises).then(() => {
             done();
         });
     });
 
     it("should work when untyped", (done) => {
-        const promises: Promise<any>[] = [];
+        const promises: Promise<unknown>[] = [];
         const bus = createActionBus();
 
-        bus.add("sum", function(a) {
+        bus.add("sum", function(a: number) {
             return a + a;
         });
 
@@ -63,7 +63,7 @@ describe("actionBus basic", () => {
             }),
         );
 
-        Promise.all(promises).then(() => {
+        void Promise.all(promises).then(() => {
             done();
         });
     });

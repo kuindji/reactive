@@ -74,9 +74,9 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     const control = createEventBus<Store["controlEvents"]>();
     let effectKeys: KeyOf<PropMap>[] = [];
 
-    const effectInterceptor = (name: MapKey, args: any[]) => {
+    const effectInterceptor = (name: MapKey, args: unknown[]) => {
         if (name === ChangeEventName) {
-            effectKeys.push(...args[0]);
+            effectKeys.push(...(args[0] as KeyOf<PropMap>[]));
             return false;
         }
         return true;
@@ -150,7 +150,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                     if (!isIntercepting) {
                         control.intercept(effectInterceptor);
                     }
-                    control.trigger(EffectEventName, name, value!);
+                    control.trigger(EffectEventName, name, value);
                     if (!isIntercepting) {
                         control.stopIntercepting();
                     }
@@ -287,17 +287,17 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                     [AK in K[number]]: PropMap[AK];
                 }
             : never;
-        if (
-            typeof key === "string"
-        ) {
-            return data.get(key) as V;
+        if (typeof key === "string") {
+            const value: unknown = data.get(key);
+            return value as V;
         }
         else if (Array.isArray(key)) {
             // return object with given keys
-            return key.reduce((acc, k) => {
-                acc[k] = data.get(k);
-                return acc;
-            }, {} as V);
+            const result: Record<string, unknown> = {};
+            for (const k of key) {
+                result[k] = data.get(k);
+            }
+            return result as V;
         }
         else {
             throw new Error(`Invalid key: ${String(key)}`);

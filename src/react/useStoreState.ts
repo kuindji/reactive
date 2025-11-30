@@ -8,7 +8,7 @@ export function useStoreState<
 >(store: TStore, key: TKey) {
     type ValueType = TStore["__type"]["propTypes"][TKey];
     type Setter = (
-        previousValue?: ValueType | undefined,
+        previousValue?: ValueType,
     ) => ValueType;
     const [ value, setValue ] = useState<ValueType>(store.get(key));
     const storeRef = useRef<TStore>(store);

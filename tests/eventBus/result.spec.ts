@@ -171,7 +171,7 @@ describe("eventBus", function() {
             o.on("a", () => {
                 triggered = true;
             });
-            const res = o.firstNonEmpty("a");
+            const res: unknown = o.firstNonEmpty("a");
             expect(res).toEqual(1);
             expect(triggered).toBe(false);
         });

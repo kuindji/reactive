@@ -40,13 +40,13 @@ describe("useEventListen", () => {
             );
 
             const onSquareAction = useCallback(
-                (response: ActionResponse) => {
+                (_response: ActionResponse) => {
                     squareTriggered = true;
                 },
                 [],
             );
             const onLcAction = useCallback(
-                (response: ActionResponse) => {
+                (_response: ActionResponse) => {
                     lcTriggered = true;
                 },
                 [],
@@ -58,8 +58,8 @@ describe("useEventListen", () => {
                 () => {
                     actionMap.square.addListener(onSquareAction);
                     actionMap.lc.addListener(onLcAction);
-                    actionMap.square.invoke(1);
-                    actionMap.lc.invoke("test");
+                    void actionMap.square.invoke(1);
+                    void actionMap.lc.invoke("test");
                 },
                 [],
             );

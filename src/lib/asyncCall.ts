@@ -9,13 +9,12 @@ export default function asyncCall<
 ): Promise<R> {
     return new Promise<R>((resolve, reject) => {
         const newArgs = [ ...(args || []) ];
-        // const newArgs = [ ...(args || []) ];
         setTimeout(() => {
             try {
                 resolve((fn as any).apply(context, newArgs) as R);
             }
             catch (err) {
-                reject(err);
+                reject(err instanceof Error ? err : new Error(String(err)));
             }
         }, timeout || 0);
     });

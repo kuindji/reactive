@@ -36,7 +36,7 @@ describe("useAction", () => {
 
             useEffect(
                 () => {
-                    action.invoke(1);
+                    void action.invoke(1);
                 },
                 [],
             );
@@ -77,7 +77,7 @@ describe("useAction", () => {
 
             useEffect(
                 () => {
-                    invoke(1);
+                    void invoke(1);
                 },
                 [],
             );
@@ -112,7 +112,7 @@ describe("useAction", () => {
                 [],
             );
             const action = useAction(
-                (a: number): string => {
+                (_a: number): string => {
                     throw new Error("test");
                 },
                 null,
@@ -121,7 +121,7 @@ describe("useAction", () => {
 
             useEffect(
                 () => {
-                    action.invoke(1);
+                    void action.invoke(1);
                 },
                 [],
             );

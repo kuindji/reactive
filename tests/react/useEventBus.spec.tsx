@@ -14,7 +14,7 @@ describe("useListenToEventBus", () => {
             const eventBus = useEventBus<{ a: (a: number) => string; }>();
 
             const handler = useCallback(
-                (a: number) => {
+                (_a: number) => {
                     triggered++;
                     return "test";
                 },
@@ -50,7 +50,7 @@ describe("useListenToEventBus", () => {
 
         const useCustomHook = () => {
             const handler = useCallback(
-                (a: number) => {
+                (_a: number) => {
                     triggered++;
                     return "test";
                 },

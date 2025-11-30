@@ -1,0 +1,24 @@
+{
+    "compilerOptions": {
+        "target": "es2022",
+        "module": "commonjs",
+        "declaration": false,
+        "strict": true,
+        "noEmit": true,
+        "skipLibCheck": true,
+        "jsx": "react-jsx",
+        "lib": [
+            "dom",
+            "esnext"
+        ],
+        "types": [
+            "bun"
+        ],
+        "moduleResolution": "node"
+    },
+    "include": [
+        "./**/*.ts",
+        "./**/*.tsx"
+    ]
+}
+

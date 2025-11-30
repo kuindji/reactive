@@ -10,7 +10,7 @@ describe("event listener", () => {
         o.addListener(() => triggered.push(2), { first: true });
         o.trigger();
 
-        expect(triggered).toEqual([ 2, 1 ]);
+        expect(triggered).toEqual([2, 1]);
     });
 
     it("should respect listener's alwaysFirst option", () => {
@@ -22,7 +22,7 @@ describe("event listener", () => {
         o.addListener(() => triggered.push(3), { first: true });
         o.trigger();
 
-        expect(triggered).toEqual([ 2, 3, 1 ]);
+        expect(triggered).toEqual([2, 3, 1]);
     });
 
     it("should respect listener's alwaysLast option", () => {
@@ -34,7 +34,7 @@ describe("event listener", () => {
         o.addListener(() => triggered.push(3));
         o.trigger();
 
-        expect(triggered).toEqual([ 1, 3, 2 ]);
+        expect(triggered).toEqual([1, 3, 2]);
     });
 
     it("should respect start and limit options", () => {
@@ -49,7 +49,7 @@ describe("event listener", () => {
         o.trigger();
         o.trigger();
 
-        expect(triggered).toEqual([ 1, 1, 2, 2 ]);
+        expect(triggered).toEqual([1, 1, 2, 2]);
     });
 
     it("should respect event's limit option", () => {
@@ -68,34 +68,37 @@ describe("event listener", () => {
         o.trigger();
         o.trigger();
 
-        expect(triggered).toEqual([ 1, 1 ]);
+        expect(triggered).toEqual([1, 1]);
     });
 
     it("should respect given context and control dupes", () => {
         const o = createEvent<() => void>();
-        const triggered: any[] = [];
+        const triggered: number[] = [];
         const context = {
             a: 1,
             b: 2,
-            l: function() {
+            l: function () {
                 triggered.push(this.a);
             },
-            d: function() {
+            d: function () {
                 triggered.push(this.b);
             },
         };
 
+        // eslint-disable-next-line @typescript-eslint/unbound-method
         o.addListener(context.l, { context });
+        // eslint-disable-next-line @typescript-eslint/unbound-method
         o.addListener(context.l, { context });
+        // eslint-disable-next-line @typescript-eslint/unbound-method
         o.addListener(context.d, { context });
 
         o.trigger();
 
-        expect(triggered).toEqual([ 1, 2 ]);
+        expect(triggered).toEqual([1, 2]);
     });
 
     it("should run listeners asynchronously when asked", (done) => {
-        let startTime = Date.now();
+        const startTime = Date.now();
         const options = {
             async: 100,
         };
@@ -116,7 +119,7 @@ describe("event listener", () => {
         o.removeListener(l);
         o.trigger();
 
-        expect(triggered).toEqual([ 1 ]);
+        expect(triggered).toEqual([1]);
     });
 
     it("should unsubscribe dupes correctly", () => {
@@ -132,12 +135,16 @@ describe("event listener", () => {
             h3 = new SomeClass(),
             o = createEvent<() => void>();
 
-        o.addListener(h1.handler, { context: h1 });
-        o.addListener(h2.handler, { context: h2 });
-        o.addListener(h3.handler, { context: h3 });
+        const h1Handler = h1.handler.bind(h1);
+        const h2Handler = h2.handler.bind(h2);
+        const h3Handler = h3.handler.bind(h3);
+
+        o.addListener(h1Handler, { context: h1 });
+        o.addListener(h2Handler, { context: h2 });
+        o.addListener(h3Handler, { context: h3 });
 
         o.trigger();
-        o.removeListener(h3.handler, h3);
+        o.removeListener(h3Handler, h3);
         o.trigger();
 
         expect(res).toEqual(5);
@@ -145,7 +152,7 @@ describe("event listener", () => {
 
     it("wait for first trigger", (done) => {
         const o = createEvent<(value: number) => void>();
-        o.promise().then(([ payload ]) => {
+        void o.promise().then(([payload]) => {
             expect(payload).toEqual(1);
             done();
         });

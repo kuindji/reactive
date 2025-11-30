@@ -141,7 +141,7 @@ describe("event result", function() {
             o.addListener(() => {
                 triggered = true;
             });
-            const res = o.firstNonEmpty();
+            const res: unknown = o.firstNonEmpty();
             expect(res).toEqual(1);
             expect(triggered).toBe(false);
         });

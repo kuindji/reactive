@@ -41,19 +41,19 @@ describe("useListenToActionBus", () => {
             );
 
             const onSquareAction = useCallback(
-                (response: ActionResponse) => {
+                (_response: ActionResponse) => {
                     squareTriggered = true;
                 },
                 [],
             );
             const onBeforeLcAction = useCallback(
-                (s: string) => {
+                (_s: string) => {
                     beforeLcTriggered = true;
                 },
                 [],
             );
             const onLcAction = useCallback(
-                (response: ActionResponse) => {
+                (_response: ActionResponse) => {
                     lcTriggered = true;
                 },
                 [],
@@ -69,8 +69,8 @@ describe("useListenToActionBus", () => {
 
             useEffect(
                 () => {
-                    actionBus.invoke("square", 1);
-                    actionBus.invoke("lc", "test");
+                    void actionBus.invoke("square", 1);
+                    void actionBus.invoke("lc", "test");
                 },
                 [],
             );

@@ -2,7 +2,6 @@ import { describe, expect, it } from "bun:test";
 import { EventEmitter } from "events";
 import { createEventBus } from "../../src/eventBus";
 import { MapKey, ProxyType } from "../../src/lib/types";
-import assert = require("assert");
 
 describe("eventBus", () => {
     it("should work with tags", () => {
@@ -69,9 +68,11 @@ describe("eventBus", () => {
         const o = createEventBus<{ event: (a: number, b: number) => void; }>();
         const ee = new EventEmitter();
         let triggered = true;
-        let params: any[] = [];
+        const params: number[] = [];
 
-        ee.on("event-source", o.get("event").trigger);
+        ee.on("event-source", (...args: unknown[]) =>
+            o.get("event").trigger(args[0] as number, args[1] as number)
+        );
         o.on("event", (a: number, b: number) => {
             params.push(a);
             params.push(b);
@@ -172,6 +173,6 @@ describe("eventBus", () => {
         o1.on("event", () => 2);
         const res = o2.first("event");
 
-        assert.deepStrictEqual([ 1, 2 ], res);
+        expect(res).toEqual([ 1, 2 ]);
     });
 });

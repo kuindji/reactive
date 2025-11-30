@@ -1,3 +1,0 @@
-import type { BaseAction } from "../action";
-export type { BaseAction };
-export declare function useListenToAction<TAction extends BaseAction, TListenerSignature extends TAction["__type"]["listenerSignature"] = TAction["__type"]["listenerSignature"], TErrorListenerSignature extends TAction["__type"]["errorListenerSignature"] = TAction["__type"]["errorListenerSignature"], TBeforeActionListenerSignature extends TAction["__type"]["beforeActionSignature"] = TAction["__type"]["beforeActionSignature"]>(action: TAction, listener: TListenerSignature | null, errorListener?: TErrorListenerSignature | null, beforeActionListener?: TBeforeActionListenerSignature | null): void;
