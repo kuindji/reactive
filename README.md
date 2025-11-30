@@ -117,28 +117,27 @@ type ApplicationData = {
         type: string;
         message: string;
     }[];
-}
-const event = createEvent(<() => Partial<ApplicationData>>);
+};
+const event = createEvent<() => Partial<ApplicationData>>();
 event.addListener(() => {
     return {
         user: {
             username: "john",
             role: "admin",
-            loggedIn: true
-        }
-    }
+            loggedIn: true,
+        },
+    };
 });
 event.addListener(() => {
     return {
         notifications: [
             {
                 type: "chat",
-                message: "You've got a new message!"
-            }
-        ]
-    }
+                message: "You've got a new message!",
+            },
+        ],
+    };
 });
-
 
 const applicationData = event.merge();
 ```
