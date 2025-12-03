@@ -43,9 +43,7 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
     const errorEvent = createEvent<ErrorListenerSignature<any[]>>();
 
     if (errorListener) {
-        errorEvent.addListener(({ error, args }) => {
-            errorEvent.emit({ error, args, type: "action" });
-        });
+        errorEvent.addListener(errorListener);
     }
 
     const add = (name: MapKey, action: BaseHandler) => {
@@ -71,6 +69,9 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         ...args: Actions[K]["actionArguments"]
     ) => {
         const action = get(name);
+        if (!action) {
+            throw new Error(`Action ${name as string} not found`);
+        }
         return action.invoke(...args);
     };
 

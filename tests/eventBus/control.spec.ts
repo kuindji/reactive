@@ -70,8 +70,10 @@ describe("eventBus", () => {
         let triggered = true;
         const params: number[] = [];
 
-        ee.on("event-source", (...args: unknown[]) =>
-            o.get("event").trigger(args[0] as number, args[1] as number)
+        ee.on(
+            "event-source",
+            (...args: unknown[]) =>
+                o.get("event").trigger(args[0] as number, args[1] as number),
         );
         o.on("event", (a: number, b: number) => {
             params.push(a);
@@ -173,6 +175,11 @@ describe("eventBus", () => {
         o1.on("event", () => 2);
         const res = o2.first("event");
 
+        // here the test is correct,
+        // but the returning type is not.
+        // since this is ProxyType.ALL,
+        // the return type should be number[]
+        // @ts-expect-error - for now
         expect(res).toEqual([ 1, 2 ]);
     });
 });

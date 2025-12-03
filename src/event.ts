@@ -55,7 +55,8 @@ export interface ListenerOptions extends BaseOptions {
 }
 
 interface ListenerPrototype<Handler extends BaseHandler>
-    extends Required<ListenerOptions> {
+    extends Required<ListenerOptions>
+{
     handler: Handler;
     called: number;
     count: number;
@@ -85,11 +86,11 @@ export interface EventOptions<
      * A function that decides whether event should trigger a listener this time
      */
     filter?:
-    | ((
-        args: any[],
-        listener: ListenerPrototype<ListenerSignature>,
-    ) => boolean)
-    | null;
+        | ((
+            args: any[],
+            listener: ListenerPrototype<ListenerSignature>,
+        ) => boolean)
+        | null;
     /**
      * TriggerFilter's this object, if needed
      */
@@ -124,7 +125,7 @@ export function createEvent<
 
     let listeners: Listener[] = [];
     const errorListeners: ErrorListener[] = [];
-    let queue: Array<[Event["arguments"], TriggerReturnType | null]> = [];
+    let queue: Array<[ Event["arguments"], TriggerReturnType | null ]> = [];
     let suspended: boolean = false;
     let queued: boolean = false;
     let triggered: number = 0;
@@ -302,7 +303,7 @@ export function createEvent<
         context?: object | null,
     ) => {
         if (
-            listeners.find((l) =>
+            errorListeners.find((l) =>
                 l.handler === handler && l.context === context
             )
         ) {
@@ -355,10 +356,13 @@ export function createEvent<
 
     const reset = () => {
         listeners.length = 0;
+        errorListeners.length = 0;
         queue.length = 0;
         suspended = false;
         queued = false;
         triggered = 0;
+        lastTrigger = null;
+        sortListeners = false;
     };
 
     const _listenerCall = (
@@ -426,7 +430,8 @@ export function createEvent<
     ):
         | Event["returnType"]
         | Promise<Event["returnType"]>
-        | boolean => {
+        | boolean =>
+    {
         if (returnType === TriggerReturnType.PIPE) {
             args[0] = prevValue;
             // since we don't user listener's arg transformer,
@@ -462,7 +467,7 @@ export function createEvent<
         tags?: string[] | null,
     ) => {
         if (queued) {
-            queue.push([args, returnType]);
+            queue.push([ args, returnType ]);
             return;
         }
         if (suspended) {
@@ -521,7 +526,7 @@ export function createEvent<
             if (
                 options.filter
                 && options.filter.call(options.filterContext, args, listener)
-                === false
+                    === false
             ) {
                 continue;
             }
@@ -552,8 +557,8 @@ export function createEvent<
                 continue;
             }
 
-        if (isConsequent && results.length > 0) {
-            const prev = results[results.length - 1];
+            if (isConsequent && results.length > 0) {
+                const prev = results[results.length - 1];
                 if (hasPromises) {
                     const prevPromise = prev instanceof Promise
                         ? prev
@@ -566,14 +571,14 @@ export function createEvent<
                                 args: Event["arguments"],
                                 returnType: TriggerReturnType,
                             ) =>
-                                (value: Event["returnType"] | boolean) => {
-                                    return _listenerCallWPrev(
-                                        listener,
-                                        args,
-                                        value,
-                                        returnType,
-                                    );
-                                }
+                            (value: Event["returnType"] | boolean) => {
+                                return _listenerCallWPrev(
+                                    listener,
+                                    args,
+                                    value,
+                                    returnType,
+                                );
+                            }
                         )(listener, args, returnType),
                     ) as
                         | Promise<Event["returnType"]>
@@ -684,8 +689,7 @@ export function createEvent<
                     ? Promise.all(results as Promise<ListenerResult>[]).then(
                         (r) =>
                             r.find(
-                                (item) =>
-                                    item !== undefined && item !== null,
+                                (item) => item !== undefined && item !== null,
                             ),
                     )
                     : results.find(
@@ -707,18 +711,25 @@ export function createEvent<
         callback: () => R,
     ): R => {
         currentTagsFilter = tags;
-        const result = callback();
-        currentTagsFilter = null;
-        return result;
+        try {
+            return callback();
+        }
+        finally {
+            currentTagsFilter = null;
+        }
     };
 
+    let cachedPromise: Promise<Event["arguments"]> | null = null;
     const promise = (options?: ListenerOptions) => {
-        return new Promise<Event["arguments"]>((resolve) => {
-            options = { ...(options || {}), limit: 1 };
-            const l = ((...args: Event["arguments"]) =>
-                resolve(args)) as Event["signature"];
-            addListener(l, options);
-        });
+        return cachedPromise = cachedPromise
+            || new Promise<Event["arguments"]>((resolve) => {
+                options = { ...(options || {}), limit: 1 };
+                const l = ((...args: Event["arguments"]) => {
+                    resolve(args);
+                    cachedPromise = null;
+                }) as Event["signature"];
+                addListener(l, options);
+            });
     };
 
     const first = (
@@ -734,9 +745,13 @@ export function createEvent<
     ): Promise<Awaited<Event["returnType"]> | undefined> => {
         const response = _trigger(args, TriggerReturnType.FIRST);
         if (response instanceof Promise) {
-            return response as Promise<Awaited<Event["returnType"]> | undefined>;
+            return response as Promise<
+                Awaited<Event["returnType"]> | undefined
+            >;
         }
-        return Promise.resolve(response as Awaited<Event["returnType"]> | undefined);
+        return Promise.resolve(
+            response as Awaited<Event["returnType"]> | undefined,
+        );
     };
 
     const all = (
@@ -771,9 +786,13 @@ export function createEvent<
     ): Promise<Awaited<Event["returnType"]> | undefined> => {
         const response = _trigger(args, TriggerReturnType.LAST);
         if (response instanceof Promise) {
-            return response as Promise<Awaited<Event["returnType"]> | undefined>;
+            return response as Promise<
+                Awaited<Event["returnType"]> | undefined
+            >;
         }
-        return Promise.resolve(response as Awaited<Event["returnType"]> | undefined);
+        return Promise.resolve(
+            response as Awaited<Event["returnType"]> | undefined,
+        );
     };
 
     const merge = (
@@ -789,9 +808,13 @@ export function createEvent<
     ): Promise<Awaited<Event["returnType"]> | undefined> => {
         const response = _trigger(args, TriggerReturnType.MERGE);
         if (response instanceof Promise) {
-            return response as Promise<Awaited<Event["returnType"]> | undefined>;
+            return response as Promise<
+                Awaited<Event["returnType"]> | undefined
+            >;
         }
-        return Promise.resolve(response as Awaited<Event["returnType"]> | undefined);
+        return Promise.resolve(
+            response as Awaited<Event["returnType"]> | undefined,
+        );
     };
 
     const concat = (
@@ -810,7 +833,9 @@ export function createEvent<
         if (response instanceof Promise) {
             return response as Promise<Unarray<Awaited<Event["returnType"]>>[]>;
         }
-        return Promise.resolve(response as Unarray<Awaited<Event["returnType"]>>[]);
+        return Promise.resolve(
+            response as Unarray<Awaited<Event["returnType"]>>[],
+        );
     };
 
     const firstNonEmpty = (
@@ -826,9 +851,13 @@ export function createEvent<
     ): Promise<Awaited<Event["returnType"]> | undefined> => {
         const response = _trigger(args, TriggerReturnType.FIRST_NON_EMPTY);
         if (response instanceof Promise) {
-            return response as Promise<Awaited<Event["returnType"]> | undefined>;
+            return response as Promise<
+                Awaited<Event["returnType"]> | undefined
+            >;
         }
-        return Promise.resolve(response as Awaited<Event["returnType"]> | undefined);
+        return Promise.resolve(
+            response as Awaited<Event["returnType"]> | undefined,
+        );
     };
 
     const untilTrue = (...args: Event["arguments"]) => {
@@ -850,9 +879,13 @@ export function createEvent<
     ): Promise<Awaited<Event["returnType"]> | undefined> => {
         const response = _trigger(args, TriggerReturnType.PIPE);
         if (response instanceof Promise) {
-            return response as Promise<Awaited<Event["returnType"]> | undefined>;
+            return response as Promise<
+                Awaited<Event["returnType"]> | undefined
+            >;
         }
-        return Promise.resolve(response as Awaited<Event["returnType"]> | undefined);
+        return Promise.resolve(
+            response as Awaited<Event["returnType"]> | undefined,
+        );
     };
 
     const raw = (

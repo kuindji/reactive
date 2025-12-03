@@ -48,7 +48,7 @@ describe("store basic", () => {
 
         store.control(BeforeChangeEventName, (name, value) => {
             expect("a").toEqual(name);
-            expect(value).toEqual(2);
+            expect(value as number).toEqual(2);
             triggered = true;
             return false;
         });
@@ -106,11 +106,11 @@ describe("store basic", () => {
 
         store.pipe("a", (value) => {
             triggered = true;
-            return value + value;
+            return value === undefined ? 0 : value + value;
         });
         store.pipe("a", (value) => {
             triggered = true;
-            return value * value;
+            return value === undefined ? 0 : value * value;
         });
         store.set("a", 2);
         expect(triggered).toBe(true);
