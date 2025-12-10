@@ -269,7 +269,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                     type: "store-control",
                 });
                 if (control.get(ErrorEventName)?.hasListener()) {
-                    return true;
+                    return;
                 }
                 throw error;
             }
@@ -336,9 +336,13 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         };
         changes.intercept(changeInterceptor);
         control.intercept(controlInterceptor);
-        fn();
-        control.stopIntercepting();
-        changes.stopIntercepting();
+        try {
+            fn();
+        }
+        finally {
+            control.stopIntercepting();
+            changes.stopIntercepting();
+        }
 
         for (const [ propName, value, prev ] of log) {
             const changeArgs = [

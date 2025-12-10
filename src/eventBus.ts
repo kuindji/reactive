@@ -227,7 +227,7 @@ export function createEventBus<
                 && listener.localEventNamePrefix === localEventNamePrefix,
         );
         if (!listener) {
-            const createListenerFn = (): ((...args: any[]) => any) => {
+            const createListenerFn = (): (...args: any[]) => any => {
                 if (remoteEventName === "*") {
                     return (eventName: MapKey, args: any[]) => {
                         let computedName: MapKey;
@@ -235,7 +235,9 @@ export function createEventBus<
                             computedName = localEventName;
                         }
                         else if (localEventNamePrefix) {
-                            computedName = `${localEventNamePrefix}${String(eventName)}`;
+                            computedName = `${localEventNamePrefix}${
+                                String(eventName)
+                            }`;
                         }
                         else {
                             computedName = eventName;
@@ -254,7 +256,9 @@ export function createEventBus<
                         computedName = localEventName;
                     }
                     else if (localEventNamePrefix) {
-                        computedName = `${localEventNamePrefix}${String(remoteEventName)}`;
+                        computedName = `${localEventNamePrefix}${
+                            String(remoteEventName)
+                        }`;
                     }
                     else {
                         computedName = remoteEventName;
@@ -801,9 +805,12 @@ export function createEventBus<
         callback: () => R,
     ): R => {
         currentTagsFilter = tags;
-        const result = callback();
-        currentTagsFilter = null;
-        return result;
+        try {
+            return callback();
+        }
+        finally {
+            currentTagsFilter = null;
+        }
     };
 
     const reset = () => {

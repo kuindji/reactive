@@ -19,6 +19,10 @@ function ErrorBoundary(
     const thisRef = useRef(listener);
     const outerRef = useRef(boundaryErrorListener);
 
+    // Keep refs in sync with props
+    thisRef.current = listener;
+    outerRef.current = boundaryErrorListener;
+
     const thisErrorListener = useCallback(
         (errorResponse: ErrorResponse<any[]>) => {
             if (thisRef.current) {
