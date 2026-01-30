@@ -16,8 +16,6 @@ export function useListenToStoreChanges<
     options?: ListenerOptions,
 ) {
     const listenerRef = useRef<TListener>(listener);
-    const storeRef = useRef<TStore>(store);
-
     listenerRef.current = listener;
 
     const genericHandler = useCallback(
@@ -29,19 +27,11 @@ export function useListenToStoreChanges<
 
     useEffect(
         () => {
+            store.onChange(key, genericHandler, options);
             return () => {
-                storeRef.current.removeOnChange(key, genericHandler);
+                store.removeOnChange(key, genericHandler);
             };
         },
-        [],
-    );
-
-    useEffect(
-        () => {
-            storeRef.current.removeOnChange(key, genericHandler);
-            storeRef.current = store;
-            storeRef.current.onChange(key, genericHandler, options);
-        },
-        [ store ],
+        [ store, key, genericHandler ],
     );
 }

@@ -51,6 +51,7 @@ export function useStoreState<
             storeRef.current = store;
             keyRef.current = key;
             storeRef.current.onChange(keyRef.current, onChange);
+            setValue(store.get(key));
         },
         [ store, key ],
     );
