@@ -5,9 +5,11 @@
         "noImplicitAny": false,
         "declaration": true,
         "strict": true,
+        "skipLibCheck": true,
         "allowJs": false,
         "module": "commonjs",
         "target": "es2022",
+        "moduleResolution": "node",
         "jsx": "react-jsx",
         "lib": [
             "dom",
@@ -22,6 +24,7 @@
         "./tests/**/*"
     ],
     "exclude": [
-        "./dist/**/*"
+        "./dist/**/*",
+        "./tests/types/**/*"
     ]
 }

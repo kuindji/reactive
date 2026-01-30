@@ -15,9 +15,6 @@ export function useListenToEvent<
     errorListener?: TErrorListenerSignature,
 ) {
     const listenerRef = useRef<TListenerSignature>(listener);
-    const eventRef = useRef<TEvent>(event);
-    const errorListenerRef = useRef<TErrorListenerSignature>(errorListener);
-
     listenerRef.current = listener;
 
     const genericHandler = useCallback(
@@ -27,38 +24,19 @@ export function useListenToEvent<
         [],
     );
 
-    useEffect(
-        () => {
+    useEffect(() => {
+        event.addListener(genericHandler, options);
+        return () => {
+            event.removeListener(genericHandler);
+        };
+    }, [event, genericHandler]);
+
+    useEffect(() => {
+        if (errorListener) {
+            event.addErrorListener(errorListener);
             return () => {
-                eventRef.current.removeListener(genericHandler);
+                event.removeErrorListener(errorListener);
             };
-        },
-        [],
-    );
-
-    useEffect(
-        () => {
-            eventRef.current.removeListener(genericHandler);
-            eventRef.current = event;
-            eventRef.current.addListener(genericHandler, options);
-        },
-        [ event ],
-    );
-
-    useEffect(
-        () => {
-            if (errorListenerRef.current !== errorListener) {
-                if (errorListenerRef.current) {
-                    eventRef.current.removeErrorListener(
-                        errorListenerRef.current,
-                    );
-                }
-                errorListenerRef.current = errorListener;
-                if (errorListener) {
-                    eventRef.current.addErrorListener(errorListener);
-                }
-            }
-        },
-        [ errorListener ],
-    );
+        }
+    }, [event, errorListener]);
 }

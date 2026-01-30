@@ -17,11 +17,6 @@ export function useListenToEventBus<
     errorListener?: ErrorListenerSignature<any[]>,
 ) {
     const listenerRef = useRef<TListener>(listener);
-    const eventBusRef = useRef<TEventBus>(eventBus);
-    const errorListenerRef = useRef<ErrorListenerSignature<any[]>>(
-        errorListener,
-    );
-
     listenerRef.current = listener;
 
     const genericHandler = useCallback(
@@ -31,43 +26,21 @@ export function useListenToEventBus<
         [],
     );
 
-    useEffect(
-        () => {
+    // Main listener - cleanup pattern handles eventBus/eventName changes
+    useEffect(() => {
+        eventBus.addListener(eventName, genericHandler, options);
+        return () => {
+            eventBus.removeListener(eventName, genericHandler);
+        };
+    }, [eventBus, eventName, genericHandler]);
+
+    // Error listener - cleanup pattern
+    useEffect(() => {
+        if (errorListener) {
+            eventBus.addErrorListener(errorListener);
             return () => {
-                eventBusRef.current.removeListener(eventName, genericHandler);
-                if (errorListenerRef.current) {
-                    eventBusRef.current.removeErrorListener(
-                        errorListenerRef.current,
-                    );
-                }
+                eventBus.removeErrorListener(errorListener);
             };
-        },
-        [],
-    );
-
-    useEffect(
-        () => {
-            eventBusRef.current.removeListener(eventName, genericHandler);
-            eventBusRef.current = eventBus;
-            eventBusRef.current.addListener(eventName, genericHandler, options);
-        },
-        [ eventBus ],
-    );
-
-    useEffect(
-        () => {
-            if (errorListenerRef.current !== errorListener) {
-                if (errorListenerRef.current) {
-                    eventBusRef.current.removeErrorListener(
-                        errorListenerRef.current,
-                    );
-                }
-                errorListenerRef.current = errorListener;
-                if (errorListener) {
-                    eventBusRef.current.addErrorListener(errorListener);
-                }
-            }
-        },
-        [ errorListener ],
-    );
+        }
+    }, [eventBus, errorListener]);
 }
