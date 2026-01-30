@@ -363,6 +363,7 @@ export function createEvent<
         triggered = 0;
         lastTrigger = null;
         sortListeners = false;
+        cachedPromise = null;
     };
 
     const _listenerCall = (
