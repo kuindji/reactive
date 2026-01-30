@@ -396,7 +396,20 @@ export function createEvent<
 
             if (resolve !== null) {
                 if (result instanceof Promise) {
-                    void result.then(resolve);
+                    void result.then(resolve).catch((error) => {
+                        for (const errorListener of errorListeners) {
+                            errorListener.handler({
+                                error: error instanceof Error
+                                    ? error
+                                    : new Error(error as string),
+                                args: args,
+                                type: "event",
+                            });
+                        }
+                        if (errorListeners.length === 0) {
+                            throw error;
+                        }
+                    });
                 }
                 else {
                     resolve(result);
