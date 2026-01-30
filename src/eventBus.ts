@@ -71,7 +71,7 @@ export type EventSource<
 };
 
 type ProxyListener = {
-    localEventName: any; // had to set to any to avoid type errors when extending
+    localEventName: MapKey | null;
     remoteEventName: MapKey;
     localEventNamePrefix: string | null;
     returnType: TriggerReturnType | null;

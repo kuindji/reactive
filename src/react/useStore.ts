@@ -47,17 +47,14 @@ export function useStore<
             }
             if (config?.pipes) {
                 for (const key in config.pipes) {
-                    // @ts-expect-error
+                    // @ts-expect-error - TS widens for-in key to string; types are correct
                     store.pipe(key, config.pipes[key]!);
                 }
             }
             if (config?.control) {
                 for (const key in config.control) {
-                    store.control(
-                        // @ts-expect-error
-                        key,
-                        config.control[key],
-                    );
+                    // @ts-expect-error - TS widens for-in key to string; types are correct
+                    store.control(key, config.control[key]);
                 }
             }
             return store;

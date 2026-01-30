@@ -139,6 +139,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                     name,
                 });
                 if (control.get(ErrorEventName)?.hasListener()) {
+                    effectKeys = [];
                     return true;
                 }
                 throw error;
@@ -165,6 +166,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                         name,
                     });
                     if (control.get(ErrorEventName)?.hasListener()) {
+                        effectKeys = [];
                         return true;
                     }
                     throw error;
@@ -188,6 +190,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                         name,
                     });
                     if (control.get(ErrorEventName)?.hasListener()) {
+                        effectKeys = [];
                         return true;
                     }
                     throw error;
