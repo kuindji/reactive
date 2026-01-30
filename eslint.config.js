@@ -52,7 +52,7 @@ const tsConfig = {
         parser: typescriptParser,
         ecmaVersion: "latest",
         parserOptions: {
-            project: [ "tsconfig.json" ],
+            project: [ "tsconfig.json", "tests/types/tsconfig.json" ],
         },
         globals: {
             NodeJS: false,

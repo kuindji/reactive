@@ -31,17 +31,10 @@ export function useListenToActionBus<
         beforeActionListener = listener.beforeActionListener;
         listener = listener.listener;
     }
-    const actionBusRef = useRef<TActionBus>(actionBus);
     const listenerRef = useRef<TListener | null>(listener || null);
-    const errorListenerRef = useRef<ErrorListenerSignature<any[]> | null>(
-        null,
-    );
-    const beforeActionListenerRef = useRef<TBeforeActionListener | null>(
-        null,
-    );
+    const beforeActionListenerRef = useRef<TBeforeActionListener | null>(null);
 
     listenerRef.current = listener || null;
-    errorListenerRef.current = errorListener || null;
     beforeActionListenerRef.current = beforeActionListener || null;
 
     const genericHandler = useCallback(
@@ -58,43 +51,23 @@ export function useListenToActionBus<
         [],
     );
 
-    const genericErrorListener = useCallback(
-        (
-            arg: TActionBus["__type"]["actions"][TKey]["errorListenerArgument"],
-        ) => {
-            return errorListenerRef.current?.(arg);
-        },
-        [],
-    );
+    // Main listener + beforeAction listener - tied to actionName
+    useEffect(() => {
+        actionBus.addListener(actionName, genericHandler, options || undefined);
+        actionBus.get(actionName).addBeforeActionListener(genericBeforeActionHandler);
+        return () => {
+            actionBus.removeListener(actionName, genericHandler);
+            actionBus.get(actionName).removeBeforeActionListener(genericBeforeActionHandler);
+        };
+    }, [actionBus, actionName, genericHandler, genericBeforeActionHandler]);
 
-    useEffect(
-        () => {
+    // Error listener - bus level
+    useEffect(() => {
+        if (errorListener) {
+            actionBus.addErrorListener(errorListener);
             return () => {
-                actionBusRef.current.removeListener(actionName, genericHandler);
-                actionBusRef.current.get(actionName)
-                    .removeBeforeActionListener(genericBeforeActionHandler);
-                actionBusRef.current.removeErrorListener(genericErrorListener);
+                actionBus.removeErrorListener(errorListener);
             };
-        },
-        [],
-    );
-
-    useEffect(
-        () => {
-            actionBusRef.current.removeListener(actionName, genericHandler);
-            actionBusRef.current.get(actionName)
-                .removeBeforeActionListener(genericBeforeActionHandler);
-            actionBusRef.current.removeErrorListener(genericErrorListener);
-            actionBusRef.current = actionBus;
-            actionBusRef.current.addListener(
-                actionName,
-                genericHandler,
-                options || undefined,
-            );
-            actionBusRef.current.get(actionName)
-                .addBeforeActionListener(genericBeforeActionHandler);
-            actionBusRef.current.addErrorListener(genericErrorListener);
-        },
-        [ actionBus ],
-    );
+        }
+    }, [actionBus, errorListener]);
 }
