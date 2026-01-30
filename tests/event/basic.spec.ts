@@ -38,7 +38,7 @@ describe("event basic", () => {
 
     it("should work when untyped", () => {
         const o = createEvent();
-        let arg;
+        let arg: unknown;
 
         o.addListener((value) => {
             arg = value;

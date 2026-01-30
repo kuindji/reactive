@@ -317,7 +317,13 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         return Object.fromEntries(data.entries()) as PropMap;
     };
 
+    let batching = false;
+
     const batch = (fn: () => void) => {
+        if (batching) {
+            throw new Error("Nested batch() calls are not supported");
+        }
+        batching = true;
         const allChangedKeys: MapKey[] = [];
         const log: [ MapKey, any, any ][] = [];
         const controlInterceptor = function(
@@ -342,6 +348,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         finally {
             control.stopIntercepting();
             changes.stopIntercepting();
+            batching = false;
         }
 
         for (const [ propName, value, prev ] of log) {

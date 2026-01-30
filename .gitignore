@@ -12,3 +12,4 @@ src/tmp.ts
 .env.test.local
 .env.production.local
 tmp
+.claude
