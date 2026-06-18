@@ -213,6 +213,29 @@ describe("eventBus error handling", () => {
 
         expect(() => bus.trigger("event")).toThrow("Error");
     });
+
+    it("catches async listener errors with error listener", async () => {
+        const bus = createEventBus<{ event: () => Promise<void> }>();
+        const errors: string[] = [];
+
+        bus.addErrorListener(({ error }) => {
+            errors.push(error.message);
+        });
+        bus.on("event", () => Promise.reject(new Error("Async error")));
+
+        const result = await bus.resolveAll("event");
+
+        expect(errors).toEqual(["Async error"]);
+        expect(result).toBeUndefined();
+    });
+
+    it("rejects async listener errors without error listener", () => {
+        const bus = createEventBus<{ event: () => Promise<void> }>();
+
+        bus.on("event", () => Promise.reject(new Error("Unhandled async")));
+
+        expect(bus.resolveAll("event")).rejects.toThrow("Unhandled async");
+    });
 });
 
 describe("eventBus add", () => {
@@ -362,4 +385,3 @@ describe("eventBus ignores asterisk trigger", () => {
         expect(triggered).toBe(false);
     });
 });
-

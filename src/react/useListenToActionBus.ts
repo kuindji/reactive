@@ -46,7 +46,7 @@ export function useListenToActionBus<
 
     const genericBeforeActionHandler = useCallback(
         (...args: Parameters<TBeforeActionListener>) => {
-            return beforeActionListenerRef.current?.(...args) || undefined;
+            return beforeActionListenerRef.current?.(...args);
         },
         [],
     );

@@ -123,4 +123,35 @@ describe("useListenToActionBus", () => {
 
         expect(triggered).toBe(1);
     });
+
+    it("should allow before action listener to cancel action", async () => {
+        let actionRan = false;
+        const receivedErrors: Array<string | null> = [];
+        const actionBus = createActionBus({
+            action: () => {
+                actionRan = true;
+                return 1;
+            },
+        });
+
+        function Component() {
+            useListenToActionBus(actionBus, "action", {
+                listener: ({ error }) => {
+                    receivedErrors.push(error);
+                },
+                beforeActionListener: () => false,
+            });
+
+            return null;
+        }
+
+        render(<Component />);
+
+        const result = await actionBus.invoke("action");
+
+        expect(actionRan).toBe(false);
+        expect(result.response).toBe(null);
+        expect(result.error).toBe("Action cancelled");
+        expect(receivedErrors).toEqual(["Action cancelled"]);
+    });
 });

@@ -4,6 +4,7 @@ import type {
     EventOptions,
     ListenerOptions,
 } from "./event";
+import isPromiseLike from "./lib/isPromiseLike";
 import {
     ApiType,
     BaseHandler,
@@ -444,6 +445,20 @@ export function createEventBus<
             }
         }
         const e: EventTypes[K] = _getOrAddEvent(name);
+        const handleError = (error: unknown) => {
+            errorEvent.trigger({
+                name,
+                error: error instanceof Error
+                    ? error
+                    : new Error(String(error)),
+                args,
+                type: "event",
+            });
+            if (errorEvent.hasListener()) {
+                return undefined;
+            }
+            throw error;
+        };
         const runner = () => {
             let result: unknown;
             switch (returnType) {
@@ -501,21 +516,13 @@ export function createEventBus<
             }
 
             asterisk.trigger(name, args, currentTagsFilter);
+            if (isPromiseLike(result)) {
+                return Promise.resolve(result).catch(handleError);
+            }
             return result;
         }
         catch (error) {
-            errorEvent.trigger({
-                name,
-                error: error instanceof Error
-                    ? error
-                    : new Error(String(error)),
-                args,
-                type: "event",
-            });
-            if (errorEvent.hasListener()) {
-                return undefined;
-            }
-            throw error;
+            return handleError(error);
         }
     };
 
@@ -914,9 +921,40 @@ export function createEventBus<
         ) {
             return;
         }
-        eventSources.push({
+        const eventSourceData: {
+            eventSource: EventSource;
+            subscribed: MapKey[];
+        } = {
             eventSource,
             subscribed: [],
+        };
+        eventSources.push(eventSourceData);
+        events.forEach((event: EventTypes[KeyOf<Events>], name) => {
+            if (
+                !event.hasListener()
+                || eventSource.accepts === false
+                || (typeof eventSource.accepts === "function"
+                    && !eventSource.accepts(name))
+            ) {
+                return;
+            }
+            const { returnType, resolve } =
+                proxyReturnTypeToTriggerReturnType(
+                    eventSource.proxyType || ProxyType.TRIGGER,
+                );
+            const listener = _getProxyListener({
+                localEventName: null,
+                remoteEventName: name,
+                returnType,
+                resolve,
+                localEventNamePrefix: null,
+            });
+            eventSource.on(
+                name,
+                listener.listener,
+                eventSource,
+            );
+            eventSourceData.subscribed.push(name);
         });
     };
 
