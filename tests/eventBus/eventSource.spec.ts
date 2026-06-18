@@ -58,6 +58,43 @@ describe("eventSource", () => {
         expect(triggered).toBe(1);
     });
 
+    it("keeps event source subscription while local listeners remain", () => {
+        const em = new EventEmitter();
+        const o = createEventBus<{
+            event: () => void;
+        }>();
+        o.addEventSource({
+            name: "ev",
+            accepts: true,
+            on: (name, fn) => em.on(name, fn),
+            un: (name, fn) => em.off(name, fn),
+        });
+
+        let triggered = 0;
+        const listener1 = () => triggered++;
+        const listener2 = () => triggered++;
+        const listener3 = () => triggered++;
+
+        o.on("event", listener1);
+        o.on("event", listener2);
+        expect(em.listenerCount("event")).toBe(1);
+
+        o.un("event", listener1);
+        expect(em.listenerCount("event")).toBe(1);
+
+        o.on("event", listener3);
+        expect(em.listenerCount("event")).toBe(1);
+
+        em.emit("event");
+        expect(triggered).toBe(2);
+
+        o.un("event", listener2);
+        expect(em.listenerCount("event")).toBe(1);
+
+        o.un("event", listener3);
+        expect(em.listenerCount("event")).toBe(0);
+    });
+
     it("unsubscribes all event sources on reset", () => {
         const em1 = new EventEmitter();
         const em2 = new EventEmitter();

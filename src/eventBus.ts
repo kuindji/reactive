@@ -396,27 +396,25 @@ export function createEventBus<
             const isEmpty = !e.hasListener();
             eventSources.forEach((evs) => {
                 const inx = evs.subscribed.indexOf(name);
-                if (inx !== -1) {
+                if (inx !== -1 && isEmpty) {
                     evs.subscribed.splice(inx, 1);
-                    if (isEmpty) {
-                        const { returnType, resolve } =
-                            proxyReturnTypeToTriggerReturnType(
-                                evs.eventSource.proxyType || ProxyType.TRIGGER,
-                            );
-                        const listener = _getProxyListener({
-                            localEventName: null,
-                            remoteEventName: name,
-                            returnType,
-                            resolve,
-                            localEventNamePrefix: null,
-                        });
-                        evs.eventSource.un(
-                            name,
-                            listener.listener,
-                            evs.eventSource,
-                            tag,
+                    const { returnType, resolve } =
+                        proxyReturnTypeToTriggerReturnType(
+                            evs.eventSource.proxyType || ProxyType.TRIGGER,
                         );
-                    }
+                    const listener = _getProxyListener({
+                        localEventName: null,
+                        remoteEventName: name,
+                        returnType,
+                        resolve,
+                        localEventNamePrefix: null,
+                    });
+                    evs.eventSource.un(
+                        name,
+                        listener.listener,
+                        evs.eventSource,
+                        tag,
+                    );
                 }
             });
         }

@@ -254,6 +254,34 @@ describe("store error handling", () => {
         expect(receivedType).toBe("store-pipe");
     });
 
+    it("clears effect interception after handled effect errors", () => {
+        const store = createStore({
+            a: 1,
+            b: 1,
+        });
+
+        let changes = 0;
+        let errors = 0;
+
+        store.control(ErrorEventName, () => {
+            errors++;
+        });
+        store.control("effect", (name) => {
+            if (name === "a") {
+                throw new Error("Effect error");
+            }
+        });
+        store.control("change", () => {
+            changes++;
+        });
+
+        store.set("a", 2);
+        store.set("b", 2);
+
+        expect(errors).toBe(1);
+        expect(changes).toBe(1);
+    });
+
     it("throws error when no error listener is registered", () => {
         const store = createStore({
             a: 1,
@@ -296,6 +324,21 @@ describe("store edge cases", () => {
         store.set("a", 2);
 
         expect(changeCount).toBe(1);
+    });
+
+    it("does not trigger change for object set when no values changed", () => {
+        const store = createStore({
+            a: 1,
+        });
+
+        let triggered = false;
+        store.control("change", () => {
+            triggered = true;
+        });
+
+        store.set({ a: 1 });
+
+        expect(triggered).toBe(false);
     });
 
     it("handles undefined as valid value", () => {

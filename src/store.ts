@@ -148,12 +148,16 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
             if (control.get(EffectEventName)?.hasListener()) {
                 try {
                     const isIntercepting = control.isIntercepting();
-                    if (!isIntercepting) {
-                        control.intercept(effectInterceptor);
+                    try {
+                        if (!isIntercepting) {
+                            control.intercept(effectInterceptor);
+                        }
+                        control.trigger(EffectEventName, name, value);
                     }
-                    control.trigger(EffectEventName, name, value);
-                    if (!isIntercepting) {
-                        control.stopIntercepting();
+                    finally {
+                        if (!isIntercepting) {
+                            control.stopIntercepting();
+                        }
                     }
                 }
                 catch (error) {
@@ -245,36 +249,48 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
             const isIntercepting = control.isIntercepting();
             const hasEffectListener = control.get(EffectEventName)
                 ?.hasListener();
-            if (hasEffectListener && !isIntercepting) {
+            const shouldInterceptEffects = hasEffectListener && !isIntercepting;
+            let controlError: Error | null = null;
+            if (shouldInterceptEffects) {
                 control.intercept(effectInterceptor);
             }
-            Object.entries(name).forEach(([ k, v ]) => {
-                if (_set(k, v, false)) {
-                    changedKeys.push(k);
-                }
-            });
             try {
-                control.trigger(ChangeEventName, [
+                Object.entries(name).forEach(([ k, v ]) => {
+                    if (_set(k, v, false)) {
+                        changedKeys.push(k);
+                    }
+                });
+                const allChangedKeys = [
                     ...changedKeys,
                     ...effectKeys,
-                ]);
-                if (hasEffectListener && !isIntercepting) {
+                ];
+                if (allChangedKeys.length > 0) {
+                    try {
+                        control.trigger(ChangeEventName, allChangedKeys);
+                    }
+                    catch (error) {
+                        controlError = error instanceof Error
+                            ? error
+                            : new Error(String(error));
+                    }
+                }
+            }
+            finally {
+                if (shouldInterceptEffects) {
                     effectKeys = [];
                     control.stopIntercepting();
                 }
             }
-            catch (error) {
+            if (controlError) {
                 control.trigger(ErrorEventName, {
-                    error: error instanceof Error
-                        ? error
-                        : new Error(String(error)),
+                    error: controlError,
                     args: [ name ],
                     type: "store-control",
                 });
                 if (control.get(ErrorEventName)?.hasListener()) {
                     return;
                 }
-                throw error;
+                throw controlError;
             }
         }
         else {
