@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "bun:test";
-import { useCallback, useEffect } from "react";
+import { StrictMode, useCallback, useEffect } from "react";
 
 import {
     type ActionResponse,
@@ -25,6 +25,21 @@ const actions = {
 };
 
 describe("useEventListen", () => {
+    it("does not throw on initial mount in StrictMode", () => {
+        function Component() {
+            useActionMap(actions);
+            return null;
+        }
+
+        expect(() => {
+            render(
+                <StrictMode>
+                    <Component />
+                </StrictMode>,
+            );
+        }).not.toThrow();
+    });
+
     it("should listen to event", (done) => {
         let squareTriggered = false;
         let lcTriggered = false;

@@ -24,7 +24,11 @@ export function useActionMap<M extends BaseActionsMap>(
     const boundaryErrorListener = useContext(
         ErrorBoundaryContext,
     ) as ErrorListenerSignature<any[]> | null;
-    const changeRef = useRef(0);
+    const initialActionsRef = useRef(actions);
+    const initialErrorListenerRef = useRef(errorListener ?? null);
+    const initialBoundaryErrorListenerRef = useRef(
+        boundaryErrorListener ?? null,
+    );
     const actionMap = useMemo(
         () => {
             const errorListeners = [
@@ -38,12 +42,16 @@ export function useActionMap<M extends BaseActionsMap>(
     );
     useEffect(
         () => {
-            if (changeRef.current > 0) {
+            if (
+                initialActionsRef.current !== actions
+                || initialErrorListenerRef.current !== (errorListener ?? null)
+                || initialBoundaryErrorListenerRef.current
+                    !== (boundaryErrorListener ?? null)
+            ) {
                 throw new Error(
                     "useActionMap() does not support changing actions or errorListener",
                 );
             }
-            changeRef.current++;
         },
         [ actions, errorListener ?? null, boundaryErrorListener ?? null ],
     );

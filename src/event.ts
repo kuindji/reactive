@@ -369,7 +369,6 @@ export function createEvent<
         triggered = 0;
         lastTrigger = null;
         sortListeners = false;
-        cachedPromise = null;
     };
 
     const _listenerCall = (
@@ -744,17 +743,14 @@ export function createEvent<
         }
     };
 
-    let cachedPromise: Promise<Event["arguments"]> | null = null;
     const promise = (options?: ListenerOptions) => {
-        return cachedPromise = cachedPromise
-            || new Promise<Event["arguments"]>((resolve) => {
-                options = { ...(options || {}), limit: 1 };
-                const l = ((...args: Event["arguments"]) => {
-                    resolve(args);
-                    cachedPromise = null;
-                }) as Event["signature"];
-                addListener(l, options);
-            });
+        return new Promise<Event["arguments"]>((resolve) => {
+            options = { ...(options || {}), limit: 1 };
+            const l = ((...args: Event["arguments"]) => {
+                resolve(args);
+            }) as Event["signature"];
+            addListener(l, options);
+        });
     };
 
     const first = (

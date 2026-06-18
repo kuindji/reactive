@@ -192,6 +192,22 @@ describe("event listener", () => {
         setTimeout(() => o.trigger(1), 50);
     });
 
+    it("creates independent promises with their own listener options", async () => {
+        const o = createEvent<(value: string) => void>();
+
+        const aPromise = o.promise({ tags: [ "a" ] });
+        const bPromise = o.promise({ tags: [ "b" ] });
+
+        expect(aPromise).not.toBe(bPromise);
+
+        o.withTags([ "b" ], () => o.trigger("b"));
+        o.withTags([ "a" ], () => o.trigger("a"));
+
+        const [ aResult, bResult ] = await Promise.all([ aPromise, bPromise ]);
+        expect(aResult).toEqual([ "a" ]);
+        expect(bResult).toEqual([ "b" ]);
+    });
+
     it("should be triggered after subscription", () => {
         const o = createEvent<(value: number) => void>({ autoTrigger: true });
         let res: number = 0;
