@@ -1,4 +1,5 @@
 import { createEvent } from "./event";
+import isPromiseLike from "./lib/isPromiseLike";
 import type {
     ApiType,
     BaseHandler,
@@ -75,11 +76,16 @@ export function createAction<A extends BaseHandler>(action: A) {
         ...args: Action["actionArguments"]
     ): Promise<Action["responseType"]> => {
         try {
-            const beforeResults = triggerBeforeAction(...args);
-            for (let before of beforeResults) {
-                if (before instanceof Promise) {
-                    before = await before;
-                }
+            type BeforeResult = Awaited<
+                ReturnType<Action["beforeActionSignature"]>
+            >;
+            const beforeResponse = triggerBeforeAction(...args) as
+                | BeforeResult[]
+                | PromiseLike<BeforeResult[]>;
+            const beforeResults = isPromiseLike(beforeResponse)
+                ? await Promise.resolve(beforeResponse)
+                : beforeResponse;
+            for (const before of beforeResults) {
                 if (before === false) {
                     const response = {
                         response: null,
@@ -91,8 +97,8 @@ export function createAction<A extends BaseHandler>(action: A) {
                 }
             }
             let result = action(...args);
-            if (result instanceof Promise) {
-                result = await result;
+            if (isPromiseLike(result)) {
+                result = await Promise.resolve(result);
             }
             const response = {
                 response: result,

@@ -1,4 +1,5 @@
 import asyncCall from "./lib/asyncCall";
+import isPromiseLike from "./lib/isPromiseLike";
 import listenerSorter from "./lib/listenerSorter";
 import tagsIntersect from "./lib/tagsIntersect";
 import type { ApiType, BaseHandler, ErrorListenerSignature } from "./lib/types";
@@ -395,26 +396,32 @@ export function createEvent<
                 )
                 : listener.handler.bind(listener.context)(...args);
 
+            if (isPromiseLike<Event["returnType"]>(result)) {
+                const handledResult = Promise.resolve(result).catch((error) => {
+                    for (const errorListener of errorListeners) {
+                        errorListener.handler({
+                            error: error instanceof Error
+                                ? error
+                                : new Error(error as string),
+                            args: args,
+                            type: "event",
+                        });
+                    }
+                    if (errorListeners.length === 0) {
+                        throw error;
+                    }
+                    return undefined as Event["returnType"];
+                });
+
+                if (resolve !== null) {
+                    void handledResult.then(resolve);
+                }
+
+                return handledResult;
+            }
+
             if (resolve !== null) {
-                if (result instanceof Promise) {
-                    void result.then(resolve).catch((error) => {
-                        for (const errorListener of errorListeners) {
-                            errorListener.handler({
-                                error: error instanceof Error
-                                    ? error
-                                    : new Error(error as string),
-                                args: args,
-                                type: "event",
-                            });
-                        }
-                        if (errorListeners.length === 0) {
-                            throw error;
-                        }
-                    });
-                }
-                else {
-                    resolve(result);
-                }
+                resolve(result);
             }
 
             return result;
@@ -574,9 +581,7 @@ export function createEvent<
             if (isConsequent && results.length > 0) {
                 const prev = results[results.length - 1];
                 if (hasPromises) {
-                    const prevPromise = prev instanceof Promise
-                        ? prev
-                        : Promise.resolve(prev);
+                    const prevPromise = Promise.resolve(prev);
 
                     listenerResult = prevPromise.then(
                         (
@@ -639,7 +644,7 @@ export function createEvent<
                     case TriggerReturnType.FIRST_NON_EMPTY: {
                         if (
                             !hasPromises
-                            && !(listenerResult instanceof Promise)
+                            && !isPromiseLike(listenerResult)
                             && listenerResult !== null
                             && listenerResult !== undefined
                         ) {
@@ -650,7 +655,7 @@ export function createEvent<
                 }
             }
 
-            if (!hasPromises && listenerResult instanceof Promise) {
+            if (!hasPromises && isPromiseLike(listenerResult)) {
                 hasPromises = true;
             }
 
@@ -758,8 +763,8 @@ export function createEvent<
         ...args: Event["arguments"]
     ): Promise<Awaited<Event["returnType"]> | undefined> => {
         const response = _trigger(args, TriggerReturnType.FIRST);
-        if (response instanceof Promise) {
-            return response as Promise<
+        if (isPromiseLike(response)) {
+            return Promise.resolve(response) as Promise<
                 Awaited<Event["returnType"]> | undefined
             >;
         }
@@ -781,8 +786,10 @@ export function createEvent<
         ...args: Event["arguments"]
     ): Promise<Awaited<Event["returnType"]>[]> => {
         const response = _trigger(args, TriggerReturnType.ALL);
-        if (response instanceof Promise) {
-            return response as Promise<Awaited<Event["returnType"]>[]>;
+        if (isPromiseLike(response)) {
+            return Promise.resolve(response) as Promise<
+                Awaited<Event["returnType"]>[]
+            >;
         }
         return Promise.resolve(response as Awaited<Event["returnType"]>[]);
     };
@@ -799,8 +806,8 @@ export function createEvent<
         ...args: Event["arguments"]
     ): Promise<Awaited<Event["returnType"]> | undefined> => {
         const response = _trigger(args, TriggerReturnType.LAST);
-        if (response instanceof Promise) {
-            return response as Promise<
+        if (isPromiseLike(response)) {
+            return Promise.resolve(response) as Promise<
                 Awaited<Event["returnType"]> | undefined
             >;
         }
@@ -821,8 +828,8 @@ export function createEvent<
         ...args: Event["arguments"]
     ): Promise<Awaited<Event["returnType"]> | undefined> => {
         const response = _trigger(args, TriggerReturnType.MERGE);
-        if (response instanceof Promise) {
-            return response as Promise<
+        if (isPromiseLike(response)) {
+            return Promise.resolve(response) as Promise<
                 Awaited<Event["returnType"]> | undefined
             >;
         }
@@ -844,8 +851,10 @@ export function createEvent<
         ...args: Event["arguments"]
     ): Promise<Unarray<Awaited<Event["returnType"]>>[]> => {
         const response = _trigger(args, TriggerReturnType.CONCAT);
-        if (response instanceof Promise) {
-            return response as Promise<Unarray<Awaited<Event["returnType"]>>[]>;
+        if (isPromiseLike(response)) {
+            return Promise.resolve(response) as Promise<
+                Unarray<Awaited<Event["returnType"]>>[]
+            >;
         }
         return Promise.resolve(
             response as Unarray<Awaited<Event["returnType"]>>[],
@@ -864,8 +873,8 @@ export function createEvent<
         ...args: Event["arguments"]
     ): Promise<Awaited<Event["returnType"]> | undefined> => {
         const response = _trigger(args, TriggerReturnType.FIRST_NON_EMPTY);
-        if (response instanceof Promise) {
-            return response as Promise<
+        if (isPromiseLike(response)) {
+            return Promise.resolve(response) as Promise<
                 Awaited<Event["returnType"]> | undefined
             >;
         }
@@ -892,8 +901,8 @@ export function createEvent<
         ...args: Event["arguments"]
     ): Promise<Awaited<Event["returnType"]> | undefined> => {
         const response = _trigger(args, TriggerReturnType.PIPE);
-        if (response instanceof Promise) {
-            return response as Promise<
+        if (isPromiseLike(response)) {
+            return Promise.resolve(response) as Promise<
                 Awaited<Event["returnType"]> | undefined
             >;
         }

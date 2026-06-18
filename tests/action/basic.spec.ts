@@ -67,4 +67,33 @@ describe("action basic", () => {
             done();
         });
     });
+
+    it("awaits promise-like action results", async () => {
+        const thenable = {
+            then(resolve: (value: number) => void) {
+                resolve(42);
+            },
+        } as PromiseLike<number>;
+        const action = createAction(() => thenable);
+
+        const result = await action.invoke();
+
+        expect(result.response).toBe(42);
+    });
+
+    it("awaits promise-like before action listeners", async () => {
+        const action = createAction((value: number) => value * 2);
+        const cancellation = {
+            then(resolve: (value: false) => void) {
+                resolve(false);
+            },
+        } as PromiseLike<false>;
+
+        action.addBeforeActionListener(() => cancellation as Promise<false>);
+
+        const result = await action.invoke(21);
+
+        expect(result.response).toBe(null);
+        expect(result.error).toBe("Action cancelled");
+    });
 });

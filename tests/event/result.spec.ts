@@ -25,6 +25,21 @@ describe("event result", function() {
             expect(res1).resolves.toEqual([ 1, 2 ]);
         });
 
+        it("resolveAll with promise-like results", async function() {
+            const o = createEvent<() => PromiseLike<number>>();
+            const thenable = {
+                then(resolve: (value: number) => void) {
+                    resolve(1);
+                },
+            } as PromiseLike<number>;
+
+            o.addListener(() => thenable);
+
+            const res = await o.resolveAll();
+
+            expect(res).toEqual([ 1 ]);
+        });
+
         it("first", function() {
             const o = createEvent<() => number>();
             let triggered = false;
@@ -207,6 +222,24 @@ describe("event result", function() {
             o1.addListener((value) => value * value);
             const res1 = o1.resolvePipe(1);
             expect(res1).resolves.toEqual(4);
+        });
+
+        it("resolvePipe with promise-like results", async function() {
+            const o = createEvent<(value: number) => PromiseLike<number>>();
+            o.addListener((value) => ({
+                then(resolve: (resolvedValue: number) => void) {
+                    resolve(value + value);
+                },
+            } as PromiseLike<number>));
+            o.addListener((value) => ({
+                then(resolve: (resolvedValue: number) => void) {
+                    resolve(value * value);
+                },
+            } as PromiseLike<number>));
+
+            const res = await o.resolvePipe(1);
+
+            expect(res).toEqual(4);
         });
 
         it("raw", function() {

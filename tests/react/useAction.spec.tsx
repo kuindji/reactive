@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "bun:test";
 import { useCallback, useEffect } from "react";
+import { createAction } from "../../src/action";
 import { useAction } from "../../src/react/useAction";
 import { useListenToAction } from "../../src/react/useListenToAction";
 
@@ -136,5 +137,48 @@ describe("useAction", () => {
         render(<App />);
 
         expect(triggered).toBe(true);
+    });
+
+    it("should move error and before listeners when action changes", async () => {
+        const firstAction = createAction((value: number): string => {
+            return `first:${value}`;
+        });
+        const secondAction = createAction((_value: number): string => {
+            throw new Error("second");
+        });
+        const errors: string[] = [];
+        const beforeArgs: number[] = [];
+
+        const errorListener = ({ error }: { error: Error }) => {
+            errors.push(error.message);
+        };
+        const beforeActionListener = (value: number) => {
+            beforeArgs.push(value);
+        };
+
+        function Component(
+            { action }: { action: typeof firstAction },
+        ) {
+            useListenToAction(
+                action,
+                null,
+                errorListener,
+                beforeActionListener,
+            );
+
+            return null;
+        }
+
+        const view = render(<Component action={firstAction} />);
+
+        view.rerender(<Component action={secondAction} />);
+
+        const secondResponse = await secondAction.invoke(2);
+        const firstResponse = await firstAction.invoke(1);
+
+        expect(secondResponse.error).toBe("second");
+        expect(firstResponse.response).toBe("first:1");
+        expect(errors).toEqual(["second"]);
+        expect(beforeArgs).toEqual([2]);
     });
 });

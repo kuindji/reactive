@@ -147,6 +147,24 @@ describe("event error handling", () => {
         expect(errors1).toEqual(["Multi error"]);
         expect(errors2).toEqual(["Multi error"]);
     });
+
+    it("catches async listener errors with error listener", async () => {
+        const event = createEvent<() => any>();
+        const errors: string[] = [];
+
+        event.addErrorListener(({ error }) => {
+            errors.push(error.message);
+        });
+
+        event.addListener(() => {
+            return Promise.reject(new Error("Async error"));
+        });
+
+        const result = await event.resolveAll();
+
+        expect(errors).toEqual(["Async error"]);
+        expect(result).toEqual([undefined]);
+    });
 });
 
 describe("event edge cases", () => {
@@ -293,4 +311,3 @@ describe("event edge cases", () => {
         }, 10);
     });
 });
-

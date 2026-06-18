@@ -564,23 +564,25 @@ const result = await fetchUserAction.invoke("user123");
   - **Aliases**: `on()`, `listen()`, `subscribe()`
 - `removeListener(handler, context?, tag?)` - Remove listener
   - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
-- `hasListener(handler?, context?, tag?)` - Check if listener exists
-  - **Aliases**: `has()`
 - `removeAllListeners(tag?)` - Remove all listeners
 
 #### Error Handling
 
 - `addErrorListener(handler, context?)` - Add error listener
 - `removeErrorListener(handler, context?)` - Remove error listener
-- `hasErrorListeners()` - Check if error listeners exist
 - `removeAllErrorListeners(tag?)` - Remove all error listeners
 
 #### Utility Methods
 
 - `promise(options?)` - Get promise for next invocation
-- `suspend(withQueue?)` - Suspend action execution
-- `resume()` - Resume action execution
-- `reset()` - Reset action state
+- `beforeActionPromise(options?)` - Get promise for the next before-action call
+- `errorPromise(options?)` - Get promise for the next action error
+
+#### Before Action Methods
+
+- `addBeforeActionListener(handler, options?)` - Add listener that runs before invocation
+- `removeBeforeActionListener(handler, context?, tag?)` - Remove before-action listener
+- `removeAllBeforeActionListeners(tag?)` - Remove all before-action listeners
 
 ## ActionMap
 
@@ -753,7 +755,7 @@ const userData = userStore.get([ "name", "email" ]); // { name: string, email: s
 - `get(keys)` - Get multiple properties
 - `isEmpty()` - Check if store is empty
 - `getData()` - Get all store data
-- `reset()` - Reset store to initial state
+- `reset()` - Clear store data
 
 #### Event Methods
 

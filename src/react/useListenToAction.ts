@@ -20,14 +20,7 @@ export function useListenToAction<
     beforeActionListener?: TBeforeActionListenerSignature | null,
 ) {
     type ActionDefinition = TAction["__type"];
-    const listenerRef = useRef<TListenerSignature>(listener);
-    const actionRef = useRef<TAction>(action);
-    const errorListenerRef = useRef<TErrorListenerSignature | null>(
-        null,
-    );
-    const beforeActionListenerRef = useRef<
-        TBeforeActionListenerSignature | null
-    >(null);
+    const listenerRef = useRef<TListenerSignature | null>(listener);
 
     listenerRef.current = listener;
 
@@ -40,67 +33,35 @@ export function useListenToAction<
 
     useEffect(
         () => {
-            actionRef.current.removeListener(genericHandler);
-            actionRef.current = action;
-            actionRef.current.addListener(genericHandler);
-        },
-        [ action ],
-    );
-
-    useEffect(
-        () => {
-            if (errorListenerRef.current !== errorListener) {
-                if (errorListenerRef.current) {
-                    actionRef.current.removeErrorListener(
-                        errorListenerRef.current,
-                    );
-                }
-                errorListenerRef.current = errorListener || null;
-                if (errorListener) {
-                    actionRef.current.addErrorListener(errorListener);
-                }
-            }
-        },
-        [ errorListener ],
-    );
-
-    useEffect(
-        () => {
-            if (beforeActionListenerRef.current !== beforeActionListener) {
-                if (beforeActionListenerRef.current) {
-                    actionRef.current.removeBeforeActionListener(
-                        beforeActionListenerRef.current,
-                    );
-                }
-                beforeActionListenerRef.current = beforeActionListener || null;
-                if (beforeActionListener) {
-                    actionRef.current.addBeforeActionListener(
-                        beforeActionListener,
-                    );
-                }
-            }
-        },
-        [ beforeActionListener ],
-    );
-
-    useEffect(
-        () => {
+            action.addListener(genericHandler);
             return () => {
-                actionRef.current.removeListener(genericHandler);
-                if (errorListenerRef.current) {
-                    actionRef.current.removeErrorListener(
-                        errorListenerRef.current,
-                    );
-                    errorListenerRef.current = null;
-                }
-                if (beforeActionListenerRef.current) {
-                    actionRef.current.removeBeforeActionListener(
-                        beforeActionListenerRef.current,
-                    );
-                    beforeActionListenerRef.current = null;
-                }
+                action.removeListener(genericHandler);
             };
         },
-        [],
+        [ action, genericHandler ],
+    );
+
+    useEffect(
+        () => {
+            if (errorListener) {
+                action.addErrorListener(errorListener);
+                return () => {
+                    action.removeErrorListener(errorListener);
+                };
+            }
+        },
+        [ action, errorListener ],
+    );
+
+    useEffect(
+        () => {
+            if (beforeActionListener) {
+                action.addBeforeActionListener(beforeActionListener);
+                return () => {
+                    action.removeBeforeActionListener(beforeActionListener);
+                };
+            }
+        },
+        [ action, beforeActionListener ],
     );
 }
