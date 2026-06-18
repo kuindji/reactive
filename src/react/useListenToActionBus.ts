@@ -56,7 +56,11 @@ export function useListenToActionBus<
         actionBus.addListener(actionName, genericHandler, options || undefined);
         actionBus.get(actionName).addBeforeActionListener(genericBeforeActionHandler);
         return () => {
-            actionBus.removeListener(actionName, genericHandler);
+            actionBus.removeListener(
+                actionName,
+                genericHandler,
+                options?.context ?? null,
+            );
             actionBus.get(actionName).removeBeforeActionListener(genericBeforeActionHandler);
         };
     }, [actionBus, actionName, genericHandler, genericBeforeActionHandler]);

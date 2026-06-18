@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "bun:test";
 import { useCallback, useEffect } from "react";
+import { createActionBus } from "../../src/actionBus";
 import {
     type ActionResponse,
     type ErrorListenerSignature,
@@ -92,5 +93,34 @@ describe("useListenToActionBus", () => {
             expect(anyErrorMessage).toBe("test");
             done();
         }, 100);
+    });
+
+    it("should remove context listener on unmount", async () => {
+        const actionBus = createActionBus({
+            action: () => 1,
+        });
+        const context = {};
+        let triggered = 0;
+
+        function Component() {
+            useListenToActionBus(actionBus, "action", {
+                listener: () => {
+                    triggered++;
+                },
+                options: { context },
+            });
+
+            return null;
+        }
+
+        const { unmount } = render(<Component />);
+
+        await actionBus.invoke("action");
+        expect(triggered).toBe(1);
+
+        unmount();
+        await actionBus.invoke("action");
+
+        expect(triggered).toBe(1);
     });
 });

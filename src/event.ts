@@ -152,9 +152,10 @@ export function createEvent<
             return;
         }
 
+        const listenerContext = listenerOptions.context ?? null;
         if (
             listeners.find((l) =>
-                l.handler === handler && l.context === listenerOptions.context
+                l.handler === handler && l.context === listenerContext
             )
         ) {
             return;
@@ -221,8 +222,12 @@ export function createEvent<
                 }
                 return false;
             };
-            _trigger(lastTrigger);
-            options.filter = prevFilter;
+            try {
+                _trigger(lastTrigger);
+            }
+            finally {
+                options.filter = prevFilter;
+            }
         }
     };
 
@@ -729,12 +734,13 @@ export function createEvent<
         tags: string[],
         callback: () => R,
     ): R => {
+        const prevTagsFilter = currentTagsFilter;
         currentTagsFilter = tags;
         try {
             return callback();
         }
         finally {
-            currentTagsFilter = null;
+            currentTagsFilter = prevTagsFilter;
         }
     };
 

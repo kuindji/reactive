@@ -112,4 +112,21 @@ describe("event control", () => {
         o.removeAllListeners("a");
         expect(o.hasListener(c)).toBe(false);
     });
+
+    it("should restore outer tags after nested withTags calls", () => {
+        const o = createEvent<() => void>();
+        const triggered: string[] = [];
+        o.addListener(() => triggered.push("a"), { tags: [ "a" ] });
+        o.addListener(() => triggered.push("b"), { tags: [ "b" ] });
+
+        o.withTags([ "a" ], () => {
+            o.trigger();
+            o.withTags([ "b" ], () => {
+                o.trigger();
+            });
+            o.trigger();
+        });
+
+        expect(triggered).toEqual([ "a", "b", "a" ]);
+    });
 });

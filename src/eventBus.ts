@@ -804,18 +804,19 @@ export function createEventBus<
         tags: string[],
         callback: () => R,
     ): R => {
+        const prevTagsFilter = currentTagsFilter;
         currentTagsFilter = tags;
         try {
             return callback();
         }
         finally {
-            currentTagsFilter = null;
+            currentTagsFilter = prevTagsFilter;
         }
     };
 
     const reset = () => {
         if (eventSources.length > 0) {
-            eventSources.forEach((evs) => {
+            eventSources.slice().forEach((evs) => {
                 removeEventSource(evs.eventSource);
             });
         }

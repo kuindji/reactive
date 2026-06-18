@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "bun:test";
 import { useCallback, useEffect } from "react";
+import { createEvent } from "../../src/event";
 import { useEvent } from "../../src/react/useEvent";
 import { useListenToEvent } from "../../src/react/useListenToEvent";
 
@@ -37,6 +38,34 @@ describe("useListenToEvent", () => {
         render(<App />);
 
         expect(triggered).toBe(true);
+    });
+
+    it("should remove context listener on unmount", () => {
+        const event = createEvent<() => void>();
+        const context = {};
+        let triggered = 0;
+
+        function Component() {
+            useListenToEvent(
+                event,
+                () => {
+                    triggered++;
+                },
+                { context },
+            );
+
+            return null;
+        }
+
+        const { unmount } = render(<Component />);
+
+        event.trigger();
+        expect(triggered).toBe(1);
+
+        unmount();
+        event.trigger();
+
+        expect(triggered).toBe(1);
     });
 
     it("should listen to event via useEvent", () => {

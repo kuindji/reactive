@@ -30,7 +30,11 @@ export function useListenToEventBus<
     useEffect(() => {
         eventBus.addListener(eventName, genericHandler, options);
         return () => {
-            eventBus.removeListener(eventName, genericHandler);
+            eventBus.removeListener(
+                eventName,
+                genericHandler,
+                options?.context ?? null,
+            );
         };
     }, [eventBus, eventName, genericHandler]);
 

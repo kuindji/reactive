@@ -58,6 +58,36 @@ describe("eventSource", () => {
         expect(triggered).toBe(1);
     });
 
+    it("unsubscribes all event sources on reset", () => {
+        const em1 = new EventEmitter();
+        const em2 = new EventEmitter();
+        const o = createEventBus<{
+            event: () => void;
+        }>();
+
+        o.addEventSource({
+            name: "ev1",
+            accepts: true,
+            on: (name, fn) => em1.on(name, fn),
+            un: (name, fn) => em1.off(name, fn),
+        });
+        o.addEventSource({
+            name: "ev2",
+            accepts: true,
+            on: (name, fn) => em2.on(name, fn),
+            un: (name, fn) => em2.off(name, fn),
+        });
+
+        o.on("event", () => { });
+        expect(em1.listenerCount("event")).toBe(1);
+        expect(em2.listenerCount("event")).toBe(1);
+
+        o.reset();
+
+        expect(em1.listenerCount("event")).toBe(0);
+        expect(em2.listenerCount("event")).toBe(0);
+    });
+
     it("should return value based on proxyType", () => {
         const em = createEventBus<{
             event: () => number[];

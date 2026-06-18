@@ -97,6 +97,39 @@ describe("event listener", () => {
         expect(triggered).toEqual([1, 2]);
     });
 
+    it("should not add duplicate listeners without context", () => {
+        const o = createEvent<() => void>();
+        let triggered = 0;
+        const listener = () => triggered++;
+
+        o.addListener(listener);
+        o.addListener(listener);
+        o.trigger();
+
+        expect(triggered).toBe(1);
+    });
+
+    it("should restore filter when auto-trigger listener throws", () => {
+        const o = createEvent<() => void>({ autoTrigger: true });
+        let triggered = 0;
+        const stableListener = () => triggered++;
+
+        o.addListener(stableListener);
+        o.trigger();
+
+        const throwingListener = () => {
+            throw new Error("auto-trigger failed");
+        };
+        expect(() => {
+            o.addListener(throwingListener);
+        }).toThrow("auto-trigger failed");
+
+        o.removeListener(throwingListener);
+        o.trigger();
+
+        expect(triggered).toBe(2);
+    });
+
     it("should run listeners asynchronously when asked", (done) => {
         const startTime = Date.now();
         const options = {

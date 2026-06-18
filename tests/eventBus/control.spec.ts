@@ -38,6 +38,26 @@ describe("eventBus", () => {
         expect(o.get("a")?.hasListener(c)).toBe(false);
     });
 
+    it("should restore outer tags after nested withTags calls", () => {
+        const o = createEventBus<{
+            a: () => void;
+        }>();
+        const triggered: string[] = [];
+
+        o.on("a", () => triggered.push("a"), { tags: [ "a" ] });
+        o.on("a", () => triggered.push("b"), { tags: [ "b" ] });
+
+        o.withTags([ "a" ], () => {
+            o.trigger("a");
+            o.withTags([ "b" ], () => {
+                o.trigger("a");
+            });
+            o.trigger("a");
+        });
+
+        expect(triggered).toEqual([ "a", "b", "a" ]);
+    });
+
     it("intercept events", () => {
         const o = createEventBus<{ event: (value: number) => void; }>();
         const triggered: number[] = [];

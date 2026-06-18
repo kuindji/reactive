@@ -89,4 +89,33 @@ describe("useListenToEventBus", () => {
 
         expect(triggered).toBe(2);
     });
+
+    it("should remove context listener on unmount", () => {
+        const eventBus = createEventBus<{ a: () => void; }>();
+        const context = {};
+        let triggered = 0;
+
+        function Component() {
+            useListenToEventBus(
+                eventBus,
+                "a",
+                () => {
+                    triggered++;
+                },
+                { context },
+            );
+
+            return null;
+        }
+
+        const { unmount } = render(<Component />);
+
+        eventBus.trigger("a");
+        expect(triggered).toBe(1);
+
+        unmount();
+        eventBus.trigger("a");
+
+        expect(triggered).toBe(1);
+    });
 });

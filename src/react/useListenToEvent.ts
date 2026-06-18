@@ -27,7 +27,7 @@ export function useListenToEvent<
     useEffect(() => {
         event.addListener(genericHandler, options);
         return () => {
-            event.removeListener(genericHandler);
+            event.removeListener(genericHandler, options?.context ?? null);
         };
     }, [event, genericHandler]);
 
