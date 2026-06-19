@@ -431,6 +431,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         reset,
         onChange: changes.addListener,
         removeOnChange: changes.removeListener,
+        updateOnChangeOptions: changes.updateListenerOptions,
         control: control.addListener,
         removeControl: control.removeListener,
         pipe: pipe.addListener,

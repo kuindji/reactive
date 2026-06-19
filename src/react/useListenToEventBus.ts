@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import type { ListenerOptions } from "../event.js";
 import type { BaseEventBus } from "../eventBus.js";
 import type { ErrorListenerSignature, KeyOf } from "../lib/types.js";
+import { useReconciledListener } from "./useReconciledListener.js";
 
 export type { BaseEventBus, ErrorListenerSignature, ListenerOptions };
 
@@ -26,17 +27,22 @@ export function useListenToEventBus<
         [],
     );
 
-    // Main listener - cleanup pattern handles eventBus/eventName changes
-    useEffect(() => {
-        eventBus.addListener(eventName, genericHandler, options);
-        return () => {
-            eventBus.removeListener(
+    // Main listener - reconciled across eventBus/eventName/option changes
+    useReconciledListener({
+        keyDeps: [ eventBus, eventName ],
+        options,
+        subscribe: (opts) =>
+            eventBus.addListener(eventName, genericHandler, opts ?? undefined),
+        unsubscribe: (ctx) =>
+            eventBus.removeListener(eventName, genericHandler, ctx),
+        update: (ctx, opts) =>
+            eventBus.updateListenerOptions(
                 eventName,
                 genericHandler,
-                options?.context ?? null,
-            );
-        };
-    }, [eventBus, eventName, genericHandler]);
+                ctx,
+                opts ?? undefined,
+            ),
+    });
 
     // Error listener - cleanup pattern
     useEffect(() => {

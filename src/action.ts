@@ -52,6 +52,7 @@ export function createAction<A extends BaseHandler>(action: A) {
         addListener,
         removeAllListeners,
         removeListener,
+        updateListenerOptions,
         promise,
     } = createEvent<Action["listenerSignature"]>();
 
@@ -148,6 +149,7 @@ export function createAction<A extends BaseHandler>(action: A) {
         remove: removeListener,
         /** @alias removeListener */
         unsubscribe: removeListener,
+        updateListenerOptions,
         promise,
         addErrorListener,
         removeAllErrorListeners,

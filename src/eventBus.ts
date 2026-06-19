@@ -421,6 +421,26 @@ export function createEventBus<
         }
     };
 
+    const updateListenerOptions = <
+        K extends KeyOf<Events>,
+        H extends Events[K]["signature"],
+    >(
+        name: K,
+        handler: H,
+        context?: object | null,
+        nextOptions?: ListenerOptions,
+    ) => {
+        const e = events.get(name) as EventTypes[K] | undefined;
+        if (!e) {
+            return false;
+        }
+        return e.updateListenerOptions(
+            handler as any,
+            context ?? null,
+            nextOptions,
+        );
+    };
+
     const _trigger = <
         K extends KeyOf<Events>,
         A extends Events[K]["arguments"],
@@ -1008,6 +1028,7 @@ export function createEventBus<
         remove: un,
         /** @alias removeListener */
         unsubscribe: un,
+        updateListenerOptions,
         trigger,
         /** @alias trigger */
         emit: trigger,

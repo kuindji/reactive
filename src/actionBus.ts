@@ -114,6 +114,19 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         return action.removeListener(handler, context, tag);
     };
 
+    const updateListenerOptions = <K extends KeyOf<Actions>>(
+        name: K,
+        handler: Actions[K]["listenerSignature"],
+        context?: object | null,
+        nextOptions?: ListenerOptions,
+    ) => {
+        const action: ActionTypes[K] | undefined = get(name);
+        if (!action) {
+            return false;
+        }
+        return action.updateListenerOptions(handler, context, nextOptions);
+    };
+
     const api = {
         add,
         get,
@@ -138,6 +151,8 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         un: un,
         /** @alias removeListener */
         unsubscribe: un,
+
+        updateListenerOptions,
 
         addErrorListener: errorEvent.addListener,
         removeErrorListener: errorEvent.removeListener,

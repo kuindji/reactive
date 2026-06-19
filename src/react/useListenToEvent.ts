@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { BaseEvent, ListenerOptions } from "../event.js";
 import type { ErrorListenerSignature } from "../lib/types.js";
+import { useReconciledListener } from "./useReconciledListener.js";
 
 export type { BaseEvent, ErrorListenerSignature, ListenerOptions };
 
@@ -24,12 +25,14 @@ export function useListenToEvent<
         [],
     );
 
-    useEffect(() => {
-        event.addListener(genericHandler, options);
-        return () => {
-            event.removeListener(genericHandler, options?.context ?? null);
-        };
-    }, [event, genericHandler]);
+    useReconciledListener({
+        keyDeps: [ event ],
+        options,
+        subscribe: (opts) => event.addListener(genericHandler, opts ?? undefined),
+        unsubscribe: (ctx) => event.removeListener(genericHandler, ctx),
+        update: (ctx, opts) =>
+            event.updateListenerOptions(genericHandler, ctx, opts ?? undefined),
+    });
 
     useEffect(() => {
         if (errorListener) {
