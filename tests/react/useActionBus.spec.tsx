@@ -178,6 +178,29 @@ describe("useActionBus action reconciliation", () => {
         expect(res.response).toBe(2);
     });
 
+    it("child can subscribe to an action added in the same rerender", () => {
+        // Child passive effects run before parent passive effects, so a newly
+        // added action must exist before the child subscribes to it.
+        function Child({ bus }: { bus: any }) {
+            useListenToActionBus(bus, "b", () => {});
+            return null;
+        }
+        function Parent(
+            { actions, showChild }: { actions: any; showChild: boolean },
+        ) {
+            const bus = useActionBus(actions);
+            return showChild ? <Child bus={bus} /> : null;
+        }
+        const a = (n: number) => n + 1;
+        const b = (n: number) => n * 3;
+        const { rerender } = render(
+            <Parent actions={{ a }} showChild={false} />,
+        );
+        expect(() =>
+            rerender(<Parent actions={{ a, b }} showChild={true} />)
+        ).not.toThrow();
+    });
+
     it("added action becomes available after rerender", async () => {
         const a = (n: number) => n + 1;
         const b = (n: number) => n * 3;
