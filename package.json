@@ -70,6 +70,7 @@
     "license": "ISC",
     "scripts": {
         "build": "tsc -p ./tsconfig-build.json",
+        "prepublishOnly": "bun run build",
         "lint": "bun eslint .",
         "type-check": "tsc --noEmit",
         "test": "bun test tests/**/*.spec.ts*",
