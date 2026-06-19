@@ -182,3 +182,60 @@ describe("useAction", () => {
         expect(beforeArgs).toEqual([2]);
     });
 });
+
+describe("useAction function reconciliation", () => {
+    function makeHarness() {
+        let action: ReturnType<typeof useAction<(n: number) => number, any, any, any>> | null = null;
+        function Comp({ fn }: { fn: (n: number) => number }) {
+            action = useAction(fn);
+            return null;
+        }
+        return { Comp, getAction: () => action! };
+    }
+
+    it("same reference does not throw or change behavior", async () => {
+        const fn = (n: number) => n + 1;
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp fn={fn} />);
+        rerender(<h.Comp fn={fn} />);
+        const res = await h.getAction().invoke(1);
+        expect(res.response).toBe(2);
+    });
+
+    it("changed function affects future invoke", async () => {
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp fn={(n) => n + 1} />);
+        rerender(<h.Comp fn={(n) => n * 10} />);
+        const res = await h.getAction().invoke(2);
+        expect(res.response).toBe(20);
+    });
+
+    it("listeners survive a function change", async () => {
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp fn={(n) => n + 1} />);
+        const action = h.getAction();
+        const responses: number[] = [];
+        action.addListener(({ response }) => {
+            if (response !== null) {
+                responses.push(response);
+            }
+        });
+
+        await action.invoke(1);
+        rerender(<h.Comp fn={(n) => n * 10} />);
+        await h.getAction().invoke(2);
+        expect(responses).toEqual([ 2, 20 ]);
+        // action identity preserved
+        expect(h.getAction()).toBe(action);
+    });
+
+    it("before-action cancellation still works after a function change", async () => {
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp fn={(n) => n + 1} />);
+        const action = h.getAction();
+        action.addBeforeActionListener(() => false);
+        rerender(<h.Comp fn={(n) => n * 10} />);
+        const res = await h.getAction().invoke(5);
+        expect(res.error).toBe("Action cancelled");
+    });
+});

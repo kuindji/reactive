@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import type { ListenerOptions } from "../event.js";
 import { KeyOf } from "../lib/types.js";
 import type { BaseStore } from "../store.js";
+import { useReconciledListener } from "./useReconciledListener.js";
 
 export type { BaseStore, ListenerOptions };
 
@@ -25,17 +26,18 @@ export function useListenToStoreChanges<
         [],
     );
 
-    useEffect(
-        () => {
-            store.onChange(key, genericHandler, options);
-            return () => {
-                store.removeOnChange(
-                    key,
-                    genericHandler,
-                    options?.context ?? null,
-                );
-            };
-        },
-        [ store, key, genericHandler ],
-    );
+    useReconciledListener({
+        keyDeps: [ store, key ],
+        options,
+        subscribe: (opts) =>
+            store.onChange(key, genericHandler, opts ?? undefined),
+        unsubscribe: (ctx) => store.removeOnChange(key, genericHandler, ctx),
+        update: (ctx, opts) =>
+            store.updateOnChangeOptions(
+                key,
+                genericHandler,
+                ctx,
+                opts ?? undefined,
+            ),
+    });
 }

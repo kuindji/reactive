@@ -95,6 +95,38 @@ describe("eventSource", () => {
         expect(em.listenerCount("event")).toBe(0);
     });
 
+    it("does not pass local listener options to the event source bridge", () => {
+        const source = createEventBus<{
+            event: () => void;
+        }>();
+        const o = createEventBus<{
+            event: () => void;
+        }>();
+        const bridgeOptions: unknown[] = [];
+
+        o.addEventSource({
+            name: "ev",
+            accepts: true,
+            on: (name, fn, _eventSource, options) => {
+                bridgeOptions.push(options);
+                source.on(name as "event", fn, options);
+            },
+            un: (name, fn) => source.un(name as "event", fn),
+        });
+
+        const triggered: string[] = [];
+        const listener1 = () => triggered.push("first");
+        const listener2 = () => triggered.push("second");
+
+        o.on("event", listener1, { limit: 1 });
+        source.trigger("event");
+        o.on("event", listener2);
+        source.trigger("event");
+
+        expect(bridgeOptions).toEqual([ undefined ]);
+        expect(triggered).toEqual([ "first", "second" ]);
+    });
+
     it("subscribes existing local listeners when adding event source", () => {
         const em = new EventEmitter();
         const o = createEventBus<{

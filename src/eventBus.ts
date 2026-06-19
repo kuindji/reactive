@@ -5,6 +5,7 @@ import type {
     ListenerOptions,
 } from "./event.js";
 import isPromiseLike from "./lib/isPromiseLike.js";
+import { normalizeEventOptions } from "./lib/normalizeEventOptions.js";
 import {
     ApiType,
     BaseHandler,
@@ -198,6 +199,8 @@ export function createEventBus<
     type EventTypes = EventBus["eventTypes"];
 
     const events = new Map<KeyOf<Events>, any>();
+    let currentEventBusOptions: EventBusOptions<EventsMap> | undefined =
+        eventBusOptions;
     let currentTagsFilter: string[] | null = null;
     let interceptor: InterceptorFunction | null = null;
     const proxyListeners: ProxyListener[] = [];
@@ -296,10 +299,36 @@ export function createEventBus<
         if (!events.has(name)) {
             events.set(
                 name,
-                createEvent(eventBusOptions?.eventOptions?.[name]),
+                createEvent(currentEventBusOptions?.eventOptions?.[name]),
             );
         }
         return events.get(name) as EventTypes[K];
+    };
+
+    // Parameter is intentionally map-independent (like `add`) so that the
+    // method type is identical across instantiations and a typed bus stays
+    // assignable to BaseEventBus (which the React listener hooks rely on).
+    const setOptions = (options?: EventBusOptions<BaseEventMap>) => {
+        currentEventBusOptions = options as
+            | EventBusOptions<EventsMap>
+            | undefined;
+        const eventOptions = options?.eventOptions;
+        if (!eventOptions) {
+            return;
+        }
+        // Apply present entries to already-created events. Removed entries are
+        // intentionally left as-is (the bus can change an event's options but
+        // does not un-set them).
+        Object.keys(eventOptions).forEach((name) => {
+            const e = events.get(name as KeyOf<Events>) as
+                | EventTypes[KeyOf<Events>]
+                | undefined;
+            if (e) {
+                // Normalize so fields removed from a present entry reset to
+                // their defaults (event.setOptions merges, it does not reset).
+                e.setOptions(normalizeEventOptions(eventOptions[name]));
+            }
+        });
     };
 
     const intercept = (fn: InterceptorFunction) => {
@@ -351,7 +380,6 @@ export function createEventBus<
                     name,
                     listener.listener,
                     evs.eventSource,
-                    options,
                 );
                 evs.subscribed.push(name);
             }
@@ -419,6 +447,26 @@ export function createEventBus<
                 }
             });
         }
+    };
+
+    const updateListenerOptions = <
+        K extends KeyOf<Events>,
+        H extends Events[K]["signature"],
+    >(
+        name: K,
+        handler: H,
+        context?: object | null,
+        nextOptions?: ListenerOptions,
+    ) => {
+        const e = events.get(name) as EventTypes[K] | undefined;
+        if (!e) {
+            return false;
+        }
+        return e.updateListenerOptions(
+            handler as any,
+            context ?? null,
+            nextOptions,
+        );
     };
 
     const _trigger = <
@@ -1008,6 +1056,7 @@ export function createEventBus<
         remove: un,
         /** @alias removeListener */
         unsubscribe: un,
+        updateListenerOptions,
         trigger,
         /** @alias trigger */
         emit: trigger,
@@ -1015,6 +1064,7 @@ export function createEventBus<
         dispatch: trigger,
         get,
         add,
+        setOptions,
         first,
         resolveFirst,
         all,

@@ -161,11 +161,13 @@ const value = event.pipe(1); // value = 4
   - **Aliases**: `on()`, `listen()`, `subscribe()`
 - `removeListener(listener, context?, tag?)` - Remove specific listener
   - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
+- `updateListenerOptions(listener, context?, nextOptions?)` - Update a registered listener's soft options (`limit`, `start`, `async`, `tags`, `extraData`, `alwaysFirst`/`alwaysLast`) **in place**, preserving its `called`/`count` counters. Matches the listener by `listener` + `context`. Returns `true` if a listener was found. `context` is an identity field and is not updated here (resubscribe to change it); `first` is insertion-time only and ignored. Lowering `limit` to at/below the current `called` removes the listener immediately.
 - `hasListener(listener?, context?, tag?)` - Check if listener exists
   - **Aliases**: `has()`
 - `removeAllListeners(tag?)` - Remove all listeners (optionally by tag)
 - `trigger(...args)` - Trigger the event
   - **Aliases**: `emit()`, `dispatch()`
+- `setOptions(options)` - Update event options in place. Accepts any `EventOptions` field (`async`, `limit`, `autoTrigger`, `filter`, `filterContext`, `maxListeners`). Does not reset the internal `triggered` count.
 
 #### Collector Methods
 
@@ -481,10 +483,12 @@ customSource.trigger("appStart");
 - `once(name, handler, options?)` - Add one-time listener
 - `removeListener(name, handler, context?, tag?)` - Remove listener
   - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
+- `updateListenerOptions(name, handler, context?, nextOptions?)` - Update a registered listener's soft options in place (see Event's `updateListenerOptions`). Returns `false` if the event does not exist.
 - `trigger(name, ...args)` - Trigger specific event
   - **Aliases**: `emit()`, `dispatch()`
 - `get(name)` - Get event instance by name
 - `add(name, options?)` - Add new event to bus
+- `setOptions(options?)` - Update bus options. Present per-event entries in `eventOptions` are applied to already-created events via `event.setOptions`, and future events use the latest stored options. A removed event-name entry leaves the existing event unchanged.
 
 #### Collector Methods
 
@@ -560,10 +564,12 @@ const result = await fetchUserAction.invoke("user123");
 #### Core Methods
 
 - `invoke(...args)` - Execute the action
+- `setAction(fn)` - Replace the action function in place. Subsequent `invoke()` calls use the new function; all response, before-action and error listeners are preserved (they live in separate events). The replacement must keep a compatible signature.
 - `addListener(handler, options?)` - Add response listener
   - **Aliases**: `on()`, `listen()`, `subscribe()`
 - `removeListener(handler, context?, tag?)` - Remove listener
   - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
+- `updateListenerOptions(handler, context?, nextOptions?)` - Update a response listener's soft options in place (see Event's `updateListenerOptions`)
 - `removeAllListeners(tag?)` - Remove all listeners
 
 #### Error Handling
@@ -685,7 +691,10 @@ const user = await actionBus.invoke("fetchUser", "user123");
 
 #### Core Methods
 
-- `add(name, action)` - Add action to bus
+- `add(name, action)` - Add action to bus (no-op if it already exists)
+- `replace(name, action)` - Replace an existing action's function in place via `setAction` (preserving its listeners and the bus error-forwarding listener); adds it if the name is new
+- `removeAction(name)` - Remove an action from the bus (named `removeAction` because `remove` is an alias for `removeListener`). Afterwards `invoke`/`on`/`un` for that name throw `Action <name> not found`.
+- `has(name)` - Check if action exists
 - `get(name)` - Get action by name
 - `invoke(name, ...args)` - Invoke action by name
 - `addListener(name, handler, options?)` - Add listener to action
@@ -693,8 +702,7 @@ const user = await actionBus.invoke("fetchUser", "user123");
 - `once(name, handler, options?)` - Add one-time listener
 - `removeListener(name, handler, context?, tag?)` - Remove listener
   - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
-- `has(name)` - Check if action exists
-- `remove(name)` - Remove action
+- `updateListenerOptions(name, handler, context?, nextOptions?)` - Update a response listener's soft options in place (see Event's `updateListenerOptions`)
 
 #### Error Handling
 
@@ -759,7 +767,9 @@ const userData = userStore.get([ "name", "email" ]); // { name: string, email: s
 
 #### Event Methods
 
-- `onChange(key, handler)` - Listen to property changes
+- `onChange(key, handler, options?)` - Listen to property changes
+- `removeOnChange(key, handler, context?, tag?)` - Remove a change listener
+- `updateOnChangeOptions(key, handler, context?, nextOptions?)` - Update a change listener's soft options in place (see Event's `updateListenerOptions`)
 - `pipe(key, handler)` - Add data transformation pipeline
 - `control(event, handler)` - Control store events
 
@@ -954,6 +964,17 @@ useListenToStoreChanges(
     listenerOptions?: ListenerOptions
 )
 ```
+
+### Reconciliation across renders
+
+Hook inputs are reconciled on every render using semantic comparison, so you
+can safely pass inline objects (e.g. `{ tags: [tag] }`) without object identity
+forcing a resubscribe:
+
+- **Listener options** (`useListenToEvent`/`useListenToEventBus`/`useListenToActionBus`/`useListenToStoreChanges`) are compared field by field (`tags` is an order-insensitive set). A semantically equal object is a no-op. A changed soft option updates the live listener **in place**, preserving its `called`/`count` counters. Changing `context` (an identity field) resubscribes using the old context.
+- **`useEvent` event options** and **`useEventBus` options** are reconciled via `setOptions` instead of being ignored (and `useEventBus` no longer throws when options change).
+- **`useAction`/`useActionBus`/`useActionMap` action functions** are replaced in place via `setAction` (compared by reference), preserving all listeners; `useActionBus` also adds/removes actions as its map changes. The `useActionMap` key set is fixed by its type contract — a runtime key-set change throws.
+- **`useStore` config** (`onChange`/`pipes`/`control`) is reconciled by category + key (functions compared by reference); only handlers added by the hook are touched. **`initialData` is seed-only** — it initializes the store once and later changes are intentionally ignored (live data is owned by `set`/`useStoreState`).
 
 ## ErrorBoundary
 

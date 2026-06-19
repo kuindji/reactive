@@ -47,11 +47,17 @@ export type ActionDefinitionHelper<A extends BaseHandler> = {
 export function createAction<A extends BaseHandler>(action: A) {
     type Action = ActionDefinitionHelper<A>;
 
+    // The action function is held in a mutable variable so it can be swapped in
+    // place via setAction without disturbing any listeners (response, before
+    // and error listeners live in separate events independent of the function).
+    let actionFn: A = action;
+
     const {
         trigger,
         addListener,
         removeAllListeners,
         removeListener,
+        updateListenerOptions,
         promise,
     } = createEvent<Action["listenerSignature"]>();
 
@@ -96,7 +102,7 @@ export function createAction<A extends BaseHandler>(action: A) {
                     return response;
                 }
             }
-            let result = action(...args);
+            let result = actionFn(...args);
             if (isPromiseLike(result)) {
                 result = await Promise.resolve(result);
             }
@@ -129,8 +135,13 @@ export function createAction<A extends BaseHandler>(action: A) {
         }
     };
 
+    const setAction = (nextAction: A) => {
+        actionFn = nextAction;
+    };
+
     const api = {
         invoke,
+        setAction,
         addListener,
         /** @alias addListener */
         on: addListener,
@@ -148,6 +159,7 @@ export function createAction<A extends BaseHandler>(action: A) {
         remove: removeListener,
         /** @alias removeListener */
         unsubscribe: removeListener,
+        updateListenerOptions,
         promise,
         addErrorListener,
         removeAllErrorListeners,

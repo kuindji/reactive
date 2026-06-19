@@ -1,6 +1,7 @@
 import { createAction } from "./action.js";
 import type { ActionResponse } from "./action.js";
 import type { BaseActionsMap } from "./actionBus.js";
+import { ActionMapSetErrorListeners } from "./lib/actionMapInternal.js";
 import type {
     ErrorListenerSignature,
     ErrorResponse,
@@ -21,6 +22,7 @@ export function createActionMap<M extends BaseActionsMap>(
         | ErrorListenerSignature<any[]>
         | ErrorListenerSignature<any[]>[],
 ) {
+    let currentOnAnyError = onAnyError;
     type ActionMap = {
         [key in KeyOf<M>]: Simplify<ReturnType<typeof createAction<M[key]>>>;
     };
@@ -33,13 +35,14 @@ export function createActionMap<M extends BaseActionsMap>(
         (errorListenersMap as Record<string, unknown>)[key] = (
             errorResponse: ErrorResponse<any[]>,
         ) => {
-            if (Array.isArray(onAnyError)) {
-                for (const listener of onAnyError) {
+            const handlers = currentOnAnyError;
+            if (Array.isArray(handlers)) {
+                for (const listener of handlers) {
                     listener?.({ name: key, ...errorResponse });
                 }
             }
             else {
-                onAnyError?.({ name: key, ...errorResponse });
+                handlers?.({ name: key, ...errorResponse });
             }
         };
     }
@@ -51,6 +54,14 @@ export function createActionMap<M extends BaseActionsMap>(
         action.addErrorListener(errorListenersMap[key]);
         map[key] = action;
     }
+
+    (map as Record<symbol, unknown>)[ActionMapSetErrorListeners] = (
+        next?:
+            | ErrorListenerSignature<any[]>
+            | ErrorListenerSignature<any[]>[],
+    ) => {
+        currentOnAnyError = next;
+    };
 
     return map;
 }

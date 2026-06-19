@@ -155,3 +155,86 @@ describe("useListenToActionBus", () => {
         expect(receivedErrors).toEqual(["Action cancelled"]);
     });
 });
+
+describe("useActionBus action reconciliation", () => {
+    type Map = { a: (n: number) => number; b?: (n: number) => number };
+    function makeHarness() {
+        let bus: ReturnType<typeof useActionBus<any>> | null = null;
+        function Comp({ actions }: { actions: Partial<Map> }) {
+            bus = useActionBus(actions as any);
+            return null;
+        }
+        return { Comp, getBus: () => bus! };
+    }
+
+    it("inline equal actions map does not recreate the bus", async () => {
+        const a = (n: number) => n + 1;
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp actions={{ a }} />);
+        const bus = h.getBus();
+        rerender(<h.Comp actions={{ a }} />);
+        expect(h.getBus()).toBe(bus);
+        const res = await bus.invoke("a", 1);
+        expect(res.response).toBe(2);
+    });
+
+    it("child can subscribe to an action added in the same rerender", () => {
+        // Child passive effects run before parent passive effects, so a newly
+        // added action must exist before the child subscribes to it.
+        function Child({ bus }: { bus: any }) {
+            useListenToActionBus(bus, "b", () => {});
+            return null;
+        }
+        function Parent(
+            { actions, showChild }: { actions: any; showChild: boolean },
+        ) {
+            const bus = useActionBus(actions);
+            return showChild ? <Child bus={bus} /> : null;
+        }
+        const a = (n: number) => n + 1;
+        const b = (n: number) => n * 3;
+        const { rerender } = render(
+            <Parent actions={{ a }} showChild={false} />,
+        );
+        expect(() =>
+            rerender(<Parent actions={{ a, b }} showChild={true} />)
+        ).not.toThrow();
+    });
+
+    it("added action becomes available after rerender", async () => {
+        const a = (n: number) => n + 1;
+        const b = (n: number) => n * 3;
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp actions={{ a }} />);
+        rerender(<h.Comp actions={{ a, b }} />);
+        const res = await h.getBus().invoke("b", 2);
+        expect(res.response).toBe(6);
+    });
+
+    it("replaced action uses new impl and keeps listeners", async () => {
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp actions={{ a: (n) => n + 1 }} />);
+        const bus = h.getBus();
+        const responses: number[] = [];
+        bus.on("a", ({ response }) => {
+            if (response !== null) {
+                responses.push(response);
+            }
+        });
+        await bus.invoke("a", 1);
+        rerender(<h.Comp actions={{ a: (n) => n * 10 }} />);
+        await h.getBus().invoke("a", 2);
+        expect(responses).toEqual([ 2, 20 ]);
+    });
+
+    it("removed action throws on invoke/on/un", () => {
+        const a = (n: number) => n + 1;
+        const b = (n: number) => n * 3;
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp actions={{ a, b }} />);
+        rerender(<h.Comp actions={{ a }} />);
+        const bus = h.getBus();
+        expect(() => bus.invoke("b", 1)).toThrow("Action b not found");
+        expect(() => bus.on("b", () => {})).toThrow("Action b not found");
+    });
+});

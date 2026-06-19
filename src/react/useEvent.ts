@@ -5,7 +5,9 @@ import type {
     ErrorListenerSignature,
     ErrorResponse,
 } from "../lib/types.js";
+import { normalizeEventOptions } from "../lib/normalizeEventOptions.js";
 import { ErrorBoundaryContext } from "./ErrorBoundary.js";
+import { areEventOptionsEqual } from "./listenerOptionsEqual.js";
 
 export type {
     BaseHandler,
@@ -48,6 +50,30 @@ export function useEvent<
         },
         [],
     );
+
+    // Reconcile event options across renders without relying on object
+    // identity. Applied in place via setOptions; triggered count is preserved.
+    const committedEventOptionsRef = useRef<EventOptions<Listener>>(
+        eventOptions,
+    );
+    useEffect(() => {
+        if (committedEventOptionsRef.current === eventOptions) {
+            return;
+        }
+        if (
+            !areEventOptionsEqual(
+                committedEventOptionsRef.current as EventOptions<BaseHandler>,
+                eventOptions as EventOptions<BaseHandler>,
+            )
+        ) {
+            // Normalize so fields removed since the last render reset to their
+            // defaults (event.setOptions merges, it does not reset).
+            event.setOptions(
+                normalizeEventOptions(eventOptions as EventOptions<BaseHandler>),
+            );
+        }
+        committedEventOptionsRef.current = eventOptions;
+    });
 
     useEffect(
         () => {

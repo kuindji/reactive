@@ -97,3 +97,93 @@ describe("useEventListen", () => {
         }, 100);
     });
 });
+
+describe("useActionMap reconciliation", () => {
+    type Map = { a: (n: number) => number };
+    function makeHarness() {
+        let map: ReturnType<typeof useActionMap<Map>> | null = null;
+        function Comp(
+            { actions, onError }: {
+                actions: Map;
+                onError?: ErrorListenerSignature<any[]>;
+            },
+        ) {
+            map = useActionMap(actions, onError);
+            return null;
+        }
+        return { Comp, getMap: () => map! };
+    }
+
+    it("inline equal action map does not throw or reset", async () => {
+        const a = (n: number) => n + 1;
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp actions={{ a }} />);
+        const map = h.getMap();
+        const responses: number[] = [];
+        map.a.addListener(({ response }) => {
+            if (response !== null) {
+                responses.push(response);
+            }
+        });
+        expect(() => rerender(<h.Comp actions={{ a }} />)).not.toThrow();
+        await map.a.invoke(1);
+        expect(responses).toEqual([ 2 ]);
+        expect(h.getMap()).toBe(map);
+    });
+
+    it("replaced action uses new impl and keeps listeners", async () => {
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp actions={{ a: (n) => n + 1 }} />);
+        const map = h.getMap();
+        const responses: number[] = [];
+        map.a.addListener(({ response }) => {
+            if (response !== null) {
+                responses.push(response);
+            }
+        });
+        await map.a.invoke(1);
+        rerender(<h.Comp actions={{ a: (n) => n * 10 }} />);
+        await map.a.invoke(2);
+        expect(responses).toEqual([ 2, 20 ]);
+    });
+
+    it("changed error listener forwards without duplicates", async () => {
+        const first: string[] = [];
+        const second: string[] = [];
+        const fail = (_n: number): number => {
+            throw new Error("x");
+        };
+        const h = makeHarness();
+        const { rerender } = render(
+            <h.Comp
+                actions={{ a: fail }}
+                onError={({ error }) => first.push(error.message)}
+            />,
+        );
+        await h.getMap().a.invoke(1);
+        rerender(
+            <h.Comp
+                actions={{ a: fail }}
+                onError={({ error }) => second.push(error.message)}
+            />,
+        );
+        await h.getMap().a.invoke(2);
+        expect(first).toEqual([ "x" ]);
+        expect(second).toEqual([ "x" ]);
+    });
+
+    it("changing the key set throws", () => {
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp actions={{ a: (n) => n + 1 }} />);
+        expect(() =>
+            rerender(
+                <h.Comp
+                    actions={{
+                        a: (n: number) => n + 1,
+                        b: (n: number) => n,
+                    } as any}
+                />,
+            )
+        ).toThrow();
+    });
+});

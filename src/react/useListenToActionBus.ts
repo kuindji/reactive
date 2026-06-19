@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import type { BaseActionBus } from "../actionBus.js";
 import type { ListenerOptions } from "../event.js";
 import type { ErrorListenerSignature, KeyOf } from "../lib/types.js";
+import { useReconciledListener } from "./useReconciledListener.js";
 
 export type { BaseActionBus, ErrorListenerSignature, ListenerOptions };
 
@@ -51,19 +52,34 @@ export function useListenToActionBus<
         [],
     );
 
-    // Main listener + beforeAction listener - tied to actionName
-    useEffect(() => {
-        actionBus.addListener(actionName, genericHandler, options || undefined);
-        actionBus.get(actionName).addBeforeActionListener(genericBeforeActionHandler);
-        return () => {
-            actionBus.removeListener(
+    // Main listener + beforeAction listener - reconciled across changes
+    useReconciledListener({
+        keyDeps: [ actionBus, actionName ],
+        options: options ?? undefined,
+        subscribe: (opts) => {
+            actionBus.addListener(
                 actionName,
                 genericHandler,
-                options?.context ?? null,
+                opts ?? undefined,
             );
-            actionBus.get(actionName).removeBeforeActionListener(genericBeforeActionHandler);
-        };
-    }, [actionBus, actionName, genericHandler, genericBeforeActionHandler]);
+            actionBus.get(actionName).addBeforeActionListener(
+                genericBeforeActionHandler,
+            );
+        },
+        unsubscribe: (ctx) => {
+            actionBus.removeListener(actionName, genericHandler, ctx);
+            actionBus.get(actionName).removeBeforeActionListener(
+                genericBeforeActionHandler,
+            );
+        },
+        update: (ctx, opts) =>
+            actionBus.updateListenerOptions(
+                actionName,
+                genericHandler,
+                ctx,
+                opts ?? undefined,
+            ),
+    });
 
     // Error listener - bus level
     useEffect(() => {

@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "bun:test";
 import { useCallback, useEffect } from "react";
-import { createEvent } from "../../src/event";
+import { createEvent, type EventOptions } from "../../src/event";
 import { useEvent } from "../../src/react/useEvent";
 import { useListenToEvent } from "../../src/react/useListenToEvent";
 
@@ -145,5 +145,113 @@ describe("useListenToEvent", () => {
         render(<App />);
 
         expect(triggered).toBe(true);
+    });
+});
+
+describe("useEvent option reconciliation", () => {
+    function makeHarness() {
+        const events: ReturnType<typeof createEvent<() => void>>[] = [];
+        function Comp(
+            { options }: { options?: EventOptions<() => void> },
+        ) {
+            const event = useEvent<() => void>(options);
+            events.push(event);
+            return null;
+        }
+        return { Comp, getEvent: () => events[events.length - 1] };
+    }
+
+    it("inline semantically equal options do not reset event state", () => {
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp options={{ limit: 1 }} />);
+        const event = h.getEvent();
+        let calls = 0;
+        event.addListener(() => {
+            calls++;
+        });
+        event.trigger();
+        expect(calls).toBe(1);
+        event.trigger();
+        expect(calls).toBe(1); // event limit reached
+
+        rerender(<h.Comp options={{ limit: 1 }} />);
+        event.trigger();
+        expect(calls).toBe(1);
+    });
+
+    it("changed limit preserves triggered count", () => {
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp options={{ limit: 1 }} />);
+        const event = h.getEvent();
+        let calls = 0;
+        event.addListener(() => {
+            calls++;
+        });
+        event.trigger();
+        expect(calls).toBe(1);
+
+        rerender(<h.Comp options={{ limit: 2 }} />);
+        event.trigger(); // one more allowed
+        expect(calls).toBe(2);
+        event.trigger();
+        expect(calls).toBe(2);
+    });
+
+    it("removed option fields reset to defaults", () => {
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp options={{ limit: 1 }} />);
+        const event = h.getEvent();
+        let calls = 0;
+        event.addListener(() => {
+            calls++;
+        });
+        event.trigger();
+        event.trigger();
+        expect(calls).toBe(1); // limit 1
+
+        // removing limit should restore unlimited triggering
+        rerender(<h.Comp options={{}} />);
+        event.trigger();
+        event.trigger();
+        expect(calls).toBe(3);
+    });
+
+    it("changed autoTrigger affects future listeners", () => {
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp options={{}} />);
+        const event = h.getEvent();
+        rerender(<h.Comp options={{ autoTrigger: true }} />);
+        event.trigger();
+        let fired = false;
+        event.addListener(() => {
+            fired = true;
+        });
+        expect(fired).toBe(true);
+    });
+
+    it("changed filter / filterContext / maxListeners take effect", () => {
+        const ctx = { allow: false };
+        const filter = function(this: typeof ctx) {
+            return this.allow;
+        };
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp options={{}} />);
+        const event = h.getEvent();
+        let calls = 0;
+        event.addListener(() => {
+            calls++;
+        });
+
+        rerender(
+            <h.Comp options={{ filter, filterContext: ctx, maxListeners: 1 }} />,
+        );
+        event.trigger();
+        expect(calls).toBe(0);
+        ctx.allow = true;
+        event.trigger();
+        expect(calls).toBe(1);
+
+        // maxListeners now 1, one listener already present
+        expect(() => event.addListener(() => {})).toThrow();
     });
 });

@@ -264,6 +264,63 @@ export function createEvent<
         return true;
     };
 
+    const updateListenerOptions = (
+        handler: Event["signature"],
+        context: object | null = null,
+        nextOptions: ListenerOptions = {} as ListenerOptions,
+    ): boolean => {
+        const listenerContext = context ?? null;
+        const listener = listeners.find((l) =>
+            l.handler === handler && l.context === listenerContext
+        );
+        if (!listener) {
+            return false;
+        }
+
+        const prevAlwaysFirst = listener.alwaysFirst;
+        const prevAlwaysLast = listener.alwaysLast;
+
+        // Soft fields, applying the same defaults as addListener so that a
+        // removed field resets to its default rather than lingering.
+        listener.limit = nextOptions.limit ?? 0;
+        listener.start = nextOptions.start ?? 1;
+        listener.tags = nextOptions.tags ?? [];
+        listener.extraData = nextOptions.extraData ?? null;
+        listener.alwaysFirst = nextOptions.alwaysFirst ?? false;
+        listener.alwaysLast = nextOptions.alwaysLast ?? false;
+
+        let nextAsync: boolean | number | null = nextOptions.async ?? null;
+        if (nextAsync === true) {
+            nextAsync = 1;
+        }
+        listener.async = nextAsync;
+
+        // Re-sort if ordering hints changed. Unlike addListener we do NOT
+        // rewrite each listener's index here: the existing indices hold the
+        // original insertion order, and preserving them lets sorting restore
+        // that order when alwaysFirst/alwaysLast is cleared.
+        if (
+            listener.alwaysFirst !== prevAlwaysFirst
+            || listener.alwaysLast !== prevAlwaysLast
+        ) {
+            if (listener.alwaysFirst === true || listener.alwaysLast === true) {
+                sortListeners = true;
+            }
+            if (sortListeners) {
+                listeners.sort((l1, l2) => listenerSorter<Listener>(l1, l2));
+            }
+        }
+
+        // The core auto-remove check is a strict `called === limit`, so a
+        // listener whose `called` already exceeds the new limit would never
+        // auto-remove. Remove it immediately in that case.
+        if (listener.limit !== 0 && listener.called >= listener.limit) {
+            removeListener(listener.handler, listener.context);
+        }
+
+        return true;
+    };
+
     const hasListener = (
         handler?: Event["signature"] | null,
         context?: object | null,
@@ -356,7 +413,7 @@ export function createEvent<
     };
 
     const setOptions = (
-        eventOptions: Pick<Event["options"], "async" | "limit" | "autoTrigger">,
+        eventOptions: Partial<EventOptions<ListenerSignature>>,
     ) => {
         Object.assign(options, eventOptions);
     };
@@ -939,6 +996,7 @@ export function createEvent<
         /** @alias addListener */
         subscribe: addListener,
         removeListener,
+        updateListenerOptions,
         /** @alias removeListener */
         un: removeListener,
         /** @alias removeListener */
