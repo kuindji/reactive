@@ -109,9 +109,9 @@ describe("eventSource", () => {
             accepts: true,
             on: (name, fn, _eventSource, options) => {
                 bridgeOptions.push(options);
-                source.on(name, fn, options);
+                source.on(name as "event", fn, options);
             },
-            un: (name, fn) => source.un(name, fn),
+            un: (name, fn) => source.un(name as "event", fn),
         });
 
         const triggered: string[] = [];
