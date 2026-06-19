@@ -2,7 +2,11 @@ import { useContext, useEffect, useMemo, useRef } from "react";
 import type { ActionResponse, ListenerSignature } from "../action.js";
 import type { BaseActionsMap } from "../actionBus.js";
 import { createActionBus } from "../actionBus.js";
-import type { ErrorListenerSignature, ErrorResponse } from "../lib/types.js";
+import type {
+    BaseHandler,
+    ErrorListenerSignature,
+    ErrorResponse,
+} from "../lib/types.js";
 import { ErrorBoundaryContext } from "./ErrorBoundary.js";
 
 export type {
@@ -45,6 +49,31 @@ export function useActionBus<
         },
         [],
     );
+
+    // Reconcile the actions map every render: added keys are added, changed
+    // function references are replaced in place (preserving listeners), removed
+    // keys are removed. Functions are compared by reference and never invoked.
+    const appliedActionsRef = useRef<Record<string, BaseHandler>>({
+        ...(initialActions as Record<string, BaseHandler> | undefined),
+    });
+    useEffect(() => {
+        const next = (initialActions ?? {}) as Record<string, BaseHandler>;
+        const prev = appliedActionsRef.current;
+        for (const key in prev) {
+            if (!(key in next)) {
+                actionBus.removeAction(key);
+            }
+        }
+        for (const key in next) {
+            if (!(key in prev)) {
+                actionBus.add(key, next[key]);
+            }
+            else if (next[key] !== prev[key]) {
+                actionBus.replace(key, next[key]);
+            }
+        }
+        appliedActionsRef.current = { ...next };
+    });
 
     useEffect(
         () => {

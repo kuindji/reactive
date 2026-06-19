@@ -64,6 +64,30 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         return actions.get(name) as ActionTypes[K];
     };
 
+    const has = (name: MapKey) => {
+        return actions.has(name as KeyOf<Actions>);
+    };
+
+    // Replace an action's function in place when it exists (preserving all of
+    // its listeners and the bus error-forwarding listener, which is attached to
+    // the action's error event, not the function); otherwise add it.
+    const replace = (name: MapKey, action: BaseHandler) => {
+        const existing = actions.get(name as KeyOf<Actions>);
+        if (existing) {
+            existing.setAction(action);
+        }
+        else {
+            add(name, action);
+        }
+    };
+
+    // Named removeAction (not remove) because `remove` is an existing alias for
+    // removeListener. The removed action's listeners and its error-forwarding
+    // listener are dropped with it (they lived on the action's own events).
+    const removeAction = (name: MapKey) => {
+        actions.delete(name as KeyOf<Actions>);
+    };
+
     const invoke = <K extends KeyOf<Actions>>(
         name: K,
         ...args: Actions[K]["actionArguments"]
@@ -129,6 +153,9 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
 
     const api = {
         add,
+        replace,
+        removeAction,
+        has,
         get,
         invoke,
 
