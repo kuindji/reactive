@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { BaseActionBus } from "../actionBus";
-import type { ListenerOptions } from "../event";
-import type { ErrorListenerSignature, KeyOf } from "../lib/types";
+import type { BaseActionBus } from "../actionBus.js";
+import type { ListenerOptions } from "../event.js";
+import type { ErrorListenerSignature, KeyOf } from "../lib/types.js";
 
 export type { BaseActionBus, ErrorListenerSignature, ListenerOptions };
 

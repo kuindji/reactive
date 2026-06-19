@@ -1,11 +1,11 @@
 import { useContext, useEffect, useMemo, useRef } from "react";
-import { createEvent, type EventOptions } from "../event";
+import { createEvent, type EventOptions } from "../event.js";
 import type {
     BaseHandler,
     ErrorListenerSignature,
     ErrorResponse,
-} from "../lib/types";
-import { ErrorBoundaryContext } from "./ErrorBoundary";
+} from "../lib/types.js";
+import { ErrorBoundaryContext } from "./ErrorBoundary.js";
 
 export type {
     BaseHandler,

@@ -1,13 +1,13 @@
 import { useContext, useEffect, useMemo, useRef } from "react";
-import type { ActionResponse, ListenerSignature } from "../action";
-import type { BaseActionsMap } from "../actionBus";
-import { createActionMap } from "../actionMap";
+import type { ActionResponse, ListenerSignature } from "../action.js";
+import type { BaseActionsMap } from "../actionBus.js";
+import { createActionMap } from "../actionMap.js";
 import type {
     ErrorListenerSignature,
     ErrorResponse,
     Simplify,
-} from "../lib/types";
-import { ErrorBoundaryContext } from "./ErrorBoundary";
+} from "../lib/types.js";
+import { ErrorBoundaryContext } from "./ErrorBoundary.js";
 
 export type {
     ActionResponse,

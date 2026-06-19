@@ -1,12 +1,12 @@
-import { ActionDefinitionHelper, createAction } from "./action";
-import { createEvent, ListenerOptions } from "./event";
+import { ActionDefinitionHelper, createAction } from "./action.js";
+import { createEvent, ListenerOptions } from "./event.js";
 import type {
     ApiType,
     BaseHandler,
     ErrorListenerSignature,
     KeyOf,
     MapKey,
-} from "./lib/types";
+} from "./lib/types.js";
 
 export interface BaseActionsMap {
     [key: MapKey]: BaseHandler;

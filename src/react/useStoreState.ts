@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { KeyOf } from "../lib/types";
-import { BaseStore } from "../store";
+import { KeyOf } from "../lib/types.js";
+import { BaseStore } from "../store.js";
 
 export function useStoreState<
     TStore extends BaseStore,

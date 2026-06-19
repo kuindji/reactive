@@ -1,10 +1,10 @@
-import { createEvent } from "./event";
+import { createEvent } from "./event.js";
 import type {
     EventDefinitionHelper,
     EventOptions,
     ListenerOptions,
-} from "./event";
-import isPromiseLike from "./lib/isPromiseLike";
+} from "./event.js";
+import isPromiseLike from "./lib/isPromiseLike.js";
 import {
     ApiType,
     BaseHandler,
@@ -13,7 +13,7 @@ import {
     MapKey,
     ProxyType,
     TriggerReturnType,
-} from "./lib/types";
+} from "./lib/types.js";
 
 type InterceptorFunction = (
     name: MapKey,

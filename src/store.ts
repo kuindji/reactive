@@ -1,10 +1,10 @@
-import { createEventBus, EventBusDefinitionHelper } from "./eventBus";
+import { createEventBus, EventBusDefinitionHelper } from "./eventBus.js";
 import type {
     ApiType,
     ErrorListenerSignature,
     KeyOf,
     MapKey,
-} from "./lib/types";
+} from "./lib/types.js";
 
 export interface BasePropMap {
     [key: MapKey]: any;
@@ -375,11 +375,42 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                 value,
                 prev,
             ] as unknown as ChangeEvents[typeof propName]["arguments"];
-            changes.trigger(propName, ...changeArgs);
+            try {
+                changes.trigger(propName, ...changeArgs);
+            }
+            catch (error) {
+                control.trigger(ErrorEventName, {
+                    error: error instanceof Error
+                        ? error
+                        : new Error(String(error)),
+                    args: changeArgs,
+                    type: "store-change",
+                    name: propName,
+                });
+                if (control.get(ErrorEventName)?.hasListener()) {
+                    continue;
+                }
+                throw error;
+            }
         }
 
         if (allChangedKeys.length > 0) {
-            control.trigger(ChangeEventName, allChangedKeys);
+            try {
+                control.trigger(ChangeEventName, allChangedKeys);
+            }
+            catch (error) {
+                control.trigger(ErrorEventName, {
+                    error: error instanceof Error
+                        ? error
+                        : new Error(String(error)),
+                    args: [ allChangedKeys ],
+                    type: "store-control",
+                });
+                if (control.get(ErrorEventName)?.hasListener()) {
+                    return;
+                }
+                throw error;
+            }
         }
     };
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { BaseAction } from "../action";
+import type { BaseAction } from "../action.js";
 
 export type { BaseAction };
 

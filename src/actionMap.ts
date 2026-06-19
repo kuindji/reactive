@@ -1,12 +1,12 @@
-import { createAction } from "./action";
-import type { ActionResponse } from "./action";
-import type { BaseActionsMap } from "./actionBus";
+import { createAction } from "./action.js";
+import type { ActionResponse } from "./action.js";
+import type { BaseActionsMap } from "./actionBus.js";
 import type {
     ErrorListenerSignature,
     ErrorResponse,
     KeyOf,
     Simplify,
-} from "./lib/types";
+} from "./lib/types.js";
 
 export type {
     ActionResponse,

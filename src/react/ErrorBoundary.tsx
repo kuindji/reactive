@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useRef } from "react";
-import type { ErrorListenerSignature, ErrorResponse } from "../lib/types";
+import type { ErrorListenerSignature, ErrorResponse } from "../lib/types.js";
 
 export type ErrorBoundaryProps = {
     children: React.ReactNode;

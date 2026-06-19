@@ -1,9 +1,9 @@
-import asyncCall from "./lib/asyncCall";
-import isPromiseLike from "./lib/isPromiseLike";
-import listenerSorter from "./lib/listenerSorter";
-import tagsIntersect from "./lib/tagsIntersect";
-import type { ApiType, BaseHandler, ErrorListenerSignature } from "./lib/types";
-import { TriggerReturnType } from "./lib/types";
+import asyncCall from "./lib/asyncCall.js";
+import isPromiseLike from "./lib/isPromiseLike.js";
+import listenerSorter from "./lib/listenerSorter.js";
+import tagsIntersect from "./lib/tagsIntersect.js";
+import type { ApiType, BaseHandler, ErrorListenerSignature } from "./lib/types.js";
+import { TriggerReturnType } from "./lib/types.js";
 
 type Unarray<T> = T extends (infer U)[] ? U : T;
 
@@ -126,7 +126,11 @@ export function createEvent<
 
     let listeners: Listener[] = [];
     const errorListeners: ErrorListener[] = [];
-    let queue: Array<[ Event["arguments"], TriggerReturnType | null ]> = [];
+    let queue: Array<[
+        Event["arguments"],
+        TriggerReturnType | null,
+        string[] | null,
+    ]> = [];
     let suspended: boolean = false;
     let queued: boolean = false;
     let triggered: number = 0;
@@ -345,7 +349,7 @@ export function createEvent<
 
         if (queue.length > 0) {
             for (let i = 0, l = queue.length; i < l; i++) {
-                _trigger(queue[i][0], queue[i][1]);
+                _trigger(queue[i][0], queue[i][1], queue[i][2]);
             }
             queue = [];
         }
@@ -492,7 +496,11 @@ export function createEvent<
         tags?: string[] | null,
     ) => {
         if (queued) {
-            queue.push([ args, returnType ]);
+            queue.push([
+                args,
+                returnType,
+                (tags || currentTagsFilter)?.slice() ?? null,
+            ]);
             return;
         }
         if (suspended) {

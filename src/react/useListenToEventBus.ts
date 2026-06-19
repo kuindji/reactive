@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { ListenerOptions } from "../event";
-import type { BaseEventBus } from "../eventBus";
-import type { ErrorListenerSignature, KeyOf } from "../lib/types";
+import type { ListenerOptions } from "../event.js";
+import type { BaseEventBus } from "../eventBus.js";
+import type { ErrorListenerSignature, KeyOf } from "../lib/types.js";
 
 export type { BaseEventBus, ErrorListenerSignature, ListenerOptions };
 

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { createStore } from "../store";
+import { createStore } from "../store.js";
 import type {
     BasePropMap,
     BeforeChangeEventName,
@@ -7,7 +7,7 @@ import type {
     ErrorEventName,
     ResetEventName,
     StoreDefinitionHelper,
-} from "../store";
+} from "../store.js";
 
 export type {
     BasePropMap,

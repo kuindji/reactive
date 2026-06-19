@@ -501,6 +501,27 @@ describe("store batch operations", () => {
 
         expect(changedKeys).toEqual([ "a", "c" ]);
     });
+
+    it("routes replayed change listener errors to store error listeners", () => {
+        const store = createStore({
+            a: 1,
+        });
+        const errors: string[] = [];
+
+        store.control(ErrorEventName, ({ error }) => {
+            errors.push(error.message);
+        });
+        store.onChange("a", () => {
+            throw new Error("Batch change error");
+        });
+
+        store.batch(() => {
+            store.set("a", 2);
+        });
+
+        expect(errors).toEqual([ "Batch change error" ]);
+        expect(store.get("a")).toBe(2);
+    });
 });
 
 describe("store with complex types", () => {

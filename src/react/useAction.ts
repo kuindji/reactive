@@ -1,16 +1,16 @@
 import { useContext, useEffect, useMemo, useRef } from "react";
-import { createAction } from "../action";
+import { createAction } from "../action.js";
 import type {
     ActionResponse,
     BeforeActionSignature,
     ListenerSignature,
-} from "../action";
+} from "../action.js";
 import type {
     BaseHandler,
     ErrorListenerSignature,
     ErrorResponse,
-} from "../lib/types";
-import { ErrorBoundaryContext } from "./ErrorBoundary";
+} from "../lib/types.js";
+import { ErrorBoundaryContext } from "./ErrorBoundary.js";
 
 export type {
     ActionResponse,

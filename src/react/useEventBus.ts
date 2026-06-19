@@ -4,14 +4,14 @@ import {
     createEventBus,
     DefaultEventMap,
     EventBusOptions,
-} from "../eventBus";
+} from "../eventBus.js";
 
 import type {
     BaseHandler,
     ErrorListenerSignature,
     ErrorResponse,
-} from "../lib/types";
-import { ErrorBoundaryContext } from "./ErrorBoundary";
+} from "../lib/types.js";
+import { ErrorBoundaryContext } from "./ErrorBoundary.js";
 
 export type {
     BaseEventMap,

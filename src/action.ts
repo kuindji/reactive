@@ -1,11 +1,11 @@
-import { createEvent } from "./event";
-import isPromiseLike from "./lib/isPromiseLike";
+import { createEvent } from "./event.js";
+import isPromiseLike from "./lib/isPromiseLike.js";
 import type {
     ApiType,
     BaseHandler,
     ErrorListenerSignature,
     ErrorResponse,
-} from "./lib/types";
+} from "./lib/types.js";
 
 export type ActionResponse<
     Response = any,

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { ListenerOptions } from "../event";
-import { KeyOf } from "../lib/types";
-import type { BaseStore } from "../store";
+import type { ListenerOptions } from "../event.js";
+import { KeyOf } from "../lib/types.js";
+import type { BaseStore } from "../store.js";
 
 export type { BaseStore, ListenerOptions };
 

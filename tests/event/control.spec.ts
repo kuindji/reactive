@@ -54,6 +54,22 @@ describe("event control", () => {
         expect(triggered).toEqual([ 1, 1, 1 ]);
     });
 
+    it("preserves tag filters when resuming queued events", () => {
+        const o = createEvent<() => void>();
+        const triggered: string[] = [];
+
+        o.addListener(() => triggered.push("a"), { tags: [ "a" ] });
+        o.addListener(() => triggered.push("b"), { tags: [ "b" ] });
+
+        o.suspend(true);
+        o.withTags([ "a" ], () => {
+            o.trigger();
+        });
+        o.resume();
+
+        expect(triggered).toEqual([ "a" ]);
+    });
+
     it("should indicate if it has a listener or not", () => {
         const o = createEvent<() => void>();
         const contextL = function() {};

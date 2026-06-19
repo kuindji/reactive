@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
-import type { BaseEvent, ListenerOptions } from "../event";
-import type { ErrorListenerSignature } from "../lib/types";
+import type { BaseEvent, ListenerOptions } from "../event.js";
+import type { ErrorListenerSignature } from "../lib/types.js";
 
 export type { BaseEvent, ErrorListenerSignature, ListenerOptions };
 
