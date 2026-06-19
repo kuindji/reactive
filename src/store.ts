@@ -363,8 +363,14 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         };
         changes.intercept(changeInterceptor);
         control.intercept(controlInterceptor);
+        let callbackError: unknown;
+        let hasCallbackError = false;
         try {
             fn();
+        }
+        catch (error) {
+            callbackError = error;
+            hasCallbackError = true;
         }
         finally {
             control.stopIntercepting();
@@ -392,6 +398,9 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                 if (control.get(ErrorEventName)?.hasListener()) {
                     continue;
                 }
+                if (hasCallbackError) {
+                    continue;
+                }
                 throw error;
             }
         }
@@ -409,10 +418,20 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                     type: "store-control",
                 });
                 if (control.get(ErrorEventName)?.hasListener()) {
+                    if (hasCallbackError) {
+                        throw callbackError;
+                    }
                     return;
+                }
+                if (hasCallbackError) {
+                    throw callbackError;
                 }
                 throw error;
             }
+        }
+
+        if (hasCallbackError) {
+            throw callbackError;
         }
     };
 

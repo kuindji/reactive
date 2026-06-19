@@ -522,6 +522,32 @@ describe("store batch operations", () => {
         expect(errors).toEqual([ "Batch change error" ]);
         expect(store.get("a")).toBe(2);
     });
+
+    it("replays batched changes before rethrowing callback errors", () => {
+        const store = createStore({
+            a: 1,
+        });
+        const changes: Array<{ value: number | undefined; prev: number }> = [];
+        let changedKeys: string[] = [];
+
+        store.onChange("a", (value, prev) => {
+            changes.push({ value, prev: prev! });
+        });
+        store.control("change", (keys) => {
+            changedKeys = keys as string[];
+        });
+
+        expect(() => {
+            store.batch(() => {
+                store.set("a", 2);
+                throw new Error("Batch failed");
+            });
+        }).toThrow("Batch failed");
+
+        expect(store.get("a")).toBe(2);
+        expect(changes).toEqual([ { value: 2, prev: 1 } ]);
+        expect(changedKeys).toEqual([ "a" ]);
+    });
 });
 
 describe("store with complex types", () => {

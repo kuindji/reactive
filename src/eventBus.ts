@@ -380,7 +380,6 @@ export function createEventBus<
                     name,
                     listener.listener,
                     evs.eventSource,
-                    options,
                 );
                 evs.subscribed.push(name);
             }
