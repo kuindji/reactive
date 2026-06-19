@@ -29,7 +29,11 @@ export function useListenToStoreChanges<
         () => {
             store.onChange(key, genericHandler, options);
             return () => {
-                store.removeOnChange(key, genericHandler);
+                store.removeOnChange(
+                    key,
+                    genericHandler,
+                    options?.context ?? null,
+                );
             };
         },
         [ store, key, genericHandler ],

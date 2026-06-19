@@ -22,6 +22,14 @@
         "typescript": "^5.9.3",
         "typescript-eslint": "^8.48.0"
     },
+    "peerDependencies": {
+        "react": ">=18.0.0"
+    },
+    "peerDependenciesMeta": {
+        "react": {
+            "optional": true
+        }
+    },
     "exports": {
         ".": {
             "types": "./dist/index.d.ts",

@@ -3,7 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { useCallback, useEffect } from "react";
 import { useListenToStoreChanges } from "../../src/react/useListenToStoreChanges";
 import { useStore } from "../../src/react/useStore";
-import { ChangeEventName } from "../../src/store";
+import { ChangeEventName, createStore } from "../../src/store";
 
 const initialData = {
     a: 1,
@@ -89,5 +89,34 @@ describe("useStore", () => {
         render(<App />);
 
         expect(onChangeTriggered).toBe(true);
+    });
+
+    it("should remove context listener on unmount", () => {
+        const store = createStore<{ a: number; }>({ a: 1 });
+        const context = {};
+        let triggered = 0;
+
+        function Component() {
+            useListenToStoreChanges(
+                store,
+                "a",
+                () => {
+                    triggered++;
+                },
+                { context },
+            );
+
+            return null;
+        }
+
+        const { unmount } = render(<Component />);
+
+        store.set("a", 2);
+        expect(triggered).toBe(1);
+
+        unmount();
+        store.set("a", 3);
+
+        expect(triggered).toBe(1);
     });
 });
