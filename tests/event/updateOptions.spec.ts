@@ -97,6 +97,24 @@ describe("event updateListenerOptions", () => {
         expect(order).toEqual([2, 1]);
     });
 
+    it("clearing alwaysLast restores insertion order (index preserved)", () => {
+        const o = createEvent<() => void>();
+        const order: number[] = [];
+        const h1 = () => order.push(1);
+        const h2 = () => order.push(2);
+        const h3 = () => order.push(3);
+        o.addListener(h1);
+        o.addListener(h2, { alwaysLast: true });
+        o.addListener(h3);
+        o.trigger();
+        expect(order).toEqual([ 1, 3, 2 ]);
+
+        order.length = 0;
+        o.updateListenerOptions(h2, null, {});
+        o.trigger();
+        expect(order).toEqual([ 1, 2, 3 ]);
+    });
+
     it("normalizes async true to 1", () => {
         const o = createEvent<() => void>();
         const handler = () => {};

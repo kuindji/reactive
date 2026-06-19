@@ -197,6 +197,25 @@ describe("useEvent option reconciliation", () => {
         expect(calls).toBe(2);
     });
 
+    it("removed option fields reset to defaults", () => {
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp options={{ limit: 1 }} />);
+        const event = h.getEvent();
+        let calls = 0;
+        event.addListener(() => {
+            calls++;
+        });
+        event.trigger();
+        event.trigger();
+        expect(calls).toBe(1); // limit 1
+
+        // removing limit should restore unlimited triggering
+        rerender(<h.Comp options={{}} />);
+        event.trigger();
+        event.trigger();
+        expect(calls).toBe(3);
+    });
+
     it("changed autoTrigger affects future listeners", () => {
         const h = makeHarness();
         const { rerender } = render(<h.Comp options={{}} />);

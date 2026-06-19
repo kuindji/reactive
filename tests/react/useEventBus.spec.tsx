@@ -190,6 +190,27 @@ describe("useEventBus option reconciliation", () => {
         expect(calls).toBe(1);
     });
 
+    it("removed field within a present entry resets to default", () => {
+        const h = makeHarness();
+        const { rerender } = render(
+            <h.Comp options={{ eventOptions: { a: { limit: 1 } } }} />,
+        );
+        const bus = h.getBus();
+        let calls = 0;
+        bus.addListener("a", () => {
+            calls++;
+        });
+        bus.trigger("a", 1);
+        bus.trigger("a", 1);
+        expect(calls).toBe(1);
+
+        // entry 'a' still present but limit removed -> unlimited again
+        rerender(<h.Comp options={{ eventOptions: { a: {} } }} />);
+        bus.trigger("a", 1);
+        bus.trigger("a", 1);
+        expect(calls).toBe(3);
+    });
+
     it("removed event-name options leave the existing event unchanged", () => {
         const h = makeHarness();
         const { rerender } = render(

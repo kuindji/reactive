@@ -1,6 +1,7 @@
 import { createAction } from "./action.js";
 import type { ActionResponse } from "./action.js";
 import type { BaseActionsMap } from "./actionBus.js";
+import { ActionMapSetErrorListeners } from "./lib/actionMapInternal.js";
 import type {
     ErrorListenerSignature,
     ErrorResponse,
@@ -14,16 +15,6 @@ export type {
     ErrorListenerSignature,
     ErrorResponse,
 };
-
-/**
- * Symbol-keyed setter on the returned action map for updating the forwarded
- * error listeners in place (used by useActionMap to reconcile a changed error
- * listener without recreating actions). Symbol-keyed so it never collides with
- * action names and is invisible to for-in / Object.keys iteration.
- */
-export const ActionMapSetErrorListeners: unique symbol = Symbol(
-    "actionMapSetErrorListeners",
-);
 
 export function createActionMap<M extends BaseActionsMap>(
     actions: M,

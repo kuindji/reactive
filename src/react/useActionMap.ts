@@ -1,7 +1,8 @@
 import { useContext, useEffect, useMemo, useRef } from "react";
 import type { ActionResponse, ListenerSignature } from "../action.js";
 import type { BaseActionsMap } from "../actionBus.js";
-import { ActionMapSetErrorListeners, createActionMap } from "../actionMap.js";
+import { createActionMap } from "../actionMap.js";
+import { ActionMapSetErrorListeners } from "../lib/actionMapInternal.js";
 import type {
     ErrorListenerSignature,
     ErrorResponse,

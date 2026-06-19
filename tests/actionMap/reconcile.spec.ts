@@ -1,8 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import {
-    ActionMapSetErrorListeners,
-    createActionMap,
-} from "../../src/actionMap";
+import { createActionMap } from "../../src/actionMap";
+import { ActionMapSetErrorListeners } from "../../src/lib/actionMapInternal";
 
 describe("actionMap reconcile primitives", () => {
     it("setAction on a map entry preserves listeners and swaps impl", async () => {

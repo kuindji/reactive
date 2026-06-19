@@ -295,7 +295,10 @@ export function createEvent<
         }
         listener.async = nextAsync;
 
-        // Re-sort if ordering hints changed.
+        // Re-sort if ordering hints changed. Unlike addListener we do NOT
+        // rewrite each listener's index here: the existing indices hold the
+        // original insertion order, and preserving them lets sorting restore
+        // that order when alwaysFirst/alwaysLast is cleared.
         if (
             listener.alwaysFirst !== prevAlwaysFirst
             || listener.alwaysLast !== prevAlwaysLast
@@ -304,9 +307,6 @@ export function createEvent<
                 sortListeners = true;
             }
             if (sortListeners) {
-                listeners.forEach((l, inx: number) => {
-                    l.index = inx;
-                });
                 listeners.sort((l1, l2) => listenerSorter<Listener>(l1, l2));
             }
         }

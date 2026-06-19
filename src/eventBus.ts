@@ -5,6 +5,7 @@ import type {
     ListenerOptions,
 } from "./event.js";
 import isPromiseLike from "./lib/isPromiseLike.js";
+import { normalizeEventOptions } from "./lib/normalizeEventOptions.js";
 import {
     ApiType,
     BaseHandler,
@@ -323,7 +324,9 @@ export function createEventBus<
                 | EventTypes[KeyOf<Events>]
                 | undefined;
             if (e) {
-                e.setOptions(eventOptions[name]);
+                // Normalize so fields removed from a present entry reset to
+                // their defaults (event.setOptions merges, it does not reset).
+                e.setOptions(normalizeEventOptions(eventOptions[name]));
             }
         });
     };

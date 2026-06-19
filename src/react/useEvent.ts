@@ -5,6 +5,7 @@ import type {
     ErrorListenerSignature,
     ErrorResponse,
 } from "../lib/types.js";
+import { normalizeEventOptions } from "../lib/normalizeEventOptions.js";
 import { ErrorBoundaryContext } from "./ErrorBoundary.js";
 import { areEventOptionsEqual } from "./listenerOptionsEqual.js";
 
@@ -65,7 +66,11 @@ export function useEvent<
                 eventOptions as EventOptions<BaseHandler>,
             )
         ) {
-            event.setOptions(eventOptions);
+            // Normalize so fields removed since the last render reset to their
+            // defaults (event.setOptions merges, it does not reset).
+            event.setOptions(
+                normalizeEventOptions(eventOptions as EventOptions<BaseHandler>),
+            );
         }
         committedEventOptionsRef.current = eventOptions;
     });
