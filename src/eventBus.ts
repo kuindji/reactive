@@ -198,6 +198,8 @@ export function createEventBus<
     type EventTypes = EventBus["eventTypes"];
 
     const events = new Map<KeyOf<Events>, any>();
+    let currentEventBusOptions: EventBusOptions<EventsMap> | undefined =
+        eventBusOptions;
     let currentTagsFilter: string[] | null = null;
     let interceptor: InterceptorFunction | null = null;
     const proxyListeners: ProxyListener[] = [];
@@ -296,10 +298,34 @@ export function createEventBus<
         if (!events.has(name)) {
             events.set(
                 name,
-                createEvent(eventBusOptions?.eventOptions?.[name]),
+                createEvent(currentEventBusOptions?.eventOptions?.[name]),
             );
         }
         return events.get(name) as EventTypes[K];
+    };
+
+    // Parameter is intentionally map-independent (like `add`) so that the
+    // method type is identical across instantiations and a typed bus stays
+    // assignable to BaseEventBus (which the React listener hooks rely on).
+    const setOptions = (options?: EventBusOptions<BaseEventMap>) => {
+        currentEventBusOptions = options as
+            | EventBusOptions<EventsMap>
+            | undefined;
+        const eventOptions = options?.eventOptions;
+        if (!eventOptions) {
+            return;
+        }
+        // Apply present entries to already-created events. Removed entries are
+        // intentionally left as-is (the bus can change an event's options but
+        // does not un-set them).
+        Object.keys(eventOptions).forEach((name) => {
+            const e = events.get(name as KeyOf<Events>) as
+                | EventTypes[KeyOf<Events>]
+                | undefined;
+            if (e) {
+                e.setOptions(eventOptions[name]);
+            }
+        });
     };
 
     const intercept = (fn: InterceptorFunction) => {
@@ -1036,6 +1062,7 @@ export function createEventBus<
         dispatch: trigger,
         get,
         add,
+        setOptions,
         first,
         resolveFirst,
         all,

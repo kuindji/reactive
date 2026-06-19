@@ -119,3 +119,90 @@ describe("useListenToEventBus", () => {
         expect(triggered).toBe(1);
     });
 });
+
+describe("useEventBus option reconciliation", () => {
+    type Events = { a: (n: number) => void };
+
+    function makeHarness() {
+        const buses: ReturnType<typeof createEventBus<Events>>[] = [];
+        function Comp(
+            { options }: { options?: import("../../src/eventBus").EventBusOptions<Events> },
+        ) {
+            const bus = useEventBus<Events>(options);
+            buses.push(bus);
+            return null;
+        }
+        return { Comp, getBus: () => buses[buses.length - 1] };
+    }
+
+    it("inline semantically equal options do not throw or reset", () => {
+        const h = makeHarness();
+        const { rerender } = render(
+            <h.Comp options={{ eventOptions: { a: { limit: 1 } } }} />,
+        );
+        const bus = h.getBus();
+        let calls = 0;
+        bus.addListener("a", () => {
+            calls++;
+        });
+        bus.trigger("a", 1);
+        bus.trigger("a", 1);
+        expect(calls).toBe(1);
+
+        rerender(<h.Comp options={{ eventOptions: { a: { limit: 1 } } }} />);
+        bus.trigger("a", 1);
+        expect(calls).toBe(1);
+        // bus identity preserved
+        expect(h.getBus()).toBe(bus);
+    });
+
+    it("changed event options affect an already-created event", () => {
+        const h = makeHarness();
+        const { rerender } = render(
+            <h.Comp options={{ eventOptions: { a: { limit: 1 } } }} />,
+        );
+        const bus = h.getBus();
+        let calls = 0;
+        bus.addListener("a", () => {
+            calls++;
+        });
+        bus.trigger("a", 1);
+        bus.trigger("a", 1);
+        expect(calls).toBe(1);
+
+        rerender(<h.Comp options={{ eventOptions: { a: { limit: 2 } } }} />);
+        bus.trigger("a", 1);
+        expect(calls).toBe(2);
+    });
+
+    it("changed options affect an event created after rerender", () => {
+        const h = makeHarness();
+        const { rerender } = render(<h.Comp options={{}} />);
+        const bus = h.getBus();
+        rerender(<h.Comp options={{ eventOptions: { a: { limit: 1 } } }} />);
+
+        let calls = 0;
+        bus.addListener("a", () => {
+            calls++;
+        });
+        bus.trigger("a", 1);
+        bus.trigger("a", 1);
+        expect(calls).toBe(1);
+    });
+
+    it("removed event-name options leave the existing event unchanged", () => {
+        const h = makeHarness();
+        const { rerender } = render(
+            <h.Comp options={{ eventOptions: { a: { limit: 1 } } }} />,
+        );
+        const bus = h.getBus();
+        let calls = 0;
+        bus.addListener("a", () => {
+            calls++;
+        });
+        rerender(<h.Comp options={{ eventOptions: {} as any }} />);
+        bus.trigger("a", 1);
+        bus.trigger("a", 1);
+        expect(calls).toBe(1);
+    });
+});

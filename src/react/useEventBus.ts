@@ -12,6 +12,7 @@ import type {
     ErrorResponse,
 } from "../lib/types.js";
 import { ErrorBoundaryContext } from "./ErrorBoundary.js";
+import { areEventBusOptionsEqual } from "./listenerOptionsEqual.js";
 
 export type {
     BaseEventMap,
@@ -31,7 +32,9 @@ export function useEventBus<
     const boundaryErrorListener = useContext(
         ErrorBoundaryContext,
     ) as ErrorListenerSignature<any[]>;
-    const updateRef = useRef(0);
+    const committedOptionsRef = useRef<EventBusOptions<EventsMap> | undefined>(
+        eventBusOptions,
+    );
     const errorListenerRef = useRef<ErrorListenerSignature<any[]> | null>(
         errorListener || null,
     );
@@ -61,17 +64,25 @@ export function useEventBus<
         [],
     );
 
-    useEffect(
-        () => {
-            if (eventBusOptions) {
-                if (updateRef.current > 0) {
-                    throw new Error("EventBus options can't be updated");
-                }
-                updateRef.current++;
-            }
-        },
-        [ eventBusOptions ],
-    );
+    // Reconcile event bus options across renders instead of throwing. Present
+    // entries are applied via event.setOptions; a removed event-name entry
+    // leaves the existing event unchanged.
+    useEffect(() => {
+        if (committedOptionsRef.current === eventBusOptions) {
+            return;
+        }
+        if (
+            !areEventBusOptionsEqual(
+                committedOptionsRef.current as EventBusOptions<BaseEventMap>,
+                eventBusOptions as EventBusOptions<BaseEventMap>,
+            )
+        ) {
+            eventBus.setOptions(
+                eventBusOptions as EventBusOptions<BaseEventMap>,
+            );
+        }
+        committedOptionsRef.current = eventBusOptions;
+    });
 
     useEffect(
         () => {
@@ -142,7 +153,6 @@ export function useEventBus<
                     );
                     boundaryErrorListenerRef.current = null;
                 }
-                updateRef.current = 0;
             };
         },
         [],

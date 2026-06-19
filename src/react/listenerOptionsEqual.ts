@@ -1,4 +1,5 @@
 import type { EventOptions, ListenerOptions } from "../event.js";
+import type { BaseEventMap, EventBusOptions } from "../eventBus.js";
 import type { BaseHandler } from "../lib/types.js";
 
 function normalizeAsync(
@@ -110,6 +111,34 @@ export function areEventOptionsEqual(
     }
     if ((aa.filterContext ?? null) !== (bb.filterContext ?? null)) {
         return false;
+    }
+    return true;
+}
+
+/**
+ * Compares the per-event `eventOptions` maps of two {@link EventBusOptions}.
+ * Equal when every event name present in either map has semantically equal
+ * {@link EventOptions} (missing entries compare as default options).
+ */
+export function areEventBusOptionsEqual(
+    a?: EventBusOptions<BaseEventMap> | null,
+    b?: EventBusOptions<BaseEventMap> | null,
+): boolean {
+    const aMap = a?.eventOptions ?? {};
+    const bMap = b?.eventOptions ?? {};
+    const names = new Set<string>([
+        ...Object.keys(aMap),
+        ...Object.keys(bMap),
+    ]);
+    for (const name of names) {
+        if (
+            !areEventOptionsEqual(
+                aMap[name] as EventOptions<BaseHandler> | undefined,
+                bMap[name] as EventOptions<BaseHandler> | undefined,
+            )
+        ) {
+            return false;
+        }
     }
     return true;
 }
