@@ -15,12 +15,23 @@ export type {
     ErrorResponse,
 };
 
+/**
+ * Symbol-keyed setter on the returned action map for updating the forwarded
+ * error listeners in place (used by useActionMap to reconcile a changed error
+ * listener without recreating actions). Symbol-keyed so it never collides with
+ * action names and is invisible to for-in / Object.keys iteration.
+ */
+export const ActionMapSetErrorListeners: unique symbol = Symbol(
+    "actionMapSetErrorListeners",
+);
+
 export function createActionMap<M extends BaseActionsMap>(
     actions: M,
     onAnyError?:
         | ErrorListenerSignature<any[]>
         | ErrorListenerSignature<any[]>[],
 ) {
+    let currentOnAnyError = onAnyError;
     type ActionMap = {
         [key in KeyOf<M>]: Simplify<ReturnType<typeof createAction<M[key]>>>;
     };
@@ -33,13 +44,14 @@ export function createActionMap<M extends BaseActionsMap>(
         (errorListenersMap as Record<string, unknown>)[key] = (
             errorResponse: ErrorResponse<any[]>,
         ) => {
-            if (Array.isArray(onAnyError)) {
-                for (const listener of onAnyError) {
+            const handlers = currentOnAnyError;
+            if (Array.isArray(handlers)) {
+                for (const listener of handlers) {
                     listener?.({ name: key, ...errorResponse });
                 }
             }
             else {
-                onAnyError?.({ name: key, ...errorResponse });
+                handlers?.({ name: key, ...errorResponse });
             }
         };
     }
@@ -51,6 +63,14 @@ export function createActionMap<M extends BaseActionsMap>(
         action.addErrorListener(errorListenersMap[key]);
         map[key] = action;
     }
+
+    (map as Record<symbol, unknown>)[ActionMapSetErrorListeners] = (
+        next?:
+            | ErrorListenerSignature<any[]>
+            | ErrorListenerSignature<any[]>[],
+    ) => {
+        currentOnAnyError = next;
+    };
 
     return map;
 }
