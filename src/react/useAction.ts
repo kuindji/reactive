@@ -34,7 +34,7 @@ export function useAction<
     const boundaryErrorListener = useContext(
         ErrorBoundaryContext,
     ) as ErrorListener;
-    const updateRef = useRef(0);
+    const actionSignatureRef = useRef<ActionSignature>(actionSignature);
     const listenerRef = useRef<Listener | null>(listener);
     const errorListenerRef = useRef<ErrorListener | null>(errorListener);
     const boundaryErrorListenerRef = useRef<ErrorListener | null>(
@@ -64,12 +64,16 @@ export function useAction<
         [],
     );
 
+    // Replace the action function in place when its reference changes,
+    // preserving all listeners and the action identity. A changed function
+    // must keep a compatible signature (TypeScript fixes the generic from the
+    // initial render).
     useEffect(
         () => {
-            if (updateRef.current > 0) {
-                throw new Error("Action cannot be updated");
+            if (actionSignatureRef.current !== actionSignature) {
+                action.setAction(actionSignature);
+                actionSignatureRef.current = actionSignature;
             }
-            updateRef.current++;
         },
         [ actionSignature ],
     );
@@ -157,7 +161,6 @@ export function useAction<
                 action.removeAllListeners();
                 action.removeAllBeforeActionListeners();
                 action.removeAllErrorListeners();
-                updateRef.current = 0;
             };
         },
         [],
