@@ -1,4 +1,5 @@
-import type { ListenerOptions } from "../event.js";
+import type { EventOptions, ListenerOptions } from "../event.js";
+import type { BaseHandler } from "../lib/types.js";
 
 function normalizeAsync(
     value: boolean | number | null | undefined,
@@ -75,6 +76,39 @@ export function areListenerOptionsEqual(
         return false;
     }
     if (!areTagsEqual(aa.tags, bb.tags)) {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Domain-specific comparator for {@link EventOptions}. Primitives compare after
+ * default semantics; `filter`/`filterContext` compare by reference.
+ */
+export function areEventOptionsEqual(
+    a?: EventOptions<BaseHandler> | null,
+    b?: EventOptions<BaseHandler> | null,
+): boolean {
+    const aa = a ?? {};
+    const bb = b ?? {};
+
+    if (normalizeAsync(aa.async) !== normalizeAsync(bb.async)) {
+        return false;
+    }
+    if ((aa.limit ?? null) !== (bb.limit ?? null)) {
+        return false;
+    }
+    if ((aa.autoTrigger ?? null) !== (bb.autoTrigger ?? null)) {
+        return false;
+    }
+    if ((aa.maxListeners ?? 0) !== (bb.maxListeners ?? 0)) {
+        return false;
+    }
+    // reference equality
+    if ((aa.filter ?? null) !== (bb.filter ?? null)) {
+        return false;
+    }
+    if ((aa.filterContext ?? null) !== (bb.filterContext ?? null)) {
         return false;
     }
     return true;

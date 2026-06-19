@@ -413,7 +413,7 @@ export function createEvent<
     };
 
     const setOptions = (
-        eventOptions: Pick<Event["options"], "async" | "limit" | "autoTrigger">,
+        eventOptions: Partial<EventOptions<ListenerSignature>>,
     ) => {
         Object.assign(options, eventOptions);
     };
