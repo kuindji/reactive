@@ -89,10 +89,12 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     ) => {
         const prev = data.get(name) as V | undefined;
         if (prev !== value) {
-            if (
-                control.firstNonEmpty(BeforeChangeEventName, name, value)
-                    === false
-            ) {
+            const beforeChangeResults = control.all(
+                BeforeChangeEventName,
+                name,
+                value,
+            );
+            if (beforeChangeResults.some((result) => result === false)) {
                 return;
             }
 

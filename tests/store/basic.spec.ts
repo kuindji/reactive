@@ -57,6 +57,19 @@ describe("store basic", () => {
         expect(store.get("a")).toBe(1);
     });
 
+    it("cancels change when any beforeChange listener returns false", () => {
+        const store = createStore({
+            a: 1,
+        });
+
+        store.control(BeforeChangeEventName, () => true);
+        store.control(BeforeChangeEventName, () => false);
+
+        store.set("a", 2);
+
+        expect(store.get("a")).toBe(1);
+    });
+
     it("triggers change event", () => {
         const store = createStore({
             a: 1,
