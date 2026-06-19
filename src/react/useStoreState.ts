@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { KeyOf } from "../lib/types.js";
 import { BaseStore } from "../store.js";
 
@@ -10,48 +10,39 @@ export function useStoreState<
     type Setter = (
         previousValue?: ValueType,
     ) => ValueType;
-    const [ value, setValue ] = useState<ValueType>(store.get(key));
-    const storeRef = useRef<TStore>(store);
-    const keyRef = useRef<TKey>(key);
 
-    const onChange = useCallback(
-        (value: ValueType) => {
-            setValue(value);
+    const subscribe = useCallback(
+        (onStoreChange: () => void) => {
+            const listener = () => {
+                onStoreChange();
+            };
+            store.onChange(key, listener);
+            return () => {
+                store.removeOnChange(key, listener);
+            };
         },
-        [],
+        [ store, key ],
+    );
+
+    const getSnapshot = useCallback(
+        () => store.get(key) as ValueType,
+        [ store, key ],
+    );
+
+    const value = useSyncExternalStore(
+        subscribe,
+        getSnapshot,
+        getSnapshot,
     );
 
     const setter = useCallback(
         (value: ValueType | Setter) => {
             if (typeof value === "function") {
-                storeRef.current.set(
-                    keyRef.current,
-                    (value as Setter)(storeRef.current.get(keyRef.current)),
-                );
+                store.set(key, (value as Setter)(store.get(key)));
             }
             else {
-                storeRef.current.set(keyRef.current, value);
+                store.set(key, value);
             }
-        },
-        [],
-    );
-
-    useEffect(
-        () => {
-            return () => {
-                storeRef.current.removeOnChange(keyRef.current, onChange);
-            };
-        },
-        [],
-    );
-
-    useEffect(
-        () => {
-            storeRef.current.removeOnChange(keyRef.current, onChange);
-            storeRef.current = store;
-            keyRef.current = key;
-            storeRef.current.onChange(keyRef.current, onChange);
-            setValue(store.get(key));
         },
         [ store, key ],
     );

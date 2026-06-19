@@ -1,8 +1,9 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "bun:test";
 import { useEffect, useRef } from "react";
 import { useStore } from "../../src/react/useStore";
 import { useStoreState } from "../../src/react/useStoreState";
+import { createStore } from "../../src/store";
 
 describe("useStoreState", () => {
     it("should work with store", (done) => {
@@ -36,5 +37,28 @@ describe("useStoreState", () => {
         }
 
         render(<App />);
+    });
+
+    it("renders the current key value immediately after key changes", () => {
+        const store = createStore({
+            a: 1,
+            b: 2,
+        });
+        const renderLog: string[] = [];
+
+        function Component({ stateKey }: { stateKey: "a" | "b"; }) {
+            const [ value ] = useStoreState(store, stateKey);
+            renderLog.push(`${stateKey}:${value}`);
+            return <div data-testid="value">{value}</div>;
+        }
+
+        const { rerender } = render(<Component stateKey="a" />);
+
+        expect(screen.getByTestId("value")).toHaveTextContent("1");
+
+        rerender(<Component stateKey="b" />);
+
+        expect(screen.getByTestId("value")).toHaveTextContent("2");
+        expect(renderLog).not.toContain("b:1");
     });
 });
