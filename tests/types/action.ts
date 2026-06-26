@@ -376,5 +376,33 @@ import { createAction } from "../../src/action";
     }
 }
 
+// ============================================================================
+// Action status
+// ============================================================================
+
+// Test: getStatus / onStatusChange infer the response type
+{
+    const action = createAction(async (id: string) => {
+        return Promise.resolve({ id, name: "John" });
+    });
+
+    const status = action.getStatus();
+    const _pending: boolean = status.pending;
+    const _error: Error | null = status.error;
+    if (status.response !== null) {
+        const _id: string = status.response.id;
+
+        // @ts-expect-error - Invalid: wrong property
+        const _wrong = status.response.wrongProp;
+    }
+
+    action.onStatusChange((s) => {
+        const _p: boolean = s.pending;
+        if (s.response !== null) {
+            const _name: string = s.response.name;
+        }
+    });
+}
+
 console.log("Action type tests passed!");
 

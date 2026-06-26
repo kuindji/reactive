@@ -27,6 +27,22 @@ export type ListenerSignature<ActionSignature extends BaseHandler> = (
     >,
 ) => void;
 
+/**
+ * Status of an action's `invoke` lifecycle, suitable for driving
+ * `loading`/`disabled` UI. `pending` is true while one or more invocations are
+ * in flight; `response`/`error` hold the last settled outcome (a before-veto
+ * settles to neither). This is not a cache — `response` is just the last value.
+ */
+export type ActionStatus<Response = any> = {
+    pending: boolean;
+    error: Error | null;
+    response: Response | null;
+};
+
+export type StatusListenerSignature<ActionSignature extends BaseHandler> = (
+    status: ActionStatus<Awaited<ReturnType<ActionSignature>>>,
+) => void;
+
 export type BeforeActionSignature<ActionSignature extends BaseHandler> = (
     ...args: Parameters<ActionSignature>
 ) => false | void | Promise<false | void>;
@@ -42,6 +58,8 @@ export type ActionDefinitionHelper<A extends BaseHandler> = {
     beforeActionSignature: BeforeActionSignature<A>;
     errorListenerArgument: ErrorResponse<Parameters<A>>;
     errorListenerSignature: ErrorListenerSignature<Parameters<A>>;
+    statusType: ActionStatus<Awaited<ReturnType<A>>>;
+    statusListenerSignature: StatusListenerSignature<A>;
 };
 
 export function createAction<A extends BaseHandler>(action: A) {
@@ -78,9 +96,50 @@ export function createAction<A extends BaseHandler>(action: A) {
         hasListener: hasErrorListeners,
     } = createEvent<Action["errorListenerSignature"]>();
 
+    // Status is a side channel over the invoke lifecycle: a dedicated event so
+    // a React hook can subscribe through useSyncExternalStore. The status
+    // object reference is kept stable and only rebuilt when a field actually
+    // changes, which is required for useSyncExternalStore to bail out of
+    // redundant renders.
+    const {
+        trigger: triggerStatus,
+        addListener: addStatusListener,
+        removeListener: removeStatusListener,
+    } = createEvent<Action["statusListenerSignature"]>();
+
+    let inFlight = 0;
+    let lastResponse: Action["actionReturnType"] | null = null;
+    let lastError: Error | null = null;
+    let currentStatus: Action["statusType"] = {
+        pending: false,
+        error: null,
+        response: null,
+    };
+
+    const updateStatus = () => {
+        const pending = inFlight > 0;
+        if (
+            currentStatus.pending === pending
+            && currentStatus.error === lastError
+            && currentStatus.response === lastResponse
+        ) {
+            return;
+        }
+        currentStatus = {
+            pending,
+            error: lastError,
+            response: lastResponse,
+        };
+        triggerStatus(currentStatus);
+    };
+
+    const getStatus = () => currentStatus;
+
     const invoke = async (
         ...args: Action["actionArguments"]
     ): Promise<Action["responseType"]> => {
+        inFlight++;
+        updateStatus();
         try {
             type BeforeResult = Awaited<
                 ReturnType<Action["beforeActionSignature"]>
@@ -93,6 +152,10 @@ export function createAction<A extends BaseHandler>(action: A) {
                 : beforeResponse;
             for (const before of beforeResults) {
                 if (before === false) {
+                    // A before-veto is not a UI failure: settle status to
+                    // neither response nor error.
+                    lastResponse = null;
+                    lastError = null;
                     const response = {
                         response: null,
                         error: "Action cancelled",
@@ -106,6 +169,8 @@ export function createAction<A extends BaseHandler>(action: A) {
             if (isPromiseLike(result)) {
                 result = await Promise.resolve(result);
             }
+            lastResponse = result;
+            lastError = null;
             const response = {
                 response: result,
                 error: null,
@@ -115,6 +180,12 @@ export function createAction<A extends BaseHandler>(action: A) {
             return response;
         }
         catch (error) {
+            // Record the failure before the re-throw branch so status is
+            // correct even when invoke re-throws (no error listener).
+            lastError = error instanceof Error
+                ? error
+                : new Error(error as string);
+            lastResponse = null;
             if (!hasErrorListeners()) {
                 throw error;
             }
@@ -125,13 +196,15 @@ export function createAction<A extends BaseHandler>(action: A) {
             };
             trigger(response);
             triggerError({
-                error: error instanceof Error
-                    ? error
-                    : new Error(error as string),
+                error: lastError,
                 args: args,
                 type: "action",
             });
             return response;
+        }
+        finally {
+            inFlight--;
+            updateStatus();
         }
     };
 
@@ -142,6 +215,9 @@ export function createAction<A extends BaseHandler>(action: A) {
     const api = {
         invoke,
         setAction,
+        getStatus,
+        onStatusChange: addStatusListener,
+        removeStatusListener,
         addListener,
         /** @alias addListener */
         on: addListener,

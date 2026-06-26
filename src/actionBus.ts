@@ -151,6 +151,47 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         return action.updateListenerOptions(handler, context, nextOptions);
     };
 
+    const idleStatus = {
+        pending: false,
+        error: null,
+        response: null,
+    } as const;
+
+    // Status lives on the underlying action (the single in-flight point);
+    // the bus just delegates per name. An unregistered name reports idle and
+    // is a no-op to (un)subscribe.
+    const getStatus = <K extends KeyOf<Actions>>(
+        name: K,
+    ): Actions[K]["statusType"] => {
+        const action: ActionTypes[K] | undefined = get(name);
+        if (!action) {
+            return idleStatus as Actions[K]["statusType"];
+        }
+        return action.getStatus();
+    };
+
+    const onStatusChange = <K extends KeyOf<Actions>>(
+        name: K,
+        handler: Actions[K]["statusListenerSignature"],
+    ) => {
+        const action: ActionTypes[K] | undefined = get(name);
+        if (!action) {
+            return;
+        }
+        return action.onStatusChange(handler);
+    };
+
+    const removeStatusListener = <K extends KeyOf<Actions>>(
+        name: K,
+        handler: Actions[K]["statusListenerSignature"],
+    ) => {
+        const action: ActionTypes[K] | undefined = get(name);
+        if (!action) {
+            return;
+        }
+        return action.removeStatusListener(handler);
+    };
+
     const api = {
         add,
         replace,
@@ -158,6 +199,10 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         has,
         get,
         invoke,
+
+        getStatus,
+        onStatusChange,
+        removeStatusListener,
 
         addListener: on,
         /** @alias addListener */
