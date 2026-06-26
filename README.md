@@ -9,8 +9,8 @@ A JavaScript/TypeScript utility library for building reactive applications with 
 ## Features
 
 - **Event System**: Event emitter with subscriber/dispatcher and collector modes
-- **Action System**: Async action handling with error management and response tracking
-- **Store System**: Reactive state management with change tracking and validation
+- **Action System**: Async action handling with error management, response tracking and loading/error/response status
+- **Store System**: Reactive state management with change tracking, validation and computed/derived values
 - **EventBus**: Centralized event management for complex applications
 - **ActionBus & ActionMap**: Organized action management with error handling
 - **React Integration**: Full React hooks support with error boundaries
@@ -578,6 +578,30 @@ const result = await fetchUserAction.invoke("user123");
 - `removeErrorListener(handler, context?)` - Remove error listener
 - `removeAllErrorListeners(tag?)` - Remove all error listeners
 
+#### Status (loading / error / response)
+
+An action tracks the status of its `invoke` lifecycle so UI can drive
+`loading`/`disabled` without a hand-rolled `useState(false)`. `pending` is true
+while one or more invocations are in flight; `response`/`error` hold the last
+settled outcome (a before-action veto settles to neither). This is **not** a
+cache — `response` is just the last value.
+
+- `getStatus()` - Returns `{ pending: boolean, error: Error | null, response: T | null }`. The reference is stable while unchanged (safe for `useSyncExternalStore`).
+- `onStatusChange(handler)` - Subscribe to status changes
+- `removeStatusListener(handler)` - Remove a status listener
+
+```typescript
+const saveAction = createAction(async (data: FormData) => save(data));
+
+saveAction.onStatusChange(({ pending, error }) => {
+    button.disabled = pending;
+});
+
+await saveAction.invoke(form); // pending -> true, then false on settle
+```
+
+In React, prefer the `useAsyncAction` / `useActionBusStatus` hooks (see React Hooks).
+
 #### Utility Methods
 
 - `promise(options?)` - Get promise for next invocation
@@ -704,6 +728,15 @@ const user = await actionBus.invoke("fetchUser", "user123");
   - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
 - `updateListenerOptions(name, handler, context?, nextOptions?)` - Update a response listener's soft options in place (see Event's `updateListenerOptions`)
 
+#### Status (loading / error / response)
+
+Delegates to the underlying action's status (see Action → Status). This is the
+primary path for apps that route mutations through one shared ActionBus.
+
+- `getStatus(name)` - Status for a named action; an unregistered name reports an idle status
+- `onStatusChange(name, handler)` - Subscribe to a named action's status (no-op for an unregistered name)
+- `removeStatusListener(name, handler)` - Remove a status listener
+
 #### Error Handling
 
 - `addErrorListener(handler)` - Add global error listener
@@ -761,6 +794,7 @@ const userData = userStore.get([ "name", "email" ]); // { name: string, email: s
 - `asyncSet(data)` - Async set multiple properties
 - `get(key)` - Get single property
 - `get(keys)` - Get multiple properties
+- `computed(key, deps, fn)` - Register a derived value (see Computed values)
 - `isEmpty()` - Check if store is empty
 - `getData()` - Get all store data
 - `reset()` - Clear store data
@@ -783,6 +817,38 @@ const userData = userStore.get([ "name", "email" ]); // { name: string, email: s
 #### Utility Methods
 
 - `batch(fn)` - Batch multiple changes
+
+#### Computed values
+
+Declare a derived key in the store type, then attach its derivation with
+`computed(key, deps, fn)`. It recomputes automatically when any dependency
+changes and notifies like any other key — `get`, `getData`, `onChange`,
+`useStoreState` and `useStoreSelector` all see it transparently. Computed keys
+are read-only: calling `set` on one throws. Computed-of-computed chains are
+supported, and a cyclic computed throws rather than looping.
+
+```typescript
+type UserStore = {
+    first: string;
+    last: string;
+    fullName: string; // declared in the type, registered as computed
+};
+
+const store = createStore<UserStore>({ first: "Jane", last: "Doe" });
+
+store.computed("fullName", [ "first", "last" ], (first, last) => `${first} ${last}`);
+
+store.get("fullName");        // "Jane Doe"
+store.onChange("fullName", (v) => console.log(v));
+store.set("first", "John");   // fullName recomputes -> "John Doe"
+store.set("fullName", "x");   // throws: computed is read-only
+```
+
+> **Known limitation:** recompute is registration-order, not topologically
+> sorted. A computed whose dependencies change together within a single
+> `set({...})`/`batch` can transiently emit an intermediate value before the
+> final one (the final value is always correct). Register base computeds before
+> the computeds that depend on them.
 
 ## React Hooks
 
@@ -963,6 +1029,31 @@ useListenToStoreChanges(
     listener: (value: TypeOfValue, previousValue?: TypeOfValue) => void
     listenerOptions?: ListenerOptions
 )
+```
+
+Select a derived slice with equality (bails out of re-renders while the result
+is unchanged). Two forms — a selector over the whole state, or a deps-keyed form
+that recomputes only when the listed keys change:
+
+```typescript
+// selector form (default equality is Object.is)
+const label = useStoreSelector(store, (s) => `${s.first} ${s.last}`, shallowEqual?);
+
+// deps-keyed form
+const anyLoading = useStoreSelector(store, [ "a", "b", "c" ], (a, b, c) => a || b || c);
+```
+
+Drive `loading`/`disabled` from an action's status. `useActionBusStatus` is the
+primary path for apps built around one shared ActionBus; `useAsyncAction` wraps a
+standalone function:
+
+```typescript
+// shared ActionBus
+const { loading, error, response } = useActionBusStatus(appActions, "user/login");
+
+// standalone action
+const [ submit, { loading, error } ] = useAsyncAction(saveProfileFn);
+// <Button loading={loading} disabled={loading} onClick={() => submit(form)} />
 ```
 
 ### Reconciliation across renders
