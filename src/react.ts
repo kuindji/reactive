@@ -12,4 +12,5 @@ export * from "./react/useListenToEvent.js";
 export * from "./react/useListenToEventBus.js";
 export * from "./react/useListenToStoreChanges.js";
 export * from "./react/useStore.js";
+export * from "./react/useStoreSelector.js";
 export * from "./react/useStoreState.js";
