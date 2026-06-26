@@ -74,6 +74,14 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     const control = createEventBus<Store["controlEvents"]>();
     let effectKeys: KeyOf<PropMap>[] = [];
 
+    // Computed keys are read-only via the public `set` and recompute via the
+    // `effect` control event. `computingKeys` is a per-key re-entrancy guard so
+    // a cyclic computed throws instead of looping forever.
+    const computedKeys = new Set<KeyOf<PropMap>>();
+    const computingKeys = new Set<KeyOf<PropMap>>();
+
+    const dedupe = (keys: MapKey[]): MapKey[] => Array.from(new Set(keys));
+
     const effectInterceptor = (name: MapKey, args: unknown[]) => {
         if (name === ChangeEventName) {
             effectKeys.push(...(args[0] as KeyOf<PropMap>[]));
@@ -181,7 +189,10 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
 
             if (triggerChange) {
                 try {
-                    control.trigger(ChangeEventName, [ name, ...effectKeys ]);
+                    control.trigger(
+                        ChangeEventName,
+                        dedupe([ name, ...effectKeys ]),
+                    );
                     if (!control.isIntercepting()) {
                         effectKeys = [];
                     }
@@ -244,9 +255,23 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         value?: V,
     ) {
         if (typeof name === "string") {
+            if (computedKeys.has(name)) {
+                throw new Error(
+                    `Cannot set computed property "${name}"`,
+                );
+            }
             _set(name, value);
         }
         else if (typeof name === "object") {
+            // Validate all keys before any write so a computed key in the patch
+            // throws without partially applying the others.
+            for (const k of Object.keys(name)) {
+                if (computedKeys.has(k)) {
+                    throw new Error(
+                        `Cannot set computed property "${k}"`,
+                    );
+                }
+            }
             const changedKeys: MapKey[] = [];
             const isIntercepting = control.isIntercepting();
             const hasEffectListener = control.get(EffectEventName)
@@ -256,31 +281,35 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
             if (shouldInterceptEffects) {
                 control.intercept(effectInterceptor);
             }
+            let allChangedKeys: MapKey[] = [];
             try {
                 Object.entries(name).forEach(([ k, v ]) => {
                     if (_set(k, v, false)) {
                         changedKeys.push(k);
                     }
                 });
-                const allChangedKeys = [
+                allChangedKeys = dedupe([
                     ...changedKeys,
                     ...effectKeys,
-                ];
-                if (allChangedKeys.length > 0) {
-                    try {
-                        control.trigger(ChangeEventName, allChangedKeys);
-                    }
-                    catch (error) {
-                        controlError = error instanceof Error
-                            ? error
-                            : new Error(String(error));
-                    }
-                }
+                ]);
             }
             finally {
                 if (shouldInterceptEffects) {
                     effectKeys = [];
                     control.stopIntercepting();
+                }
+            }
+            // Fire the outer change AFTER intercepting stops; otherwise the
+            // effectInterceptor (active during the loop to fold computed/effect
+            // writes into effectKeys) would swallow this trigger too.
+            if (allChangedKeys.length > 0) {
+                try {
+                    control.trigger(ChangeEventName, allChangedKeys);
+                }
+                catch (error) {
+                    controlError = error instanceof Error
+                        ? error
+                        : new Error(String(error));
                 }
             }
             if (controlError) {
@@ -440,12 +469,63 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         control.trigger(ResetEventName);
     };
 
+    // Registers `key` as a derived value recomputed from `deps`. Built as sugar
+    // over the `effect` control event: recompute writes via the internal `_set`
+    // (triggerChange = true) so the change folds into the same outer `change`
+    // batch via `effectKeys`. Computed keys flow transparently through
+    // get/getData/onChange/useStoreState/useStoreSelector.
+    //
+    // Known limitation: recompute is registration-order, not topologically
+    // sorted. A computed whose deps change together can transiently double-fire
+    // an intermediate value (the final value is always correct), and
+    // computed-of-computed should register the base before the dependent.
+    const computed = <
+        K extends KeyOf<PropMap>,
+        const D extends readonly KeyOf<PropMap>[],
+    >(
+        key: K,
+        deps: D,
+        fn: (...values: { [I in keyof D]: PropMap[D[I]] | undefined }) =>
+            PropMap[K],
+    ) => {
+        const compute = () =>
+            fn(
+                ...(deps.map((d) => data.get(d)) as {
+                    [I in keyof D]: PropMap[D[I]] | undefined;
+                }),
+            );
+
+        computedKeys.add(key);
+
+        // Seed the initial value directly (no change emitted at setup time).
+        data.set(key, compute());
+
+        control.addListener(EffectEventName, (changedName) => {
+            if ((deps as readonly MapKey[]).indexOf(changedName) === -1) {
+                return;
+            }
+            if (computingKeys.has(key)) {
+                throw new Error(
+                    `Cyclic computed dependency detected at "${key}"`,
+                );
+            }
+            computingKeys.add(key);
+            try {
+                _set(key, compute());
+            }
+            finally {
+                computingKeys.delete(key);
+            }
+        });
+    };
+
     const api = {
         set,
         get,
         getData,
         batch,
         asyncSet,
+        computed,
         isEmpty,
         reset,
         onChange: changes.addListener,

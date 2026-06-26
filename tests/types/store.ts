@@ -448,5 +448,37 @@ import { createStore } from "../../src/store";
     // After reset, state is cleared
 }
 
+// ============================================================================
+// Computed values
+// ============================================================================
+
+// Test: computed infers dep value types and the result type
+{
+    interface UserStore {
+        first: string;
+        last: string;
+        age: number;
+        fullName: string;
+    }
+
+    const store = createStore<UserStore>({ first: "Jane", last: "Doe" });
+
+    // Valid: dep values are typed, result matches the computed key's type
+    store.computed("fullName", [ "first", "last" ], (first, last) => {
+        const _f: string | undefined = first;
+        const _l: string | undefined = last;
+        return `${first} ${last}`;
+    });
+
+    // @ts-expect-error - Invalid: result type must match fullName (string)
+    store.computed("fullName", [ "age" ], (age) => age);
+
+    // @ts-expect-error - Invalid: unknown dependency key
+    store.computed("fullName", [ "unknown" ], () => "x");
+
+    // Computed keys read through get like any other key
+    const _name: string = store.get("fullName");
+}
+
 console.log("Store type tests passed!");
 
