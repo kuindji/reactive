@@ -41,6 +41,7 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
 
     const actions = new Map<KeyOf<Actions>, any>();
     const errorEvent = createEvent<ErrorListenerSignature<any[]>>();
+    let destroyed = false;
 
     if (errorListener) {
         errorEvent.addListener(errorListener);
@@ -92,6 +93,9 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         name: K,
         ...args: Actions[K]["actionArguments"]
     ) => {
+        if (destroyed) {
+            throw new Error("ActionBus is destroyed");
+        }
         const action = get(name);
         if (!action) {
             throw new Error(`Action ${name as string} not found`);
@@ -104,6 +108,9 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         handler: Actions[K]["listenerSignature"],
         options?: ListenerOptions,
     ) => {
+        if (destroyed) {
+            throw new Error("ActionBus is destroyed");
+        }
         const action: ActionTypes[K] = get(name);
         if (!action) {
             throw new Error(`Action ${name as string} not found`);
@@ -192,6 +199,20 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         return action.removeStatusListener(handler);
     };
 
+    // One-call teardown: destroy each owned action and the error event, then
+    // drop them all. Post-destroy invoke/addListener throw rather than silently
+    // no-op.
+    const destroy = () => {
+        actions.forEach((action: ActionTypes[KeyOf<Actions>]) => {
+            action.destroy();
+        });
+        actions.clear();
+        errorEvent.destroy();
+        destroyed = true;
+    };
+
+    const isDestroyed = () => destroyed;
+
     const api = {
         add,
         replace,
@@ -199,6 +220,8 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         has,
         get,
         invoke,
+        destroy,
+        isDestroyed,
 
         getStatus,
         onStatusChange,

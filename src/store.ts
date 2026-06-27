@@ -80,6 +80,13 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     const computedKeys = new Set<KeyOf<PropMap>>();
     const computingKeys = new Set<KeyOf<PropMap>>();
 
+    let destroyed = false;
+    const assertAlive = () => {
+        if (destroyed) {
+            throw new Error("Store is destroyed");
+        }
+    };
+
     const dedupe = (keys: MapKey[]): MapKey[] => Array.from(new Set(keys));
 
     const effectInterceptor = (name: MapKey, args: unknown[]) => {
@@ -254,6 +261,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         name: K,
         value?: V,
     ) {
+        assertAlive();
         if (typeof name === "string") {
             if (computedKeys.has(name)) {
                 throw new Error(
@@ -337,6 +345,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                     [AK in K[number]]: PropMap[AK];
                 }
             : never;
+        assertAlive();
         if (typeof key === "string") {
             const value: unknown = data.get(key);
             return value as V;
@@ -469,6 +478,21 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         control.trigger(ResetEventName);
     };
 
+    // One-call teardown: destroy the underlying change/pipe/control buses and
+    // drop all data. Post-destroy set/get throw rather than silently no-op.
+    const destroy = () => {
+        changes.destroy();
+        pipe.destroy();
+        control.destroy();
+        data.clear();
+        computedKeys.clear();
+        computingKeys.clear();
+        effectKeys = [];
+        destroyed = true;
+    };
+
+    const isDestroyed = () => destroyed;
+
     // Registers `key` as a derived value recomputed from `deps`. Built as sugar
     // over the `effect` control event: recompute writes via the internal `_set`
     // (triggerChange = true) so the change folds into the same outer `change`
@@ -528,6 +552,8 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         computed,
         isEmpty,
         reset,
+        destroy,
+        isDestroyed,
         onChange: changes.addListener,
         removeOnChange: changes.removeListener,
         updateOnChangeOptions: changes.updateListenerOptions,

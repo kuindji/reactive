@@ -53,21 +53,51 @@ export interface ListenerOptions extends BaseOptions {
      * You can pass any additional fields here. They will be passed back to TriggerFilter
      */
     extraData?: any;
+    /**
+     * When provided, the listener is auto-removed once the signal aborts. If the
+     * signal is already aborted the listener is not added at all.
+     */
+    signal?: AbortSignal | null;
 }
 
 interface ListenerPrototype<Handler extends BaseHandler>
-    extends Required<ListenerOptions>
+    extends Required<Omit<ListenerOptions, "signal">>
 {
     handler: Handler;
     called: number;
     count: number;
     index: number;
     start: number;
+    // Detaches the AbortSignal "abort" handler, if one was registered. Kept on
+    // the listener so a manual removeListener also unwinds the abort handler
+    // (no dangling reference into a still-live signal).
+    abortCleanup: (() => void) | null;
 }
 
 interface ErrorListenerPrototype<Handler extends BaseHandler> {
     handler: Handler;
     context?: object | null;
+}
+
+/**
+ * Read-only projection of a registered listener, returned by `getListeners()`.
+ * Carries the listener's options plus its live `called`/`count` counters but
+ * none of the mutable internals — mutating this object does not affect the
+ * event.
+ */
+export interface ListenerInfo<Handler extends BaseHandler = BaseHandler> {
+    handler: Handler;
+    context: object | null;
+    tags: string[];
+    limit: number;
+    start: number;
+    called: number;
+    count: number;
+    async: boolean | number | null;
+    first: boolean;
+    alwaysFirst: boolean;
+    alwaysLast: boolean;
+    extraData: any;
 }
 
 export interface EventOptions<
@@ -133,6 +163,7 @@ export function createEvent<
     ]> = [];
     let suspended: boolean = false;
     let queued: boolean = false;
+    let destroyed: boolean = false;
     let triggered: number = 0;
     let lastTrigger: Event["arguments"] | null = null;
     let sortListeners: boolean = false;
@@ -152,7 +183,15 @@ export function createEvent<
         handler: Event["signature"],
         listenerOptions: ListenerOptions = {} as ListenerOptions,
     ) => {
+        if (destroyed) {
+            throw new Error("Event is destroyed");
+        }
         if (!handler) {
+            return;
+        }
+
+        const signal = listenerOptions.signal ?? null;
+        if (signal?.aborted) {
             return;
         }
 
@@ -184,6 +223,7 @@ export function createEvent<
             limit: 0,
             async: null,
             ...listenerOptions,
+            abortCleanup: null,
         } as const;
 
         if (listener.async === true) {
@@ -209,6 +249,16 @@ export function createEvent<
             || listenerOptions?.alwaysLast === true
         ) {
             sortListeners = true;
+        }
+
+        if (signal) {
+            const onAbort = () => {
+                removeListener(handler, listenerContext);
+            };
+            signal.addEventListener("abort", onAbort, { once: true });
+            listener.abortCleanup = () => {
+                signal.removeEventListener("abort", onAbort);
+            };
         }
 
         if (
@@ -260,7 +310,8 @@ export function createEvent<
             return false;
         }
 
-        listeners.splice(inx, 1);
+        const [ removed ] = listeners.splice(inx, 1);
+        removed?.abortCleanup?.();
         return true;
     };
 
@@ -357,10 +408,15 @@ export function createEvent<
     const removeAllListeners = (tag?: string) => {
         if (tag) {
             listeners = listeners.filter((l) => {
-                return !l.tags || l.tags.indexOf(tag) === -1;
+                const keep = !l.tags || l.tags.indexOf(tag) === -1;
+                if (!keep) {
+                    l.abortCleanup?.();
+                }
+                return keep;
             });
         }
         else {
+            listeners.forEach((l) => l.abortCleanup?.());
             listeners = [];
         }
     };
@@ -421,7 +477,48 @@ export function createEvent<
     const isSuspended = () => suspended;
     const isQueued = () => queued;
 
+    // One-call teardown: drop all listeners (unwinding their abort handlers via
+    // reset) and mark the event dead. Post-destroy trigger/addListener throw
+    // rather than silently no-op, surfacing use-after-free.
+    const destroy = () => {
+        reset();
+        destroyed = true;
+    };
+
+    const isDestroyed = () => destroyed;
+
+    const listenerCount = (tag?: string | null): number => {
+        if (tag) {
+            return listeners.filter(
+                (l) => l.tags && l.tags.indexOf(tag) !== -1,
+            ).length;
+        }
+        return listeners.length;
+    };
+
+    const triggeredCount = (): number => triggered;
+
+    const lastTriggerArgs = (): Event["arguments"] | null => lastTrigger;
+
+    const getListeners = (): ListenerInfo<Event["signature"]>[] => {
+        return listeners.map((l) => ({
+            handler: l.handler,
+            context: l.context,
+            tags: l.tags ? l.tags.slice() : [],
+            limit: l.limit,
+            start: l.start,
+            called: l.called,
+            count: l.count,
+            async: l.async,
+            first: l.first,
+            alwaysFirst: l.alwaysFirst,
+            alwaysLast: l.alwaysLast,
+            extraData: l.extraData,
+        }));
+    };
+
     const reset = () => {
+        listeners.forEach((l) => l.abortCleanup?.());
         listeners.length = 0;
         errorListeners.length = 0;
         queue.length = 0;
@@ -552,6 +649,9 @@ export function createEvent<
         returnType: TriggerReturnType | null = null,
         tags?: string[] | null,
     ) => {
+        if (destroyed) {
+            throw new Error("Event is destroyed");
+        }
         if (queued) {
             queue.push([
                 args,
@@ -568,9 +668,11 @@ export function createEvent<
         }
         triggered++;
 
-        if (options.autoTrigger) {
-            lastTrigger = args.slice() as Event["arguments"];
-        }
+        // Always record the last trigger arguments for introspection
+        // (`lastTriggerArgs`). Copy rather than store the reference: consequent
+        // modes such as PIPE mutate `args[0]` in place while processing, which
+        // would otherwise corrupt the recorded snapshot.
+        lastTrigger = args.slice() as Event["arguments"];
 
         // in pipe mode if there is no listeners,
         // we just return piped value
@@ -808,6 +910,13 @@ export function createEvent<
         }
     };
 
+    const once = (
+        handler: Event["signature"],
+        listenerOptions: ListenerOptions = {} as ListenerOptions,
+    ) => {
+        return addListener(handler, { ...listenerOptions, limit: 1 });
+    };
+
     const promise = (options?: ListenerOptions) => {
         return new Promise<Event["arguments"]>((resolve) => {
             options = { ...(options || {}), limit: 1 };
@@ -995,6 +1104,7 @@ export function createEvent<
         listen: addListener,
         /** @alias addListener */
         subscribe: addListener,
+        once,
         removeListener,
         updateListenerOptions,
         /** @alias removeListener */
@@ -1020,8 +1130,14 @@ export function createEvent<
         resume,
         setOptions,
         reset,
+        destroy,
+        isDestroyed,
         isSuspended,
         isQueued,
+        listenerCount,
+        triggeredCount,
+        lastTriggerArgs,
+        getListeners,
         withTags,
         promise,
         first,

@@ -208,6 +208,16 @@ export function createEventBus<
         eventSource: EventSource;
         subscribed: MapKey[];
     }[] = [];
+    let destroyed: boolean = false;
+    // Registry of active relays so destroy() can unwind the external listeners
+    // they attach (reset()/destroy() otherwise leave them dangling).
+    const relays: {
+        eventSource: RelaySource;
+        remoteEventName: MapKey;
+        localEventName: MapKey | null;
+        proxyType?: ProxyType;
+        localEventNamePrefix: string | null;
+    }[] = [];
 
     const asterisk = createEvent<
         (name: MapKey, args: any[], tags: string[] | null) => void
@@ -355,6 +365,9 @@ export function createEventBus<
         handler: H,
         options?: ListenerOptions,
     ) => {
+        if (destroyed) {
+            throw new Error("EventBus is destroyed");
+        }
         const e: EventTypes[K] = _getOrAddEvent(name);
         eventSources.forEach((evs) => {
             if (
@@ -478,6 +491,9 @@ export function createEventBus<
         returnType?: TriggerReturnType | null,
         resolve?: boolean,
     ) => {
+        if (destroyed) {
+            throw new Error("EventBus is destroyed");
+        }
         if (name === "*") {
             return;
         }
@@ -881,6 +897,38 @@ export function createEventBus<
         eventSources.length = 0;
     };
 
+    // One-call teardown: unwind external attachments (relays + event sources)
+    // that reset() leaves dangling, destroy every owned event, and mark the bus
+    // dead. Post-destroy trigger/addListener throw rather than silently no-op.
+    const destroy = () => {
+        relays.slice().forEach((r) => {
+            unrelay({
+                eventSource: r.eventSource,
+                remoteEventName: r.remoteEventName,
+                localEventName: r.localEventName,
+                proxyType: r.proxyType,
+                localEventNamePrefix: r.localEventNamePrefix,
+            });
+        });
+        eventSources.slice().forEach((evs) => {
+            removeEventSource(evs.eventSource);
+        });
+        events.forEach((event: EventTypes[KeyOf<Events>]) => {
+            event.destroy();
+        });
+        events.clear();
+        asterisk.destroy();
+        errorEvent.destroy();
+        proxyListeners.length = 0;
+        eventSources.length = 0;
+        relays.length = 0;
+        interceptor = null;
+        currentTagsFilter = null;
+        destroyed = true;
+    };
+
+    const isDestroyed = () => destroyed;
+
     const suspendAll = (withQueue: boolean = false) => {
         events.forEach((event: EventTypes[KeyOf<Events>]) => {
             event.suspend(withQueue);
@@ -924,6 +972,13 @@ export function createEventBus<
         else {
             eventSource.on(remoteEventName, listener.listener);
         }
+        relays.push({
+            eventSource,
+            remoteEventName,
+            localEventName: localEventName || null,
+            proxyType,
+            localEventNamePrefix: localEventNamePrefix || null,
+        });
     };
 
     const unrelay = ({
@@ -958,6 +1013,16 @@ export function createEventBus<
             else {
                 eventSource.un(remoteEventName, listener.listener);
             }
+        }
+        const inx = relays.findIndex((r) =>
+            r.eventSource === eventSource
+            && r.remoteEventName === remoteEventName
+            && r.localEventName === (localEventName || null)
+            && r.proxyType === proxyType
+            && r.localEventNamePrefix === (localEventNamePrefix || null)
+        );
+        if (inx !== -1) {
+            relays.splice(inx, 1);
         }
     };
 
@@ -1088,6 +1153,8 @@ export function createEventBus<
         stopIntercepting,
         isIntercepting,
         reset,
+        destroy,
+        isDestroyed,
         suspendAll,
         resumeAll,
         relay,

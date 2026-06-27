@@ -77,6 +77,7 @@ export function createAction<A extends BaseHandler>(action: A) {
         removeListener,
         updateListenerOptions,
         promise,
+        destroy: destroyResponseEvent,
     } = createEvent<Action["listenerSignature"]>();
 
     const {
@@ -85,6 +86,7 @@ export function createAction<A extends BaseHandler>(action: A) {
         removeAllListeners: removeAllBeforeActionListeners,
         removeListener: removeBeforeActionListener,
         promise: beforeActionPromise,
+        destroy: destroyBeforeEvent,
     } = createEvent<Action["beforeActionSignature"]>();
 
     const {
@@ -94,6 +96,7 @@ export function createAction<A extends BaseHandler>(action: A) {
         removeListener: removeErrorListener,
         promise: errorPromise,
         hasListener: hasErrorListeners,
+        destroy: destroyErrorEvent,
     } = createEvent<Action["errorListenerSignature"]>();
 
     // Status is a side channel over the invoke lifecycle: a dedicated event so
@@ -105,8 +108,10 @@ export function createAction<A extends BaseHandler>(action: A) {
         trigger: triggerStatus,
         addListener: addStatusListener,
         removeListener: removeStatusListener,
+        destroy: destroyStatusEvent,
     } = createEvent<Action["statusListenerSignature"]>();
 
+    let destroyed = false;
     let inFlight = 0;
     let lastResponse: Action["actionReturnType"] | null = null;
     let lastError: Error | null = null;
@@ -138,6 +143,9 @@ export function createAction<A extends BaseHandler>(action: A) {
     const invoke = async (
         ...args: Action["actionArguments"]
     ): Promise<Action["responseType"]> => {
+        if (destroyed) {
+            throw new Error("Action is destroyed");
+        }
         inFlight++;
         updateStatus();
         try {
@@ -212,9 +220,24 @@ export function createAction<A extends BaseHandler>(action: A) {
         actionFn = nextAction;
     };
 
+    // One-call teardown: destroy the underlying response/before/error/status
+    // events and mark the action dead. Post-destroy invoke/addListener throw
+    // rather than silently no-op.
+    const destroy = () => {
+        destroyResponseEvent();
+        destroyBeforeEvent();
+        destroyErrorEvent();
+        destroyStatusEvent();
+        destroyed = true;
+    };
+
+    const isDestroyed = () => destroyed;
+
     const api = {
         invoke,
         setAction,
+        destroy,
+        isDestroyed,
         getStatus,
         onStatusChange: addStatusListener,
         removeStatusListener,

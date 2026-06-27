@@ -99,7 +99,19 @@ event.addListener(handler, {
     tags: string[], // Listener tags for filtering; default undefined
     async: booleantrue, // Call this listener asynchronously; default false
     extraData: object, // Custom data will be passed to filter()
+    signal: AbortSignal, // Auto-remove the listener when this signal aborts
 });
+```
+
+When a `signal` is provided, the listener is removed automatically once the
+signal aborts (and is not added at all if the signal is already aborted). The
+abort subscription is cleaned up if the listener is removed first, so there is no
+dangling reference into a still-live signal:
+
+```typescript
+const controller = new AbortController();
+event.addListener(handler, { signal: controller.signal });
+controller.abort(); // handler is now removed
 ```
 
 ### Collector
@@ -159,6 +171,7 @@ const value = event.pipe(1); // value = 4
 
 - `addListener(listener, options?)` - Add event listener
   - **Aliases**: `on()`, `listen()`, `subscribe()`
+- `once(listener, options?)` - Add a listener that is removed after a single call (sugar for `addListener(listener, { ...options, limit: 1 })`)
 - `removeListener(listener, context?, tag?)` - Remove specific listener
   - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
 - `updateListenerOptions(listener, context?, nextOptions?)` - Update a registered listener's soft options (`limit`, `start`, `async`, `tags`, `extraData`, `alwaysFirst`/`alwaysLast`) **in place**, preserving its `called`/`count` counters. Matches the listener by `listener` + `context`. Returns `true` if a listener was found. `context` is an identity field and is not updated here (resubscribe to change it); `first` is insertion-time only and ignored. Lowering `limit` to at/below the current `called` removes the listener immediately.
@@ -197,7 +210,16 @@ const value = event.pipe(1); // value = 4
 - `suspend(withQueue?: boolean)` - Suspend event triggering; When `withQueue=true`, all trigger calls will be queued and replayed after resume()
 - `resume()` - Resume event triggering
 - `reset()` - Reset event state
+- `destroy()` - Tear down the event: remove all listeners (unwinding any `AbortSignal` subscriptions) and mark it dead. After `destroy()`, `trigger()` and `addListener()` throw rather than silently no-op.
+- `isDestroyed()` - Returns `true` once `destroy()` has been called
 - `withTags(tags: string[], callback: () => CallbackResponse) => CallbackResponse` - Execute callback with specific tags
+
+#### Introspection
+
+- `listenerCount(tag?)` - Number of registered listeners, optionally filtered by tag
+- `triggeredCount()` - How many times the event has been triggered
+- `lastTriggerArgs()` - The most recent trigger arguments (a copy), or `null` if never triggered
+- `getListeners()` - Read-only projection of registered listeners (`handler`, `context`, `tags`, `limit`, `start`, `called`, `count`, `async`, ordering flags, `extraData`). Mutating the returned objects does not affect the event.
 
 ## EventBus
 
@@ -523,6 +545,8 @@ customSource.trigger("appStart");
 - `suspendAll(withQueue?)` - Suspend all events
 - `resumeAll()` - Resume all events
 - `reset()` - Reset all events
+- `destroy()` - Tear down the bus: unrelay all relays, remove all event sources (detaching their external listeners — which `reset()` leaves dangling), destroy every owned event, and mark the bus dead. After `destroy()`, `trigger()`/`on()` throw.
+- `isDestroyed()` - Returns `true` once `destroy()` has been called
 - `withTags(tags, callback)` - Execute callback with specific tags
 
 ## Action
@@ -571,6 +595,8 @@ const result = await fetchUserAction.invoke("user123");
   - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
 - `updateListenerOptions(handler, context?, nextOptions?)` - Update a response listener's soft options in place (see Event's `updateListenerOptions`)
 - `removeAllListeners(tag?)` - Remove all listeners
+- `destroy()` - Tear down the action: destroy its response, before-action, error and status events and mark it dead. After `destroy()`, `invoke()`/`addListener()` throw.
+- `isDestroyed()` - Returns `true` once `destroy()` has been called
 
 #### Error Handling
 
@@ -727,6 +753,8 @@ const user = await actionBus.invoke("fetchUser", "user123");
 - `removeListener(name, handler, context?, tag?)` - Remove listener
   - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
 - `updateListenerOptions(name, handler, context?, nextOptions?)` - Update a response listener's soft options in place (see Event's `updateListenerOptions`)
+- `destroy()` - Tear down the bus: destroy every owned action and the error event, then drop them all. After `destroy()`, `invoke()`/`on()` throw.
+- `isDestroyed()` - Returns `true` once `destroy()` has been called
 
 #### Status (loading / error / response)
 
@@ -798,6 +826,8 @@ const userData = userStore.get([ "name", "email" ]); // { name: string, email: s
 - `isEmpty()` - Check if store is empty
 - `getData()` - Get all store data
 - `reset()` - Clear store data
+- `destroy()` - Tear down the store: destroy the underlying change/pipe/control buses and drop all data. After `destroy()`, `set()`/`get()` throw.
+- `isDestroyed()` - Returns `true` once `destroy()` has been called
 
 #### Event Methods
 
