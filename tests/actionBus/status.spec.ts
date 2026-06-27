@@ -183,6 +183,39 @@ describe("actionBus status", () => {
         expect(() => bus.onStatusChange("a", () => {})).toThrow("destroyed");
     });
 
+    it("returns a frozen idle status so mutation cannot corrupt future snapshots", () => {
+        const bus = createActionBus<{ load: (x: number) => number }>();
+        const status = bus.getStatus("load");
+
+        expect(Object.isFrozen(status)).toBe(true);
+        try {
+            (status as { pending: boolean }).pending = true;
+        }
+        catch {
+            // Frozen object throws in strict mode; acceptable.
+        }
+        expect(bus.getStatus("load").pending).toBe(false);
+    });
+
+    it("contains a throwing bus error listener during action removal", () => {
+        const bus = createActionBus({ load: (x: number) => x });
+        bus.addErrorListener(() => {
+            throw new Error("error listener boom");
+        });
+        const calls: string[] = [];
+        bus.onStatusChange("load", () => {
+            calls.push("a");
+            throw new Error("subscriber boom");
+        });
+        bus.onStatusChange("load", () => {
+            calls.push("b");
+        });
+
+        expect(() => bus.removeAction("load")).not.toThrow();
+        expect(calls).toContain("a");
+        expect(calls).toContain("b");
+    });
+
     it("does not notify status subscribers when removing a missing action", () => {
         const bus = createActionBus<{ load: (x: number) => number }>();
         const seen: unknown[] = [];

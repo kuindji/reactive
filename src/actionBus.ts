@@ -127,14 +127,22 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
                     (handler as (status: typeof idleStatus) => void)(idleStatus);
                 }
                 catch (error) {
-                    errorEvent.emit({
-                        name,
-                        error: error instanceof Error
-                            ? error
-                            : new Error(String(error)),
-                        args: [],
-                        type: "action-status",
-                    });
+                    // The error forwarding must not re-escape either: a throwing
+                    // bus error listener would abort the loop and leave later
+                    // subscribers attached and un-notified.
+                    try {
+                        errorEvent.emit({
+                            name,
+                            error: error instanceof Error
+                                ? error
+                                : new Error(String(error)),
+                            args: [],
+                            type: "action-status",
+                        });
+                    }
+                    catch {
+                        // Nothing left to route to; swallow to keep the loop going.
+                    }
                 }
             });
         }
@@ -209,11 +217,15 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         return action.updateListenerOptions(handler, context, nextOptions);
     };
 
-    const idleStatus = {
+    // Frozen and shared: getStatus() hands this single object to every missing
+    // action, so a consumer mutating it would corrupt all future idle snapshots
+    // (e.g. leaving a hook reporting false loading). Matches action status,
+    // whose snapshots are also frozen.
+    const idleStatus = Object.freeze({
         pending: false,
         error: null,
         response: null,
-    } as const;
+    });
 
     // Status lives on the underlying action (the single in-flight point);
     // the bus just delegates per name. An unregistered name reports idle and

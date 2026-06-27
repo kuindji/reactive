@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "bun:test";
-import { useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { useAsyncAction } from "../../src/react/useAsyncAction";
 
 describe("useAsyncAction", () => {
@@ -78,5 +78,29 @@ describe("useAsyncAction", () => {
             screen.getByText("go").click();
         });
         await waitFor(() => expect(renders.length).toBeGreaterThan(initial));
+    });
+
+    it("invokes the latest fn from a layout effect after a rerender", () => {
+        const calls: string[] = [];
+        function Component({ label }: { label: string }) {
+            const [ invoke ] = useAsyncAction(() => {
+                calls.push(label);
+                return label;
+            });
+            // A layout effect runs before passive effects; if the action's fn
+            // is only swapped in a passive effect it would still call the
+            // previous closure here.
+            useLayoutEffect(() => {
+                void invoke();
+            }, [ invoke, label ]);
+            return <span>{label}</span>;
+        }
+
+        const { rerender } = render(<Component label="first" />);
+        act(() => {
+            rerender(<Component label="second" />);
+        });
+
+        expect(calls).toEqual([ "first", "second" ]);
     });
 });

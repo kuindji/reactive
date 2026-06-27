@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
 import { createAction } from "../action.js";
 import type { ActionResponse, ActionStatus } from "../action.js";
 import type { BaseHandler } from "../lib/types.js";
@@ -25,26 +25,25 @@ export function useAsyncAction<Fn extends BaseHandler>(
     (...args: Parameters<Fn>) => Promise<ActionResponse<Awaited<ReturnType<Fn>>, Parameters<Fn>>>,
     AsyncActionState<Awaited<ReturnType<Fn>>>,
 ] {
+    // Keep the latest fn in a ref updated during render. The action wraps a
+    // stable indirection that always calls fnRef.current, so it invokes the
+    // current fn even from a consumer layout effect that runs after a rerender
+    // but before this hook's passive effects — which a useEffect+setAction
+    // swap would miss, invoking the previous fn.
+    const fnRef = useRef<Fn>(fn);
+    fnRef.current = fn;
+
     const action = useMemo(
         () => {
-            const action = createAction<Fn>(fn);
+            const action = createAction<Fn>(
+                ((...args: Parameters<Fn>) => fnRef.current(...args)) as Fn,
+            );
             // Without an error listener a throwing fn re-throws out of invoke
             // (an unhandled rejection) instead of surfacing through status.
             action.addErrorListener(() => { });
             return action;
         },
         [],
-    );
-
-    const fnRef = useRef<Fn>(fn);
-    useEffect(
-        () => {
-            if (fnRef.current !== fn) {
-                action.setAction(fn);
-                fnRef.current = fn;
-            }
-        },
-        [ fn ],
     );
 
     const subscribe = useCallback(
