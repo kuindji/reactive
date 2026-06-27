@@ -71,6 +71,27 @@ describe("store computed", () => {
         expect(batches[0].filter((n) => n === "fullName").length).toBe(1);
     });
 
+    it("invokes the compute fn once and emits only the final value on a multi-key set", () => {
+        const store = createStore<UserStore>({ first: "Jane", last: "Doe" });
+        let calls = 0;
+        store.computed("fullName", [ "first", "last" ], (f, l) => {
+            calls++;
+            return `${f} ${l}`;
+        });
+        const callsAfterInit = calls;
+
+        const seen: string[] = [];
+        store.onChange("fullName", (v) => {
+            seen.push(v as string);
+        });
+
+        store.set({ first: "John", last: "Roe" });
+
+        // Recompute exactly once from the final state — no intermediate value.
+        expect(calls).toBe(callsAfterInit + 1);
+        expect(seen).toEqual([ "John Roe" ]);
+    });
+
     it("supports computed-of-computed chains", () => {
         type S = { n: number; doubled: number; quad: number; };
         const store = createStore<S>({ n: 1 });

@@ -300,6 +300,9 @@ export function createEventBus<
     };
 
     const add = (name: MapKey, options?: EventOptions<BaseHandler>) => {
+        if (destroyed) {
+            throw new Error("EventBus is destroyed");
+        }
         if (!events.has(name)) {
             events.set(name, createEvent(options));
         }
@@ -354,6 +357,9 @@ export function createEventBus<
     };
 
     const get = <K extends KeyOf<Events>>(name: K) => {
+        if (destroyed) {
+            throw new Error("EventBus is destroyed");
+        }
         return _getOrAddEvent(name);
     };
 
@@ -417,6 +423,9 @@ export function createEventBus<
         name: K,
         options?: ListenerOptions,
     ) => {
+        if (destroyed) {
+            throw new Error("EventBus is destroyed");
+        }
         const e: EventTypes[K] = _getOrAddEvent(name);
         return e.promise(options) as Promise<Events[K]["arguments"]>;
     };
@@ -884,6 +893,20 @@ export function createEventBus<
     };
 
     const reset = () => {
+        // Detach relays BEFORE clearing proxyListeners: unrelay() resolves the
+        // external listener via _getProxyListener, which depends on the original
+        // entry still being present. Clearing proxyListeners first would lose the
+        // callback identity, leaving the external subscription dangling so a
+        // later destroy() could never remove it.
+        relays.slice().forEach((r) => {
+            unrelay({
+                eventSource: r.eventSource,
+                remoteEventName: r.remoteEventName,
+                localEventName: r.localEventName,
+                proxyType: r.proxyType,
+                localEventNamePrefix: r.localEventNamePrefix,
+            });
+        });
         if (eventSources.length > 0) {
             eventSources.slice().forEach((evs) => {
                 removeEventSource(evs.eventSource);
@@ -895,6 +918,7 @@ export function createEventBus<
         asterisk.reset();
         proxyListeners.length = 0;
         eventSources.length = 0;
+        relays.length = 0;
     };
 
     // One-call teardown: unwind external attachments (relays + event sources)

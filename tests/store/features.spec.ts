@@ -254,6 +254,28 @@ describe("store error handling", () => {
         expect(receivedType).toBe("store-pipe");
     });
 
+    it("routes a throwing effect listener to the error event on a multi-key set", () => {
+        const store = createStore({
+            a: 1,
+            b: 1,
+        });
+
+        let errors = 0;
+        store.control(ErrorEventName, () => {
+            errors++;
+        });
+        store.control("effect", (name) => {
+            if (name === "a") {
+                throw new Error("Effect error");
+            }
+        });
+
+        expect(() => store.set({ a: 2, b: 2 })).not.toThrow();
+        expect(errors).toBe(1);
+        expect(store.get("a")).toBe(2);
+        expect(store.get("b")).toBe(2);
+    });
+
     it("clears effect interception after handled effect errors", () => {
         const store = createStore({
             a: 1,

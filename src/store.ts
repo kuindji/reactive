@@ -80,7 +80,19 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     const computedKeys = new Set<KeyOf<PropMap>>();
     const computingKeys = new Set<KeyOf<PropMap>>();
 
+    // Multi-key object sets write every base value first with effect emission
+    // deferred (`deferEffects`), then replay effects once so computed values
+    // recompute from the final state instead of once per intermediate write.
+    // `computedBatch`, when active, caps each computed key to a single recompute
+    // even when several of its dependencies changed in the same set.
+    let deferEffects = false;
+    let computedBatch: Set<KeyOf<PropMap>> | null = null;
+
     let destroyed = false;
+    // Timers scheduled by asyncSet, tracked so destroy() can cancel them.
+    // Otherwise a pending callback fires after teardown and throws "Store is
+    // destroyed" from inside the timer.
+    const pendingTimers = new Set<ReturnType<typeof setTimeout>>();
     const assertAlive = () => {
         if (destroyed) {
             throw new Error("Store is destroyed");
@@ -92,6 +104,11 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     const effectInterceptor = (name: MapKey, args: unknown[]) => {
         if (name === ChangeEventName) {
             effectKeys.push(...(args[0] as KeyOf<PropMap>[]));
+            return false;
+        }
+        // While the multi-key loop writes base values, swallow effect emissions;
+        // they are replayed once afterwards against the final state.
+        if (name === EffectEventName && deferEffects) {
             return false;
         }
         return true;
@@ -238,7 +255,12 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         name: K,
         value?: V,
     ) {
-        setTimeout(() => {
+        const timer = setTimeout(() => {
+            pendingTimers.delete(timer);
+            // The store may have been destroyed between scheduling and firing.
+            if (destroyed) {
+                return;
+            }
             if (typeof name === "string") {
                 set(name, value);
             }
@@ -246,6 +268,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                 set(name);
             }
         }, 0);
+        pendingTimers.add(timer);
     }
 
     function set<K extends KeyOf<PropMap>>(
@@ -288,14 +311,48 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
             let controlError: Error | null = null;
             if (shouldInterceptEffects) {
                 control.intercept(effectInterceptor);
+                computedBatch = new Set();
             }
             let allChangedKeys: MapKey[] = [];
             try {
+                // Phase 1: write every base value with effect emission deferred,
+                // so computed values do not recompute against a half-updated
+                // state mid-loop.
+                if (shouldInterceptEffects) {
+                    deferEffects = true;
+                }
                 Object.entries(name).forEach(([ k, v ]) => {
                     if (_set(k, v, false)) {
                         changedKeys.push(k);
                     }
                 });
+                // Phase 2: with all base values final, replay the effect once per
+                // changed key. `computedBatch` keeps each computed to a single
+                // recompute even when several of its deps changed.
+                if (shouldInterceptEffects) {
+                    deferEffects = false;
+                    changedKeys.forEach((k) => {
+                        // Mirror _set's effect error contract: a throwing effect
+                        // listener routes to the error event (and is swallowed if
+                        // a handler exists) rather than aborting the whole set.
+                        try {
+                            control.trigger(EffectEventName, k, data.get(k));
+                        }
+                        catch (error) {
+                            control.trigger(ErrorEventName, {
+                                error: error instanceof Error
+                                    ? error
+                                    : new Error(String(error)),
+                                args: [ k ],
+                                type: "store-control",
+                                name: k,
+                            });
+                            if (!control.get(ErrorEventName)?.hasListener()) {
+                                throw error;
+                            }
+                        }
+                    });
+                }
                 allChangedKeys = dedupe([
                     ...changedKeys,
                     ...effectKeys,
@@ -304,6 +361,8 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
             finally {
                 if (shouldInterceptEffects) {
                     effectKeys = [];
+                    deferEffects = false;
+                    computedBatch = null;
                     control.stopIntercepting();
                 }
             }
@@ -481,6 +540,8 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     // One-call teardown: destroy the underlying change/pipe/control buses and
     // drop all data. Post-destroy set/get throw rather than silently no-op.
     const destroy = () => {
+        pendingTimers.forEach((timer) => clearTimeout(timer));
+        pendingTimers.clear();
         changes.destroy();
         pipe.destroy();
         control.destroy();
@@ -527,6 +588,14 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         control.addListener(EffectEventName, (changedName) => {
             if ((deps as readonly MapKey[]).indexOf(changedName) === -1) {
                 return;
+            }
+            // Within a single multi-key set, recompute at most once even if more
+            // than one dependency changed — the recompute reads the final state.
+            if (computedBatch) {
+                if (computedBatch.has(key)) {
+                    return;
+                }
+                computedBatch.add(key);
             }
             if (computingKeys.has(key)) {
                 throw new Error(

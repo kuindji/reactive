@@ -498,7 +498,11 @@ export function createEvent<
 
     const triggeredCount = (): number => triggered;
 
-    const lastTriggerArgs = (): Event["arguments"] | null => lastTrigger;
+    // Return a copy: handing back the internal `lastTrigger` reference would let
+    // a caller mutate it, corrupting both the recorded snapshot and the values
+    // replayed to autoTrigger listeners.
+    const lastTriggerArgs = (): Event["arguments"] | null =>
+        lastTrigger ? (lastTrigger.slice() as Event["arguments"]) : null;
 
     const getListeners = (): ListenerInfo<Event["signature"]>[] => {
         return listeners.map((l) => ({

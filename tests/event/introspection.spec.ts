@@ -75,6 +75,24 @@ describe("event introspection", () => {
         expect(o.lastTriggerArgs()).toEqual([ 5 ]);
     });
 
+    it("returns a copy so mutating it does not change subsequent autoTrigger", () => {
+        const o = createEvent<(a: number) => void>({ autoTrigger: true });
+        o.trigger(1);
+
+        const args = o.lastTriggerArgs();
+        expect(args).toEqual([ 1 ]);
+        args![0] = 999;
+
+        // The recorded snapshot must be unchanged...
+        expect(o.lastTriggerArgs()).toEqual([ 1 ]);
+
+        // ...and a newly added listener auto-triggered with the last args must
+        // see the original value, not the mutated one.
+        const received: number[] = [];
+        o.addListener((a) => received.push(a));
+        expect(received).toEqual([ 1 ]);
+    });
+
     it("getListeners returns a read-only projection without mutable internals", () => {
         const o = createEvent<() => void>();
         const handler = () => {};

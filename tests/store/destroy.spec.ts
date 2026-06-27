@@ -27,6 +27,24 @@ describe("store destroy()", () => {
         expect(() => store.get("a")).toThrow("destroyed");
     });
 
+    it("ignores a pending asyncSet that resolves after destroy", async () => {
+        const store = createStore<{ a: number; }>({ a: 1 });
+        const errors: unknown[] = [];
+        const onError = (event: unknown) => {
+            errors.push(event);
+        };
+        (globalThis as any).addEventListener("error", onError);
+
+        store.asyncSet("a", 2);
+        store.destroy();
+
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        (globalThis as any).removeEventListener("error", onError);
+
+        expect(errors).toEqual([]);
+        expect(store.isDestroyed()).toBe(true);
+    });
+
     it("stops notifying onChange listeners after destroy", () => {
         const store = createStore<{ a: number; }>({ a: 1 });
         let calls = 0;

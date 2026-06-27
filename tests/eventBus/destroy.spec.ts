@@ -46,6 +46,31 @@ describe("eventBus destroy()", () => {
         expect(triggered).toEqual([ 1 ]);
     });
 
+    it("detaches relays on reset so a later destroy fully unwinds them", () => {
+        const o1 = createEventBus<{ event: (a: number) => void; }>();
+        const o2 = createEventBus<{ event: (a: number) => void; }>();
+
+        o1.relay({ eventSource: o2, remoteEventName: "event" });
+        o1.reset();
+        o1.destroy();
+
+        // The relay's external listener must be gone from o2, so emitting from
+        // the source does not reach the destroyed bus and throw.
+        expect(() => o2.trigger("event", 1)).not.toThrow();
+    });
+
+    it("throws on get() after destroy instead of creating a live event", () => {
+        const o = createEventBus<{ event: () => void; }>();
+        o.destroy();
+        expect(() => o.get("event")).toThrow("destroyed");
+    });
+
+    it("throws on promise() after destroy instead of creating a live event", () => {
+        const o = createEventBus<{ event: () => void; }>();
+        o.destroy();
+        expect(() => o.promise("event")).toThrow("destroyed");
+    });
+
     it("removes event sources so external emitters detach on destroy", () => {
         const em = new EventEmitter();
         const o = createEventBus<{ event: () => void; }>();
