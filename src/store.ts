@@ -362,9 +362,19 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     // Run `fn` with onChange emissions intercepted and coalesced. The control
     // change-key collection (effectKeys / effectInterceptor ordering) inside
     // `fn` is untouched, so only the per-key onChange stream is deduped.
-    const withChangeCoalescing = (fn: () => void) => {
+    const withChangeCoalescing = (fn: () => void, liveKey?: MapKey) => {
         const log: [ MapKey, any, any ][] = [];
+        let liveDelivered = false;
         const logger = function(propName: MapKey, args: any[]) {
+            // Deliver the directly-set key's onChange live (it fires inside _set
+            // before the effect cascade) so plain onChange listeners still run
+            // ahead of effect listeners; only the cascade's emissions are
+            // coalesced. Returning a non-false value lets the interceptor pass
+            // the event through to its listeners.
+            if (!liveDelivered && liveKey !== undefined && propName === liveKey) {
+                liveDelivered = true;
+                return true;
+            }
             log.push([ propName, args[0], args[1] ]);
             return false;
         };
@@ -527,7 +537,14 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         // control change-key collection is left untouched, so change-key
         // ordering is unaffected.
         if (canCoalesceCascade()) {
-            withChangeCoalescing(() => applySet(name, value));
+            // For a single-key set, deliver that key's onChange live (before the
+            // effect cascade) and coalesce only the downstream computed-key
+            // emissions. A multi-key (object) set is an explicit batch, so all
+            // of its onChange emissions remain coalesced.
+            withChangeCoalescing(
+                () => applySet(name, value),
+                typeof name === "string" ? name : undefined,
+            );
             return;
         }
         applySet(name, value);

@@ -570,6 +570,33 @@ describe("store batch operations", () => {
         expect(changes).toEqual([ { value: 2, prev: 1 } ]);
         expect(changedKeys).toEqual([ "a" ]);
     });
+
+    it("coalesces per-key onChange to the net change within a batch", () => {
+        const store = createStore({ a: 1 });
+        const changes: Array<{ value: number; prev: number; }> = [];
+        store.onChange("a", (value, prev) => {
+            changes.push({ value: value!, prev: prev! });
+        });
+
+        // A key whose net value within the batch equals its pre-batch value
+        // fires no onChange: batch() reports the net transition, not each
+        // intermediate write. This is intentional coalescing.
+        store.batch(() => {
+            store.set("a", 2);
+            store.set("a", 1);
+        });
+        expect(changes).toEqual([]);
+        expect(store.get("a")).toBe(1);
+
+        // A real net change fires exactly once, with the pre-batch prev and the
+        // final value (intermediate values are not delivered).
+        store.batch(() => {
+            store.set("a", 5);
+            store.set("a", 9);
+        });
+        expect(changes).toEqual([ { value: 9, prev: 1 } ]);
+        expect(store.get("a")).toBe(9);
+    });
 });
 
 describe("store with complex types", () => {

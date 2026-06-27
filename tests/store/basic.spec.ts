@@ -224,4 +224,23 @@ describe("store basic", () => {
         expect(store.get("c")).toBe(6);
         expect(effectTriggered).toBe(true);
     });
+
+    it("fires onChange for a single-key set before the effect listener", () => {
+        const store = createStore<{ a: number; b: number; }>({ a: 1, b: 0 });
+        const order: string[] = [];
+
+        // An effect listener makes set() coalesce its cascade, but the directly
+        // set key's onChange must still run before effect listeners (a sync
+        // onChange handler may read/write the store ahead of effects).
+        store.control(EffectEventName, (name) => {
+            order.push(`effect:${String(name)}`);
+        });
+        store.onChange("a", () => {
+            order.push("onChange:a");
+        });
+
+        store.set("a", 2);
+
+        expect(order).toEqual([ "onChange:a", "effect:a" ]);
+    });
 });
