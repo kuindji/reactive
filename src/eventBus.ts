@@ -912,6 +912,13 @@ export function createEventBus<
                 removeEventSource(evs.eventSource);
             });
         }
+        // Reset each owned event before dropping it: clearing the map alone
+        // leaves listener AbortSignal handlers attached to their signals, which
+        // retains the orphaned events (and their listeners) until the signal
+        // aborts. reset() detaches those handlers and clears the listeners.
+        events.forEach((event: EventTypes[KeyOf<Events>]) => {
+            event.reset();
+        });
         events.clear();
         interceptor = null;
         currentTagsFilter = null;

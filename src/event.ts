@@ -526,15 +526,27 @@ export function createEvent<
     const lastTriggerArgs = (): Event["arguments"] | null =>
         lastTrigger ? (lastTrigger.slice() as Event["arguments"]) : null;
 
-    // Shallow-copy object/array extraData so the read-only projection cannot
-    // mutate internal listener metadata (which filters can read). Primitives
-    // and functions are returned as-is. Mirrors the `tags.slice()` approach.
+    // Deep-copy object/array extraData so the read-only projection cannot
+    // mutate internal listener metadata (which filters can read) at any depth;
+    // a shallow copy still shares nested objects/arrays by reference. Primitives
+    // and functions are returned as-is. Non-plain values (Date, Map, class
+    // instances, etc.) are returned as-is rather than mangled by a generic deep
+    // clone — copying their enumerable keys would not faithfully reproduce them.
     const projectExtraData = (value: any): any => {
         if (Array.isArray(value)) {
-            return value.slice();
+            return value.map((v) => projectExtraData(v));
         }
-        if (value !== null && typeof value === "object") {
-            return { ...value };
+        if (
+            value !== null
+            && typeof value === "object"
+            && (Object.getPrototypeOf(value) === Object.prototype
+                || Object.getPrototypeOf(value) === null)
+        ) {
+            const copy: Record<string, any> = {};
+            for (const k of Object.keys(value)) {
+                copy[k] = projectExtraData(value[k]);
+            }
+            return copy;
         }
         return value;
     };

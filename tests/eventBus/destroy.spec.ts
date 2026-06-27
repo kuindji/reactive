@@ -46,6 +46,29 @@ describe("eventBus destroy()", () => {
         expect(triggered).toEqual([ 1 ]);
     });
 
+    it("detaches listener AbortSignal handlers from owned events on reset", () => {
+        const o = createEventBus<{ event: (n: number) => void; }>();
+        const controller = new AbortController();
+        let removed = 0;
+        const origRemove =
+            controller.signal.removeEventListener.bind(controller.signal);
+        controller.signal.removeEventListener = ((
+            ...a: Parameters<typeof origRemove>
+        ) => {
+            removed++;
+            return origRemove(...a);
+        }) as typeof origRemove;
+
+        o.on("event", () => {}, { signal: controller.signal });
+        o.reset();
+
+        // reset() must tear down each owned event, detaching the abort handler
+        // from the signal. Otherwise the orphaned event (and its listener) stay
+        // retained by the still-live signal, and aborting later fires a handler
+        // on a dropped event.
+        expect(removed).toBeGreaterThan(0);
+    });
+
     it("detaches relays on reset so a later destroy fully unwinds them", () => {
         const o1 = createEventBus<{ event: (a: number) => void; }>();
         const o2 = createEventBus<{ event: (a: number) => void; }>();

@@ -54,4 +54,22 @@ describe("store destroy()", () => {
         expect(() => store.onChange("a", () => calls++)).toThrow("destroyed");
         expect(calls).toBe(0);
     });
+
+    it("throws on computed() after destroy without repopulating cleared data", () => {
+        const store = createStore<{ a: number; b: number; }>({ a: 1 });
+        store.destroy();
+
+        let fnCalled = false;
+        expect(() =>
+            store.computed("b", [ "a" ], (a) => {
+                fnCalled = true;
+                return (a ?? 0) * 2;
+            })
+        ).toThrow("destroyed");
+
+        // The destroyed store must not run user code or seed data before
+        // throwing; getData() must stay empty.
+        expect(fnCalled).toBe(false);
+        expect(store.isEmpty()).toBe(true);
+    });
 });

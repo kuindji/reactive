@@ -4,6 +4,7 @@ import type {
     ApiType,
     BaseHandler,
     ErrorListenerSignature,
+    ErrorResponse,
     KeyOf,
     MapKey,
 } from "./lib/types.js";
@@ -43,6 +44,13 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
     const errorEvent = createEvent<ErrorListenerSignature<any[]>>();
     let destroyed = false;
 
+    // The error-forwarding listener attached to each action's error event is
+    // retained per name so removeAction can detach it. Otherwise a held action
+    // reference keeps forwarding errors into the bus after removal, and — since
+    // the forwarder counts as an error listener — its invoke resolves with an
+    // error response instead of rejecting.
+    const errorForwarders = new Map<MapKey, BaseHandler>();
+
     // Status subscriptions for actions that are not registered yet. They are
     // recorded here so a later add()/replace() can attach them — otherwise a
     // hook subscribing before registration (e.g. useActionBusStatus) would stay
@@ -59,9 +67,18 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         }
         if (!actions.has(name)) {
             const a = createAction(action);
-            a.addErrorListener(({ error, args }) => {
-                errorEvent.emit({ name, error, args, type: "action" });
-            });
+            // Preserve the original error type (e.g. "action-status") rather
+            // than hardcoding "action", so consumers can distinguish a failed
+            // invocation from a throwing status listener.
+            const forwarder = ({ error, args, type }: {
+                error: Error;
+                args: any[];
+                type: ErrorResponse["type"];
+            }) => {
+                errorEvent.emit({ name, error, args, type });
+            };
+            errorForwarders.set(name, forwarder as BaseHandler);
+            a.addErrorListener(forwarder);
             actions.set(name, a);
             // Attach any status subscriptions that were registered before this
             // action existed.
@@ -108,6 +125,15 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
     const removeAction = (name: MapKey) => {
         const action = actions.get(name as KeyOf<Actions>);
         const existed = actions.delete(name as KeyOf<Actions>);
+        // Detach the bus error-forwarding listener from the removed action so a
+        // held reference no longer feeds the bus error event (and so its invoke
+        // rejects rather than resolving via the forwarder acting as an error
+        // listener). A later re-add() installs a fresh forwarder.
+        const forwarder = errorForwarders.get(name);
+        if (forwarder) {
+            action?.removeErrorListener(forwarder);
+            errorForwarders.delete(name);
+        }
         // getStatus() now reports idle for this name, but status subscribers
         // (e.g. useActionBusStatus via useSyncExternalStore) were attached to
         // the removed action's own status event and will never be notified of
@@ -289,6 +315,7 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         });
         actions.clear();
         pendingStatusListeners.clear();
+        errorForwarders.clear();
         errorEvent.destroy();
         destroyed = true;
     };

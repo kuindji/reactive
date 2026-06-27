@@ -618,6 +618,11 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         fn: (...values: { [I in keyof D]: PropMap[D[I]] | undefined }) =>
             PropMap[K],
     ) => {
+        // Bail before running user code or seeding data: on a destroyed store
+        // the control bus throws only when the recompute listener is attached,
+        // by which point fn() has already run and the initial value has been
+        // written, repopulating cleared state that getData() would then expose.
+        assertAlive();
         const readDeps = () =>
             deps.map((d) => data.get(d)) as {
                 [I in keyof D]: PropMap[D[I]] | undefined;

@@ -121,4 +121,16 @@ describe("event introspection", () => {
 
         expect(o.getListeners()[0].extraData.flag).toBe(true);
     });
+
+    it("getListeners deep-copies nested extraData so nested mutation cannot reach internals", () => {
+        const o = createEvent<() => void>();
+        o.addListener(() => {}, { extraData: { nested: { flag: true }, list: [ 1 ] } });
+
+        const info = o.getListeners()[0];
+        info.extraData.nested.flag = false;
+        info.extraData.list.push(2);
+
+        expect(o.getListeners()[0].extraData.nested.flag).toBe(true);
+        expect(o.getListeners()[0].extraData.list).toEqual([ 1 ]);
+    });
 });

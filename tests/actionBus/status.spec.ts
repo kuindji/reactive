@@ -225,4 +225,61 @@ describe("actionBus status", () => {
 
         expect(seen).toEqual([]);
     });
+
+    it("detaches the bus error-forwarding listener from a removed action", async () => {
+        const bus = createActionBus({
+            fail: () => {
+                throw new Error("nope");
+            },
+        });
+        // Hold a direct reference obtained before removal.
+        const action = bus.get("fail");
+        const errors: string[] = [];
+        bus.addErrorListener(({ error }) => errors.push(error.message));
+
+        bus.removeAction("fail");
+
+        // The held reference must no longer forward errors into the bus, and
+        // with no error listener left the invocation rejects rather than
+        // resolving with an error response.
+        let rejected: Error | null = null;
+        try {
+            await action.invoke();
+        }
+        catch (e) {
+            rejected = e as Error;
+        }
+        expect(rejected?.message).toBe("nope");
+        expect(errors).toEqual([]);
+    });
+
+    it("forwards a regular invoke failure with type 'action'", async () => {
+        const bus = createActionBus({
+            fail: () => {
+                throw new Error("nope");
+            },
+        });
+        const types: string[] = [];
+        bus.addErrorListener(({ type }) => types.push(type));
+
+        await bus.invoke("fail");
+
+        expect(types).toEqual([ "action" ]);
+    });
+
+    it("preserves the original error type when forwarding a status error", async () => {
+        const bus = createActionBus({ load: (x: number) => x });
+        const types: string[] = [];
+        bus.addErrorListener(({ type }) => types.push(type));
+        // A throwing status listener surfaces via the action's error event with
+        // type "action-status"; the bus must not relabel it as "action".
+        bus.onStatusChange("load", () => {
+            throw new Error("status boom");
+        });
+
+        await bus.invoke("load", 1);
+
+        expect(types).toContain("action-status");
+        expect(types).not.toContain("action");
+    });
 });
