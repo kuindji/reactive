@@ -541,16 +541,20 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
             }
         }
 
-        if (allChangedKeys.length > 0) {
+        // Dedupe so the control change event lists each key once, matching the
+        // non-batch path (which dedupes via `dedupe([name, ...effectKeys])`).
+        // A computed touched by several base-key writes would otherwise repeat.
+        const dedupedChangedKeys = dedupe(allChangedKeys);
+        if (dedupedChangedKeys.length > 0) {
             try {
-                control.trigger(ChangeEventName, allChangedKeys);
+                control.trigger(ChangeEventName, dedupedChangedKeys);
             }
             catch (error) {
                 control.trigger(ErrorEventName, {
                     error: error instanceof Error
                         ? error
                         : new Error(String(error)),
-                    args: [ allChangedKeys ],
+                    args: [ dedupedChangedKeys ],
                     type: "store-control",
                 });
                 if (control.get(ErrorEventName)?.hasListener()) {

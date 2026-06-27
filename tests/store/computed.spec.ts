@@ -228,4 +228,20 @@ describe("store computed", () => {
 
         expect(seen).toEqual([ { value: "John Roe", prev: "Jane Doe" } ]);
     });
+
+    it("deduplicates a computed key in the control change event within a batch", () => {
+        const store = createStore<UserStore>({ first: "Jane", last: "Doe" });
+        store.computed("fullName", [ "first", "last" ], (f, l) => `${f} ${l}`);
+
+        const batches: string[][] = [];
+        store.control(ChangeEventName, (names) => batches.push(names as string[]));
+
+        store.batch(() => {
+            store.set("first", "John");
+            store.set("last", "Roe");
+        });
+
+        expect(batches.length).toBe(1);
+        expect(batches[0].filter((n) => n === "fullName").length).toBe(1);
+    });
 });
