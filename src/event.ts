@@ -280,7 +280,11 @@ export function createEvent<
                 args: any[],
                 l: Listener,
             ) => {
-                if (l && l.handler === handler) {
+                if (
+                    l
+                    && l.handler === handler
+                    && l.context === listenerContext
+                ) {
                     return prevFilter ? prevFilter(args, l) !== false : true;
                 }
                 return false;

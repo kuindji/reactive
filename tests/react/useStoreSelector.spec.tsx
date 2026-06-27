@@ -176,4 +176,34 @@ describe("useStoreSelector", () => {
         });
         expect(screen.getByTestId("v")).toHaveTextContent("John Doe");
     });
+
+    it("deps form keeps rendering after the store is destroyed while mounted", () => {
+        const store = createStore<S>({ first: "Jane", last: "Doe", other: 0 });
+
+        let rerender!: (n: number) => void;
+        function Component() {
+            const [ tick, setTick ] = useState(0);
+            rerender = setTick;
+            const label = useStoreSelector(
+                store,
+                [ "first" ],
+                (f) => f ?? "none",
+            );
+            return <span data-testid="v">{label}-{tick}</span>;
+        }
+
+        render(<Component />);
+        expect(screen.getByTestId("v")).toHaveTextContent("Jane-0");
+
+        act(() => {
+            store.destroy();
+        });
+
+        // A render after destroy (e.g. a parent re-render before unmount) must
+        // not throw out of getSnapshot, mirroring the selector form.
+        expect(() =>
+            act(() => {
+                rerender(1);
+            })).not.toThrow();
+    });
 });

@@ -87,9 +87,28 @@ export function useStoreSelector(
             let hasMemo = false;
             let memoized: unknown;
             return () => {
-                const next = deps
-                    ? selector(...deps.map((d) => store.get(d)))
-                    : selector(store.getData());
+                // On a destroyed store, read deps via getData() (which returns
+                // {} without asserting) instead of store.get() (which throws):
+                // getSnapshot can run for a still-mounted component after the
+                // store is destroyed (e.g. a provider torn down first), and must
+                // not throw out of render. This mirrors the selector form, which
+                // already reads through getData().
+                let next: unknown;
+                if (deps) {
+                    if (store.isDestroyed()) {
+                        const snapshot = store.getData() as Record<
+                            MapKey,
+                            unknown
+                        >;
+                        next = selector(...deps.map((d) => snapshot[d]));
+                    }
+                    else {
+                        next = selector(...deps.map((d) => store.get(d)));
+                    }
+                }
+                else {
+                    next = selector(store.getData());
+                }
                 if (!hasMemo) {
                     hasMemo = true;
                     if (inst.hasValue && equalityFn(inst.value, next)) {

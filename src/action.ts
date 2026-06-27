@@ -181,11 +181,11 @@ export function createAction<A extends BaseHandler>(action: A) {
         if (destroyed) {
             throw new Error("Action is destroyed");
         }
-        // Capture the error-handling policy at invocation start. If the action
-        // is destroyed while this invocation is in flight, destroy() tears down
-        // the error listeners; re-checking hasErrorListeners() in the catch
-        // below would then flip a previously-handled failure into a rejection.
-        // The policy is fixed by what was registered when invoke() began.
+        // Snapshot whether error listeners existed at invocation start. The
+        // catch below ORs this with a live re-check: the snapshot guards against
+        // destroy() tearing listeners down mid-flight (which must not flip a
+        // handled failure into a rejection), while the live check still routes
+        // the error to a listener registered after invoke() began.
         const handlesErrors = hasErrorListeners();
         inFlight++;
         updateStatus();
@@ -245,7 +245,12 @@ export function createAction<A extends BaseHandler>(action: A) {
                 ? error
                 : new Error(error as string);
             lastResponse = null;
-            if (!handlesErrors) {
+            // Handle the error if listeners existed at invoke start OR were
+            // registered while the invocation was in flight. The start-of-invoke
+            // snapshot is retained (rather than relying solely on the live check)
+            // so that destroy() tearing the listeners down mid-flight cannot flip
+            // a previously-handled failure into a rejection.
+            if (!handlesErrors && !hasErrorListeners()) {
                 throw error;
             }
             const response = {

@@ -321,4 +321,29 @@ describe("store computed", () => {
         expect(store.get("d")).toBe(15);
         expect(emissions).toEqual([ [ 15, 13 ] ]);
     });
+
+    it("seeds the initial computed value through pipe", () => {
+        const store = createStore<UserStore>({ first: "Jane", last: "Doe" });
+        store.pipe("fullName", (v) => String(v).toUpperCase());
+        store.computed("fullName", [ "first", "last" ], (f, l) => `${f} ${l}`);
+
+        // The initial seed must be piped, matching what every later recompute
+        // produces; otherwise the value silently changes shape on the first
+        // dependency change with no logical change.
+        expect(store.get("fullName")).toBe("JANE DOE");
+
+        store.set("first", "John");
+        expect(store.get("fullName")).toBe("JOHN DOE");
+    });
+
+    it("reseeds the computed value through pipe on reset", () => {
+        const store = createStore<UserStore>({ first: "Jane", last: "Doe" });
+        store.pipe("fullName", (v) => String(v).toUpperCase());
+        store.computed("fullName", [ "first", "last" ], (f, l) => `${f} ${l}`);
+
+        // reset() clears deps then reseeds the computed; that reseed must also
+        // run through pipe, just like the original seed.
+        store.reset();
+        expect(store.get("fullName")).toBe("UNDEFINED UNDEFINED");
+    });
 });

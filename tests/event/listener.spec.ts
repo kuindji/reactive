@@ -218,4 +218,21 @@ describe("event listener", () => {
 
         expect(res).toEqual(1);
     });
+
+    it("autoTrigger replay targets only the newly added listener", () => {
+        const o = createEvent<(value: number) => void>({ autoTrigger: true });
+        o.trigger(1);
+
+        // Same handler under two distinct contexts: each addListener should
+        // replay only to the listener just added, never re-fire the earlier
+        // same-handler listener registered under a different context.
+        let calls = 0;
+        const handler = () => {
+            calls++;
+        };
+        o.addListener(handler, { context: {} });
+        o.addListener(handler, { context: {} });
+
+        expect(calls).toEqual(2);
+    });
 });

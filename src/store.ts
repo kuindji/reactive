@@ -759,14 +759,23 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         // become a permanently read-only computed with no listener installed.
         const initialValue = fn(...readDeps());
 
-        // Seed the initial value directly (no change emitted at setup time) and
-        // only now mark the key computed and install the recompute listener.
-        data.set(key, initialValue);
+        // Seed silently (no change emitted at setup time) but through pipe, so
+        // the value read right after computed()/reset() matches what every
+        // later _set-driven recompute produces; otherwise a piped key silently
+        // changes shape on the first dependency change. beforeChange is skipped
+        // on purpose: a silent seed has no change to veto, and a computed key
+        // must always hold a value.
+        const seed = (raw: PropMap[K]) => {
+            const pipeArgs = [ raw ] as PipeEvents[K]["arguments"];
+            const piped = pipe.pipe(key, ...pipeArgs);
+            data.set(key, piped !== undefined ? piped : raw);
+        };
+        seed(initialValue);
         computedKeys.add(key);
         // reset() re-runs this to recompute the value from the cleared deps. It
         // seeds `data` silently (no change emitted), matching this setup path.
         computedReseeders.set(key, () => {
-            data.set(key, fn(...readDeps()));
+            seed(fn(...readDeps()));
         });
 
         control.addListener(EffectEventName, (changedName) => {
