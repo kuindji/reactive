@@ -235,4 +235,52 @@ describe("event listener", () => {
 
         expect(calls).toEqual(2);
     });
+
+    it("a real trigger fired during autoTrigger replay is a full real trigger", () => {
+        const o = createEvent<(value: number) => void>({ autoTrigger: true });
+        o.trigger(1);
+
+        const existing: number[] = [];
+        o.addListener((v) => existing.push(v));
+
+        // This listener, on its replayed invocation, fires a real trigger of the
+        // same event. That nested trigger must behave as a normal real trigger:
+        // increment triggeredCount, update lastTriggerArgs, and reach the
+        // pre-existing listener — it must not inherit the replay's
+        // bookkeeping-suppression or replay-only delivery filter.
+        let replayed = false;
+        o.addListener((v) => {
+            if (!replayed && v === 1) {
+                replayed = true;
+                o.trigger(2);
+            }
+        });
+
+        // Pre-existing listener saw: replay of 1, then the nested real trigger 2.
+        expect(existing).toEqual([1, 2]);
+        // Two real triggers total (the initial trigger(1) and the nested
+        // trigger(2)); the replay of 1 is not a real trigger.
+        expect(o.triggeredCount()).toEqual(2);
+        expect(o.lastTriggerArgs()).toEqual([2]);
+    });
+
+    it("a real trigger during replay respects the trigger limit", () => {
+        const o = createEvent<(value: number) => void>({
+            autoTrigger: true,
+            limit: 1,
+        });
+        o.trigger(1);
+
+        const seen: number[] = [];
+        o.addListener((v) => {
+            seen.push(v);
+            // Limit is already reached (1 real trigger). A real trigger fired
+            // here must be dropped by the limit, not bypass it via replay state.
+            if (v === 1) {
+                o.trigger(99);
+            }
+        });
+
+        expect(seen).toEqual([1]);
+    });
 });

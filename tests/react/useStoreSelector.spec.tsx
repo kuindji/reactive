@@ -91,6 +91,55 @@ describe("useStoreSelector", () => {
         expect(screen.getByTestId("v")).toHaveTextContent("Jane Doe");
     });
 
+    it("object selector without an equality fn does not infinite-loop", () => {
+        const store = createStore<S>({ first: "Jane", last: "Doe", other: 0 });
+
+        function Component() {
+            const obj = useStoreSelector(
+                store,
+                (s) => ({ name: `${s.first} ${s.last}` }),
+            );
+            return <span data-testid="v">{obj.name}</span>;
+        }
+
+        // Without input-gated memoization the selector returns a fresh object on
+        // every getSnapshot call, so React would throw "Maximum update depth
+        // exceeded" on mount. Rendering and updating must succeed.
+        render(<Component />);
+        expect(screen.getByTestId("v")).toHaveTextContent("Jane Doe");
+
+        act(() => {
+            store.set("first", "John");
+        });
+        expect(screen.getByTestId("v")).toHaveTextContent("John Doe");
+    });
+
+    it("deps-keyed object selector without an eq fn is stable on unrelated writes", () => {
+        const store = createStore<S>({ first: "Jane", last: "Doe", other: 0 });
+        let renders = 0;
+
+        function Component() {
+            renders++;
+            const obj = useStoreSelector(
+                store,
+                [ "first", "last" ],
+                (first, last) => ({ name: `${first} ${last}` }),
+            );
+            return <span data-testid="v">{obj.name}</span>;
+        }
+
+        render(<Component />);
+        const initial = renders;
+
+        // Unrelated key: the deps-keyed subscription ignores it and the cached
+        // selection reference is returned, so no re-render.
+        act(() => {
+            store.set("other", 7);
+        });
+        expect(renders).toBe(initial);
+        expect(screen.getByTestId("v")).toHaveTextContent("Jane Doe");
+    });
+
     it("deps-keyed form recomputes only when a listed key changes", () => {
         const store = createStore<S>({
             a: true,

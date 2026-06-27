@@ -375,4 +375,29 @@ describe("store computed", () => {
         expect(seen[0]).toContain("bPlus");
         expect(seen[0]).not.toContain("aPlus");
     });
+
+    it("re-registering a computed key replaces the prior compute fn", () => {
+        const store = createStore<{ a: number; d: number }>({ a: 1 });
+
+        let fnACalls = 0;
+        store.computed("d", [ "a" ], (a) => {
+            fnACalls++;
+            return (a ?? 0) + 1;
+        });
+
+        let fnBCalls = 0;
+        store.computed("d", [ "a" ], (a) => {
+            fnBCalls++;
+            return (a ?? 0) * 10;
+        });
+
+        const callsBefore = fnACalls;
+        store.set("a", 5);
+
+        // The replaced compute fn must not run again on dependency changes —
+        // re-registration replaces it rather than leaving a dangling listener.
+        expect(fnACalls).toBe(callsBefore);
+        expect(fnBCalls).toBeGreaterThan(0);
+        expect(store.get("d")).toBe(50);
+    });
 });

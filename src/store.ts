@@ -84,6 +84,13 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     // `data` but leaves computed keys stale/undefined while still marked
     // read-only, so they no longer equal fn(deps).
     const computedReseeders = new Map<KeyOf<PropMap>, () => void>();
+    // The effect listener installed for each computed key, so re-registering the
+    // same key detaches the previous recompute closure instead of leaving it
+    // attached (which would run a stale fn on every dependency change).
+    const computedEffectListeners = new Map<
+        KeyOf<PropMap>,
+        (changedName: MapKey) => void
+    >();
 
     // Multi-key object sets write every base value first with effect emission
     // deferred (`deferEffects`), then replay effects once so computed values
@@ -740,6 +747,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         computedKeys.clear();
         computingKeys.clear();
         computedReseeders.clear();
+        computedEffectListeners.clear();
         effectKeys = [];
         destroyed = true;
     };
@@ -802,7 +810,14 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
             seed(fn(...readDeps()));
         });
 
-        control.addListener(EffectEventName, (changedName) => {
+        // Detach a prior recompute closure for this key (re-registration)
+        // before installing the new one, so the old fn does not keep running on
+        // every dependency change.
+        const prevEffect = computedEffectListeners.get(key);
+        if (prevEffect) {
+            control.removeListener(EffectEventName, prevEffect);
+        }
+        const effectListener = (changedName: MapKey) => {
             if ((deps as readonly MapKey[]).indexOf(changedName) === -1) {
                 return;
             }
@@ -833,7 +848,9 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
             finally {
                 computingKeys.delete(key);
             }
-        });
+        };
+        control.addListener(EffectEventName, effectListener);
+        computedEffectListeners.set(key, effectListener);
     };
 
     const api = {

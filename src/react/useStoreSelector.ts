@@ -12,11 +12,40 @@ import { ChangeEventName } from "../store.js";
 
 export type EqualityFn<T> = (a: T, b: T) => boolean;
 
+// Shallow per-entry equality for two state objects (enumerable own keys
+// compared with Object.is). Used to gate selector re-execution in the
+// no-deps form, whose input is rebuilt fresh by getData() on every call.
+function shallowEqualObject(
+    a: Record<string, unknown>,
+    b: Record<string, unknown>,
+): boolean {
+    if (a === b) {
+        return true;
+    }
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length) {
+        return false;
+    }
+    for (const key of aKeys) {
+        if (
+            !Object.prototype.hasOwnProperty.call(b, key)
+            || !Object.is(a[key], b[key])
+        ) {
+            return false;
+        }
+    }
+    return true;
+}
+
 /**
- * Subscribes to a derived slice of a store with custom equality. Returns the
- * cached reference while the equality fn reports the result unchanged, so a
- * selector that builds a fresh object each call still lets React bail out of
- * re-renders (returning a fresh reference every time would loop forever).
+ * Subscribes to a derived slice of a store with custom equality. Selector
+ * re-execution is gated on the raw input (dep values, or a shallow compare of
+ * the full state), so a selector that builds a fresh object each call returns a
+ * stable cached reference while its input is unchanged — safe even without an
+ * equality fn (an un-gated fresh reference on every getSnapshot call would loop
+ * forever). The optional equality fn additionally bails React re-renders when a
+ * recompute produces an equal-but-fresh result.
  *
  * Two forms:
  *   useStoreSelector(store, (s) => `${s.first} ${s.last}`, shallowEqual?)
@@ -93,32 +122,56 @@ export function useStoreSelector(
     const getSelection = useMemo(
         () => {
             let hasMemo = false;
+            let memoizedInput: unknown[] = [];
             let memoized: unknown;
-            return () => {
-                // On a destroyed store, read deps via getData() (which returns
-                // {} without asserting) instead of store.get() (which throws):
-                // getSnapshot can run for a still-mounted component after the
-                // store is destroyed (e.g. a provider torn down first), and must
-                // not throw out of render. This mirrors the selector form, which
-                // already reads through getData().
-                let next: unknown;
+            // Read the raw selector input (dep values, or the full state). On a
+            // destroyed store, read via getData() (which returns {} without
+            // asserting) instead of store.get() (which throws): getSnapshot can
+            // run for a still-mounted component after the store is destroyed
+            // (e.g. a provider torn down first), and must not throw out of
+            // render. Returns the input as an arg array so it can be both
+            // shallow-compared and spread into the selector.
+            const readInput = (): unknown[] => {
                 if (deps) {
                     if (store.isDestroyed()) {
                         const snapshot = store.getData() as Record<
                             MapKey,
                             unknown
                         >;
-                        next = selector(...deps.map((d) => snapshot[d]));
+                        return deps.map((d) => snapshot[d]);
                     }
-                    else {
-                        next = selector(...deps.map((d) => store.get(d)));
+                    return deps.map((d) => store.get(d));
+                }
+                return [ store.getData() ];
+            };
+            // Compare two raw inputs. The deps form holds dep values, compared
+            // by identity (the store replaces values on change, so identity
+            // tracks change). The selector form holds a single full-state
+            // object rebuilt fresh by getData() on every call, so it must be
+            // shallow-compared by entries rather than reference.
+            const inputsEqual = (a: unknown[], b: unknown[]): boolean => {
+                if (deps) {
+                    if (a.length !== b.length) {
+                        return false;
                     }
+                    for (let i = 0; i < a.length; i++) {
+                        if (!Object.is(a[i], b[i])) {
+                            return false;
+                        }
+                    }
+                    return true;
                 }
-                else {
-                    next = selector(store.getData());
-                }
+                return shallowEqualObject(
+                    a[0] as Record<string, unknown>,
+                    b[0] as Record<string, unknown>,
+                );
+            };
+            return () => {
+                const input = readInput();
                 if (!hasMemo) {
                     hasMemo = true;
+                    memoizedInput = input;
+                    const next = selector(...input);
                     if (inst.hasValue && equalityFn(inst.value, next)) {
                         memoized = inst.value;
                         return inst.value;
@@ -126,6 +179,21 @@ export function useStoreSelector(
                     memoized = next;
                     return next;
                 }
+                // Gate selector re-execution on the raw input. getSnapshot must
+                // return a cached reference that only changes when the store
+                // changes; re-running a fresh-object selector on every call (and
+                // relying solely on equalityFn) would return a new reference
+                // each call under the default Object.is and loop forever. When
+                // the input is unchanged we return the cached selection without
+                // re-running the selector — mirroring React's own
+                // useSyncExternalStoreWithSelector, which gates on snapshot
+                // identity (here the store's reads are not stable references, so
+                // we shallow-compare the input instead).
+                if (inputsEqual(memoizedInput, input)) {
+                    return memoized;
+                }
+                memoizedInput = input;
+                const next = selector(...input);
                 if (equalityFn(memoized, next)) {
                     return memoized;
                 }

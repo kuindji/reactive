@@ -171,10 +171,6 @@ export function createEvent<
     // that earlier (pre-enablement) trigger. Kept separate from `lastTrigger`,
     // which is recorded on every trigger purely for `lastTriggerArgs`.
     let autoTriggerArgs: Event["arguments"] | null = null;
-    // True while replaying `autoTriggerArgs` into a newly added listener. The
-    // replay goes through `_trigger`, but it is not a real trigger: it must not
-    // bump `triggered`/`lastTrigger` or be gated by the trigger `limit`.
-    let replaying: boolean = false;
     let sortListeners: boolean = false;
     let currentTagsFilter: string[] | null = null;
 
@@ -275,28 +271,16 @@ export function createEvent<
             && autoTriggerArgs !== null
             && !suspended
         ) {
-            const prevFilter = options.filter;
-            options.filter = (
-                args: any[],
-                l: Listener,
-            ) => {
-                if (
-                    l
-                    && l.handler === handler
-                    && l.context === listenerContext
-                ) {
-                    return prevFilter ? prevFilter(args, l) !== false : true;
-                }
-                return false;
-            };
-            replaying = true;
-            try {
-                _trigger(autoTriggerArgs);
-            }
-            finally {
-                replaying = false;
-                options.filter = prevFilter;
-            }
+            // Replay the last enabled trigger, but only into the listener just
+            // added. The replay target is passed explicitly to `_trigger` (not
+            // via shared closure/`options.filter` state) so that a real trigger
+            // fired synchronously by the replayed handler is an ordinary real
+            // trigger — full bookkeeping, limit enforcement, and delivery to all
+            // listeners — rather than inheriting this replay's suppression.
+            _trigger(autoTriggerArgs, null, null, {
+                handler,
+                context: listenerContext ?? null,
+            });
         }
     };
 
@@ -777,7 +761,12 @@ export function createEvent<
         args: Event["arguments"],
         returnType: TriggerReturnType | null = null,
         tags?: string[] | null,
+        // When set, this call is an autoTrigger replay: it must not bump
+        // `triggered`/`lastTrigger` or be gated by the trigger `limit`, and it is
+        // delivered only to the listener identified here.
+        replayTo?: { handler: Event["signature"]; context: object | null } | null,
     ) => {
+        const replaying = !!replayTo;
         if (destroyed) {
             throw new Error("Event is destroyed");
         }
@@ -856,6 +845,16 @@ export function createEvent<
 
         while ((listener = listenersQueue.shift())) {
             if (!listener) {
+                continue;
+            }
+
+            // An autoTrigger replay is delivered only to the newly added
+            // listener identified by `replayTo`.
+            if (
+                replayTo
+                && (listener.handler !== replayTo.handler
+                    || (listener.context ?? null) !== replayTo.context)
+            ) {
                 continue;
             }
 
