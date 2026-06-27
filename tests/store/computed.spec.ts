@@ -92,6 +92,24 @@ describe("store computed", () => {
         expect(seen).toEqual([ "John Roe" ]);
     });
 
+    it("settles a computed-of-computed chain on a multi-key set", () => {
+        type S = { a: number; b: number; c: number; d: number; };
+        const store = createStore<S>({ a: 1, b: 1 });
+        // c derives from b; d derives from a AND the computed c. On a multi-key
+        // set the base effects replay in key order (a before b), so d would
+        // recompute from a stale c first — it must still settle to the final
+        // value once c updates, not be skipped as "already recomputed".
+        store.computed("c", [ "b" ], (b) => b ?? 0);
+        store.computed("d", [ "a", "c" ], (a, c) => (a ?? 0) + (c ?? 0));
+
+        expect(store.get("d")).toBe(2);
+
+        store.set({ a: 2, b: 10 });
+
+        expect(store.get("c")).toBe(10);
+        expect(store.get("d")).toBe(12);
+    });
+
     it("supports computed-of-computed chains", () => {
         type S = { n: number; doubled: number; quad: number; };
         const store = createStore<S>({ n: 1 });

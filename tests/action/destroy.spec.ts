@@ -21,6 +21,22 @@ describe("action destroy()", () => {
         expect(() => action.invoke(1)).toThrow("destroyed");
     });
 
+    it("still resolves an in-flight invocation when destroyed mid-flight", async () => {
+        let release!: (value: number) => void;
+        const action = createAction(
+            () => new Promise<number>((resolve) => {
+                release = resolve;
+            }),
+        );
+
+        const pending = action.invoke();
+        action.destroy();
+        release(42);
+
+        const result = await pending;
+        expect(result).toEqual({ response: 42, error: null, args: [] });
+    });
+
     it("drops response listeners on destroy", () => {
         const action = createAction((x: number) => x + 1);
         let calls = 0;

@@ -68,6 +68,21 @@ describe("actionBus status", () => {
         }).not.toThrow();
     });
 
+    it("delivers status updates when the action is registered after subscribing", async () => {
+        const bus = createActionBus<{ load: () => Promise<number>; }>();
+
+        const seen: boolean[] = [];
+        bus.onStatusChange("load", (status) => {
+            seen.push(status.pending);
+        });
+
+        // Action registered AFTER the status subscription was set up.
+        bus.add("load", () => Promise.resolve(7));
+        await bus.invoke("load");
+
+        expect(seen).toEqual([ true, false ]);
+    });
+
     it("preserves status-event identity across replace", async () => {
         const bus = createActionBus({ a: (x: number) => x });
         const seen: number[] = [];

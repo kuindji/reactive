@@ -83,10 +83,28 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     // Multi-key object sets write every base value first with effect emission
     // deferred (`deferEffects`), then replay effects once so computed values
     // recompute from the final state instead of once per intermediate write.
-    // `computedBatch`, when active, caps each computed key to a single recompute
-    // even when several of its dependencies changed in the same set.
+    // `computedBatch`, when active, records the dependency values each computed
+    // last recomputed from in this batch. A computed is skipped only when its
+    // deps are unchanged since then — so a redundant dep change is a no-op, but
+    // a dependent in a computed chain still recomputes once its upstream
+    // computed updates (rather than settling on a stale early value).
     let deferEffects = false;
-    let computedBatch: Set<KeyOf<PropMap>> | null = null;
+    let computedBatch: Map<KeyOf<PropMap>, unknown[]> | null = null;
+
+    const arraysShallowEqual = (
+        a: readonly unknown[],
+        b: readonly unknown[],
+    ): boolean => {
+        if (a.length !== b.length) {
+            return false;
+        }
+        for (let i = 0; i < a.length; i++) {
+            if (a[i] !== b[i]) {
+                return false;
+            }
+        }
+        return true;
+    };
 
     let destroyed = false;
     // Timers scheduled by asyncSet, tracked so destroy() can cancel them.
@@ -311,7 +329,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
             let controlError: Error | null = null;
             if (shouldInterceptEffects) {
                 control.intercept(effectInterceptor);
-                computedBatch = new Set();
+                computedBatch = new Map();
             }
             let allChangedKeys: MapKey[] = [];
             try {
@@ -327,8 +345,9 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                     }
                 });
                 // Phase 2: with all base values final, replay the effect once per
-                // changed key. `computedBatch` keeps each computed to a single
-                // recompute even when several of its deps changed.
+                // changed key. `computedBatch` skips a computed whose dependency
+                // values are unchanged since its last recompute, while still
+                // letting chained computeds re-settle when an upstream updates.
                 if (shouldInterceptEffects) {
                     deferEffects = false;
                     changedKeys.forEach((k) => {
@@ -561,9 +580,11 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     // get/getData/onChange/useStoreState/useStoreSelector.
     //
     // Known limitation: recompute is registration-order, not topologically
-    // sorted. A computed whose deps change together can transiently double-fire
-    // an intermediate value (the final value is always correct), and
-    // computed-of-computed should register the base before the dependent.
+    // sorted. Within one multi-key set a dependent in a chain may recompute
+    // from a stale upstream first, but it re-settles to the final value once the
+    // upstream computed updates (`computedBatch` keys on dep values, not a
+    // one-shot flag). Registering the base before the dependent minimises the
+    // transient intermediate emission.
     const computed = <
         K extends KeyOf<PropMap>,
         const D extends readonly KeyOf<PropMap>[],
@@ -573,29 +594,34 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         fn: (...values: { [I in keyof D]: PropMap[D[I]] | undefined }) =>
             PropMap[K],
     ) => {
-        const compute = () =>
-            fn(
-                ...(deps.map((d) => data.get(d)) as {
-                    [I in keyof D]: PropMap[D[I]] | undefined;
-                }),
-            );
+        const readDeps = () =>
+            deps.map((d) => data.get(d)) as {
+                [I in keyof D]: PropMap[D[I]] | undefined;
+            };
 
         computedKeys.add(key);
 
         // Seed the initial value directly (no change emitted at setup time).
-        data.set(key, compute());
+        data.set(key, fn(...readDeps()));
 
         control.addListener(EffectEventName, (changedName) => {
             if ((deps as readonly MapKey[]).indexOf(changedName) === -1) {
                 return;
             }
-            // Within a single multi-key set, recompute at most once even if more
-            // than one dependency changed — the recompute reads the final state.
+            const depValues = readDeps();
+            // Within a single multi-key set, skip the recompute only when this
+            // computed's dependency values are unchanged since its last
+            // recompute in the batch. That dedupes redundant dep changes while
+            // still re-settling a chain when an upstream computed updates.
             if (computedBatch) {
-                if (computedBatch.has(key)) {
+                const lastDepValues = computedBatch.get(key);
+                if (
+                    lastDepValues
+                    && arraysShallowEqual(lastDepValues, depValues)
+                ) {
                     return;
                 }
-                computedBatch.add(key);
+                computedBatch.set(key, depValues as unknown[]);
             }
             if (computingKeys.has(key)) {
                 throw new Error(
@@ -604,7 +630,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
             }
             computingKeys.add(key);
             try {
-                _set(key, compute());
+                _set(key, fn(...depValues));
             }
             finally {
                 computingKeys.delete(key);

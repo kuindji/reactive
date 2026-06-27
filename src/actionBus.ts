@@ -43,6 +43,12 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
     const errorEvent = createEvent<ErrorListenerSignature<any[]>>();
     let destroyed = false;
 
+    // Status subscriptions for actions that are not registered yet. They are
+    // recorded here so a later add()/replace() can attach them — otherwise a
+    // hook subscribing before registration (e.g. useActionBusStatus) would stay
+    // unsubscribed forever. Kept after attach so a re-added action reattaches.
+    const pendingStatusListeners = new Map<MapKey, Set<BaseHandler>>();
+
     if (errorListener) {
         errorEvent.addListener(errorListener);
     }
@@ -54,6 +60,14 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
                 errorEvent.emit({ name, error, args, type: "action" });
             });
             actions.set(name, a);
+            // Attach any status subscriptions that were registered before this
+            // action existed.
+            const pending = pendingStatusListeners.get(name);
+            if (pending) {
+                pending.forEach((handler) => {
+                    a.onStatusChange(handler);
+                });
+            }
         }
     };
 
@@ -181,6 +195,14 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         name: K,
         handler: Actions[K]["statusListenerSignature"],
     ) => {
+        // Record the subscription so it survives (re)registration, then attach
+        // to the action now if it already exists.
+        let pending = pendingStatusListeners.get(name);
+        if (!pending) {
+            pending = new Set();
+            pendingStatusListeners.set(name, pending);
+        }
+        pending.add(handler as BaseHandler);
         const action: ActionTypes[K] | undefined = get(name);
         if (!action) {
             return;
@@ -192,6 +214,13 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         name: K,
         handler: Actions[K]["statusListenerSignature"],
     ) => {
+        const pending = pendingStatusListeners.get(name);
+        if (pending) {
+            pending.delete(handler as BaseHandler);
+            if (pending.size === 0) {
+                pendingStatusListeners.delete(name);
+            }
+        }
         const action: ActionTypes[K] | undefined = get(name);
         if (!action) {
             return;
@@ -207,6 +236,7 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
             action.destroy();
         });
         actions.clear();
+        pendingStatusListeners.clear();
         errorEvent.destroy();
         destroyed = true;
     };

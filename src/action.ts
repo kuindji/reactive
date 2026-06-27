@@ -122,6 +122,11 @@ export function createAction<A extends BaseHandler>(action: A) {
     };
 
     const updateStatus = () => {
+        // The status event may have been torn down while an invocation was in
+        // flight; emitting onto it would throw and mask the real outcome.
+        if (destroyed) {
+            return;
+        }
         const pending = inFlight > 0;
         if (
             currentStatus.pending === pending
@@ -169,7 +174,12 @@ export function createAction<A extends BaseHandler>(action: A) {
                         error: "Action cancelled",
                         args: args,
                     };
-                    trigger(response);
+                    // Skip emitting if destroyed mid-flight: the caller still
+                    // gets its settled response, but the torn-down event is not
+                    // triggered (which would throw "Event is destroyed").
+                    if (!destroyed) {
+                        trigger(response);
+                    }
                     return response;
                 }
             }
@@ -184,7 +194,11 @@ export function createAction<A extends BaseHandler>(action: A) {
                 error: null,
                 args: args,
             };
-            trigger(response);
+            // A successful invocation must still resolve with its result even if
+            // the action was destroyed while awaiting; only skip the emit.
+            if (!destroyed) {
+                trigger(response);
+            }
             return response;
         }
         catch (error) {
@@ -202,12 +216,14 @@ export function createAction<A extends BaseHandler>(action: A) {
                 error: error instanceof Error ? error.message : error as string,
                 args: args,
             };
-            trigger(response);
-            triggerError({
-                error: lastError,
-                args: args,
-                type: "action",
-            });
+            if (!destroyed) {
+                trigger(response);
+                triggerError({
+                    error: lastError,
+                    args: args,
+                    type: "action",
+                });
+            }
             return response;
         }
         finally {
