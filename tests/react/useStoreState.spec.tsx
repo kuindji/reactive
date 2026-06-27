@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "bun:test";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "../../src/react/useStore";
 import { useStoreState } from "../../src/react/useStoreState";
 import { createStore } from "../../src/store";
@@ -60,5 +60,31 @@ describe("useStoreState", () => {
 
         expect(screen.getByTestId("value")).toHaveTextContent("2");
         expect(renderLog).not.toContain("b:1");
+    });
+
+    it("keeps rendering after the store is destroyed while mounted", () => {
+        const store = createStore({ a: 1 });
+
+        let rerender!: (n: number) => void;
+        function Component() {
+            const [ tick, setTick ] = useState(0);
+            rerender = setTick;
+            const [ value ] = useStoreState(store, "a");
+            return <span data-testid="v">{value}-{tick}</span>;
+        }
+
+        render(<Component />);
+        expect(screen.getByTestId("v")).toHaveTextContent("1-0");
+
+        act(() => {
+            store.destroy();
+        });
+
+        // A render after destroy (e.g. a parent re-render before unmount) must
+        // not throw out of getSnapshot.
+        expect(() =>
+            act(() => {
+                rerender(1);
+            })).not.toThrow();
     });
 });

@@ -384,4 +384,21 @@ describe("eventBus ignores asterisk trigger", () => {
         bus.trigger("*" as any);
         expect(triggered).toBe(false);
     });
+
+    it("does not mutate the caller's options object", () => {
+        const bus = createEventBus<{ event: () => void }>();
+        const calls: number[] = [];
+        const opts = { context: { id: 1 } };
+
+        bus.once("event", () => calls.push(1), opts);
+        // The shared options object must not have been tainted with limit:1.
+        expect(opts).not.toHaveProperty("limit");
+
+        // Reusing it for a normal listener keeps unlimited semantics.
+        bus.on("event", () => calls.push(2), opts);
+        bus.trigger("event");
+        bus.trigger("event");
+
+        expect(calls).toEqual([ 1, 2, 2 ]);
+    });
 });

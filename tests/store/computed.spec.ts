@@ -346,4 +346,33 @@ describe("store computed", () => {
         store.reset();
         expect(store.get("fullName")).toBe("UNDEFINED UNDEFINED");
     });
+
+    it("does not leak cascade keys into the next set after an unhandled control-change throw", () => {
+        type S = { a: number; b: number; aPlus: number; bPlus: number; };
+        const store = createStore<S>({ a: 1, b: 2 });
+        store.computed("aPlus", [ "a" ], (a) => (a ?? 0) + 1);
+        store.computed("bPlus", [ "b" ], (b) => (b ?? 0) + 1);
+
+        let throwNext = true;
+        const seen: string[][] = [];
+        // No error listener, so the throw propagates out of set().
+        store.control(ChangeEventName, (names) => {
+            if (throwNext) {
+                throwNext = false;
+                throw new Error("boom");
+            }
+            seen.push(names);
+        });
+
+        expect(() => store.set("a", 5)).toThrow("boom");
+
+        // Setting an unrelated key must not report aPlus (from the first set's
+        // aborted cascade) as a changed key.
+        store.set("b", 10);
+
+        expect(seen.length).toBe(1);
+        expect(seen[0]).toContain("b");
+        expect(seen[0]).toContain("bPlus");
+        expect(seen[0]).not.toContain("aPlus");
+    });
 });

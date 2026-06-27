@@ -25,7 +25,14 @@ export function useStoreState<
     );
 
     const getSnapshot = useCallback(
-        () => store.get(key) as ValueType,
+        // getSnapshot can run for a still-mounted component after the store is
+        // destroyed (e.g. a provider torn down first), and must not throw out of
+        // render. On a destroyed store read via getData() (returns {} without
+        // asserting) instead of get() (which throws). Mirrors useStoreSelector.
+        () =>
+            (store.isDestroyed()
+                ? (store.getData() as Record<string, unknown>)[key]
+                : store.get(key)) as ValueType,
         [ store, key ],
     );
 

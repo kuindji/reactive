@@ -893,6 +893,17 @@ export function createEvent<
                 continue;
             }
 
+            // Count the call and exhaust the limit BEFORE invoking the handler.
+            // If the handler re-triggers this same event, the nested _trigger
+            // snapshots `listeners` AFTER the removal below, so an exhausted
+            // (e.g. once()) listener is not invoked a second time. Doing this
+            // after the call would let a re-entrant trigger see the still-live
+            // listener and run it again past its limit.
+            listener.called++;
+            if (listener.called === listener.limit) {
+                removeListener(listener.handler, listener.context);
+            }
+
             if (isConsequent && results.length > 0) {
                 const prev = results[results.length - 1];
                 if (hasPromises) {
@@ -930,12 +941,6 @@ export function createEvent<
             }
             else {
                 listenerResult = _listenerCall(listener, args);
-            }
-
-            listener.called++;
-
-            if (listener.called === listener.limit) {
-                removeListener(listener.handler, listener.context);
             }
 
             if (returnType === TriggerReturnType.FIRST) {

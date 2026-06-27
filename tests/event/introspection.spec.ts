@@ -24,6 +24,44 @@ describe("event once()", () => {
 
         expect(triggered).toEqual([ 2, 1 ]);
     });
+
+    it("fires only once even when its handler re-triggers the event", () => {
+        const o = createEvent<() => void>();
+        let count = 0;
+        o.once(() => {
+            count++;
+            if (count === 1) {
+                // Re-entrant trigger on the first (and only) call: the once
+                // listener must already be exhausted and not fire again.
+                o.trigger();
+            }
+        });
+
+        o.trigger();
+
+        expect(count).toBe(1);
+        expect(o.hasListener()).toBe(false);
+    });
+
+    it("honours a limit > 1 across a re-entrant trigger", () => {
+        const o = createEvent<() => void>();
+        let count = 0;
+        o.addListener(
+            () => {
+                count++;
+                if (count === 1) {
+                    o.trigger();
+                }
+            },
+            { limit: 2 },
+        );
+
+        o.trigger();
+
+        // limit:2 means at most 2 calls total, even with the nested trigger.
+        expect(count).toBe(2);
+        expect(o.hasListener()).toBe(false);
+    });
 });
 
 describe("event introspection", () => {

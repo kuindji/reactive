@@ -241,6 +241,10 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                         effectKeys = [];
                         return true;
                     }
+                    // Clear before propagating: an unhandled throw here would
+                    // otherwise leave the cascade's collected keys dirty for the
+                    // next _set, which would report them as spuriously changed.
+                    effectKeys = [];
                     throw error;
                 }
             }
@@ -268,6 +272,9 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                         effectKeys = [];
                         return true;
                     }
+                    // Clear before propagating (see the effect-trigger catch
+                    // above): a leaked effectKeys would taint the next _set.
+                    effectKeys = [];
                     throw error;
                 }
             }

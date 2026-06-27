@@ -414,9 +414,7 @@ export function createEventBus<
         handler: H,
         options?: ListenerOptions,
     ) => {
-        options = options || {};
-        options.limit = 1;
-        return on(name, handler, options);
+        return on(name, handler, { ...(options || {}), limit: 1 });
     };
 
     const promise = <K extends KeyOf<Events>>(
