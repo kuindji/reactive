@@ -85,13 +85,27 @@ describe("event updateListenerOptions AbortSignal", () => {
         expect(o.hasListener()).toBe(true);
     });
 
-    it("clears the signal binding when the option is omitted", () => {
+    it("preserves the signal binding when the option is omitted", () => {
         const o = createEvent<() => void>();
         const controller = new AbortController();
         const handler = () => {};
         o.addListener(handler, { signal: controller.signal });
 
-        o.updateListenerOptions(handler, null, {});
+        // Changing an unrelated option must not drop the abort wiring
+        // (partial-update convention).
+        o.updateListenerOptions(handler, null, { limit: 5 });
+
+        controller.abort();
+        expect(o.hasListener()).toBe(false);
+    });
+
+    it("clears the signal binding when signal is explicitly null", () => {
+        const o = createEvent<() => void>();
+        const controller = new AbortController();
+        const handler = () => {};
+        o.addListener(handler, { signal: controller.signal });
+
+        o.updateListenerOptions(handler, null, { signal: null });
 
         controller.abort();
         expect(o.hasListener()).toBe(true);

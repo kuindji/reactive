@@ -24,6 +24,14 @@ export type EqualityFn<T> = (a: T, b: T) => boolean;
  *
  * The deps-keyed form recomputes only when the change batch touches its keys.
  *
+ * Prefer the deps-keyed form for narrow reads. The selector form (no deps)
+ * subscribes to every store change and rebuilds the whole state via getData()
+ * on each one, re-running the selector even for unrelated writes (the equality
+ * fn still bails React re-renders, but the recompute itself is not filtered).
+ * The deps-keyed form both filters the subscription to its keys and avoids
+ * materializing the full state, so reach for it when selecting a few slices of
+ * a large or frequently-written store.
+ *
  * Concurrent-safe: the selection is memoized in a render-phase `useMemo` (an
  * abandoned concurrent render discards it rather than leaking it into the
  * committed tree) and the committed value is recorded in an effect, not during

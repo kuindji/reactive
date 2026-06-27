@@ -346,20 +346,36 @@ export function createEvent<
         const prevAlwaysFirst = listener.alwaysFirst;
         const prevAlwaysLast = listener.alwaysLast;
 
-        // Soft fields, applying the same defaults as addListener so that a
-        // removed field resets to its default rather than lingering.
-        listener.limit = nextOptions.limit ?? 0;
-        listener.start = nextOptions.start ?? 1;
-        listener.tags = nextOptions.tags ?? [];
-        listener.extraData = nextOptions.extraData ?? null;
-        listener.alwaysFirst = nextOptions.alwaysFirst ?? false;
-        listener.alwaysLast = nextOptions.alwaysLast ?? false;
-
-        let nextAsync: boolean | number | null = nextOptions.async ?? null;
-        if (nextAsync === true) {
-            nextAsync = 1;
+        // Partial update: only fields explicitly present in nextOptions change;
+        // any omitted field keeps its current value (a caller changing one
+        // option does not silently reset the others). Pass a field explicitly
+        // (e.g. limit: 0, signal: null) to clear it.
+        if ("limit" in nextOptions) {
+            listener.limit = nextOptions.limit ?? 0;
         }
-        listener.async = nextAsync;
+        if ("start" in nextOptions) {
+            listener.start = nextOptions.start ?? 1;
+        }
+        if ("tags" in nextOptions) {
+            listener.tags = nextOptions.tags ?? [];
+        }
+        if ("extraData" in nextOptions) {
+            listener.extraData = nextOptions.extraData ?? null;
+        }
+        if ("alwaysFirst" in nextOptions) {
+            listener.alwaysFirst = nextOptions.alwaysFirst ?? false;
+        }
+        if ("alwaysLast" in nextOptions) {
+            listener.alwaysLast = nextOptions.alwaysLast ?? false;
+        }
+
+        if ("async" in nextOptions) {
+            let nextAsync: boolean | number | null = nextOptions.async ?? null;
+            if (nextAsync === true) {
+                nextAsync = 1;
+            }
+            listener.async = nextAsync;
+        }
 
         // Re-sort if ordering hints changed. Unlike addListener we do NOT
         // rewrite each listener's index here: the existing indices hold the
@@ -377,26 +393,30 @@ export function createEvent<
             }
         }
 
-        // Rebind the AbortSignal: detach any previous wiring so the old
-        // controller can no longer remove this listener, then attach the new
-        // signal. Omitting the field clears the binding (soft-field reset
-        // convention); an already-aborted new signal removes the listener now,
-        // mirroring addListener's "do not keep an aborted-signal listener".
-        listener.abortCleanup?.();
-        listener.abortCleanup = null;
-        const nextSignal = nextOptions.signal ?? null;
-        if (nextSignal) {
-            if (nextSignal.aborted) {
-                removeListener(listener.handler, listenerContext);
-                return true;
+        // Rebind the AbortSignal only when `signal` is explicitly present:
+        // detach any previous wiring so the old controller can no longer remove
+        // this listener, then attach the new signal. Omitting the field leaves
+        // the existing binding intact (partial-update convention); pass
+        // signal: null to clear it. An already-aborted new signal removes the
+        // listener now, mirroring addListener's "do not keep an aborted-signal
+        // listener".
+        if ("signal" in nextOptions) {
+            listener.abortCleanup?.();
+            listener.abortCleanup = null;
+            const nextSignal = nextOptions.signal ?? null;
+            if (nextSignal) {
+                if (nextSignal.aborted) {
+                    removeListener(listener.handler, listenerContext);
+                    return true;
+                }
+                const onAbort = () => {
+                    removeListener(listener.handler, listenerContext);
+                };
+                nextSignal.addEventListener("abort", onAbort, { once: true });
+                listener.abortCleanup = () => {
+                    nextSignal.removeEventListener("abort", onAbort);
+                };
             }
-            const onAbort = () => {
-                removeListener(listener.handler, listenerContext);
-            };
-            nextSignal.addEventListener("abort", onAbort, { once: true });
-            listener.abortCleanup = () => {
-                nextSignal.removeEventListener("abort", onAbort);
-            };
         }
 
         // The core auto-remove check is a strict `called === limit`, so a
@@ -719,6 +739,12 @@ export function createEvent<
         | boolean =>
     {
         if (returnType === TriggerReturnType.PIPE) {
+            // Copy-on-write: preserve the pre-pipe lastTrigger snapshot before
+            // mutating args[0] in place for the pipe chain (lastTrigger stores
+            // the args reference rather than an eager per-trigger copy).
+            if (lastTrigger === args) {
+                lastTrigger = args.slice() as Event["arguments"];
+            }
             args[0] = prevValue;
             // since we don't user listener's arg transformer,
             // we don't need to prepare args
@@ -774,11 +800,15 @@ export function createEvent<
         if (!replaying) {
             triggered++;
 
-            // Always record the last trigger arguments for introspection
-            // (`lastTriggerArgs`). Copy rather than store the reference:
-            // consequent modes such as PIPE mutate `args[0]` in place while
-            // processing, which would otherwise corrupt the recorded snapshot.
-            lastTrigger = args.slice() as Event["arguments"];
+            // Record the last trigger arguments for introspection
+            // (`lastTriggerArgs`). Store the reference rather than eagerly
+            // copying on every trigger (a hot path even when nothing ever reads
+            // it): `args` is a fresh per-call array the caller cannot reach, and
+            // listeners receive it spread (never the array itself). The snapshot
+            // is copied lazily — when handed out by lastTriggerArgs(), and
+            // copy-on-write before PIPE mode mutates args[0] in place — so the
+            // recorded snapshot stays the pre-pipe arguments.
+            lastTrigger = args;
 
             // Record the replay source only while autoTrigger is enabled, so a
             // late listener added after autoTrigger is turned on replays the
