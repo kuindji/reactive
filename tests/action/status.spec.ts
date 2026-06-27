@@ -227,4 +227,25 @@ describe("action status", () => {
 
         expect(seen).toEqual([ true, false ]);
     });
+
+    it("a vetoed invocation does not wipe a prior successful status", async () => {
+        let allow = true;
+        const action = createAction((x: number) => x);
+        action.addBeforeActionListener(() => (allow ? undefined : false));
+
+        await action.invoke(99);
+        expect(action.getStatus().response).toBe(99);
+
+        allow = false;
+        const res = await action.invoke(7);
+        expect(res).toEqual({
+            response: null,
+            error: "Action cancelled",
+            args: [ 7 ],
+        });
+        // A before-veto is a no-op for the caller; it must not erase the last
+        // real settlement (the successful 99).
+        expect(action.getStatus().response).toBe(99);
+        expect(action.getStatus().error).toBe(null);
+    });
 });

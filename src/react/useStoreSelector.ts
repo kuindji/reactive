@@ -1,4 +1,11 @@
-import { useCallback, useRef, useSyncExternalStore } from "react";
+import {
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useSyncExternalStore,
+} from "react";
 import type { KeyOf, MapKey } from "../lib/types.js";
 import type { BaseStore } from "../store.js";
 import { ChangeEventName } from "../store.js";
@@ -16,6 +23,11 @@ export type EqualityFn<T> = (a: T, b: T) => boolean;
  *   useStoreSelector(store, ["first", "last"], (first, last) => …, eqFn?)
  *
  * The deps-keyed form recomputes only when the change batch touches its keys.
+ *
+ * Concurrent-safe: the selection is memoized in a render-phase `useMemo` (an
+ * abandoned concurrent render discards it rather than leaking it into the
+ * committed tree) and the committed value is recorded in an effect, not during
+ * render. This mirrors React's own `useSyncExternalStoreWithSelector`.
  */
 export function useStoreSelector<TStore extends BaseStore, R>(
     store: TStore,
@@ -47,16 +59,55 @@ export function useStoreSelector(
     const equalityFn = (deps ? arg4 : arg3 as EqualityFn<unknown>)
         ?? Object.is;
 
-    // Refs keep the subscribe/getSnapshot callbacks stable across renders even
-    // when inline selector/equality/deps change identity each render.
-    const selectorRef = useRef(selector);
-    selectorRef.current = selector;
-    const equalityRef = useRef(equalityFn);
-    equalityRef.current = equalityFn;
-    const depsRef = useRef(deps);
-    depsRef.current = deps;
+    // Committed selection cache. Written ONLY in an effect (commit phase) so an
+    // abandoned concurrent render cannot leak its selection into the committed
+    // tree (which a render-phase write to this cache would).
+    const instRef = useRef<{ hasValue: boolean; value: unknown; } | null>(null);
+    if (instRef.current === null) {
+        instRef.current = { hasValue: false, value: null };
+    }
+    const inst = instRef.current;
 
-    const cacheRef = useRef<{ value: unknown; } | null>(null);
+    // Latest deps for the subscribe filter. Updated in a layout effect (commit
+    // phase), not during render, and read only inside the change listener (which
+    // fires after commit), so the subscription always filters on committed deps.
+    const depsRef = useRef(deps);
+    useLayoutEffect(() => {
+        depsRef.current = deps;
+    });
+
+    // The memoized selection getter. Built during render, but the useMemo result
+    // is part of the fiber's memoized state: an abandoned concurrent render
+    // discards it, so no closure leaks. Rebuilt only when the store, selector,
+    // equality, or deps identity changes. The committed `inst.value` is read
+    // (never written) here, so a re-render with an equal result bails out to the
+    // committed reference.
+    const getSelection = useMemo(
+        () => {
+            let hasMemo = false;
+            let memoized: unknown;
+            return () => {
+                const next = deps
+                    ? selector(...deps.map((d) => store.get(d)))
+                    : selector(store.getData());
+                if (!hasMemo) {
+                    hasMemo = true;
+                    if (inst.hasValue && equalityFn(inst.value, next)) {
+                        memoized = inst.value;
+                        return inst.value;
+                    }
+                    memoized = next;
+                    return next;
+                }
+                if (equalityFn(memoized, next)) {
+                    return memoized;
+                }
+                memoized = next;
+                return next;
+            };
+        },
+        [ store, selector, equalityFn, deps, inst ],
+    );
 
     const subscribe = useCallback(
         (onStoreChange: () => void) => {
@@ -78,24 +129,12 @@ export function useStoreSelector(
         [ store ],
     );
 
-    const getSnapshot = useCallback(
-        () => {
-            const currentDeps = depsRef.current;
-            const next = currentDeps
-                ? selectorRef.current(
-                    ...currentDeps.map((d) => store.get(d)),
-                )
-                : selectorRef.current(store.getData());
+    const value = useSyncExternalStore(subscribe, getSelection, getSelection);
 
-            const cache = cacheRef.current;
-            if (cache && equalityRef.current(cache.value, next)) {
-                return cache.value;
-            }
-            cacheRef.current = { value: next };
-            return next;
-        },
-        [ store ],
-    );
+    useEffect(() => {
+        inst.hasValue = true;
+        inst.value = value;
+    }, [ value, inst ]);
 
-    return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+    return value;
 }

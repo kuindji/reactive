@@ -6,7 +6,6 @@ import { ActionMapSetErrorListeners } from "../lib/actionMapInternal.js";
 import type {
     ErrorListenerSignature,
     ErrorResponse,
-    Simplify,
 } from "../lib/types.js";
 import { ErrorBoundaryContext } from "./ErrorBoundary.js";
 
@@ -88,5 +87,5 @@ export function useActionMap<M extends BaseActionsMap>(
         }
     });
 
-    return actionMap as Simplify<typeof actionMap>;
+    return actionMap;
 }

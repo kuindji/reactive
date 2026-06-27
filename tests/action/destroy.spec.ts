@@ -66,4 +66,23 @@ describe("action destroy()", () => {
         expect(() => action.onStatusChange(() => calls++)).toThrow("destroyed");
         expect(calls).toBe(0);
     });
+
+    it("reconciles pending status after destroy() mid-flight", async () => {
+        let resolve!: (v: number) => void;
+        const action = createAction(
+            () => new Promise<number>((r) => {
+                resolve = r;
+            }),
+        );
+        const p = action.invoke();
+        expect(action.getStatus().pending).toBe(true);
+
+        action.destroy();
+        resolve(1);
+        await p;
+
+        // The status event is torn down, but getStatus() must still reflect that
+        // the in-flight invocation has settled rather than stranding pending.
+        expect(action.getStatus().pending).toBe(false);
+    });
 });

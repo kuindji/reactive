@@ -38,6 +38,11 @@ export function useStoreState<
     const setter = useCallback(
         (value: ValueType | Setter) => {
             if (typeof value === "function") {
+                // The cast is required by tsc (the typeof-narrowed `value` is
+                // `Setter | (ValueType & Function)`, not all callable), even
+                // though no-unnecessary-type-assertion disagrees on this TS
+                // version.
+                // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
                 store.set(key, (value as Setter)(store.get(key)));
             }
             else {

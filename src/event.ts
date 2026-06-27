@@ -166,6 +166,15 @@ export function createEvent<
     let destroyed: boolean = false;
     let triggered: number = 0;
     let lastTrigger: Event["arguments"] | null = null;
+    // The args replayed to a late autoTrigger listener. Recorded only while
+    // autoTrigger is enabled, so enabling it *after* a trigger does not replay
+    // that earlier (pre-enablement) trigger. Kept separate from `lastTrigger`,
+    // which is recorded on every trigger purely for `lastTriggerArgs`.
+    let autoTriggerArgs: Event["arguments"] | null = null;
+    // True while replaying `autoTriggerArgs` into a newly added listener. The
+    // replay goes through `_trigger`, but it is not a real trigger: it must not
+    // bump `triggered`/`lastTrigger` or be gated by the trigger `limit`.
+    let replaying: boolean = false;
     let sortListeners: boolean = false;
     let currentTagsFilter: string[] | null = null;
 
@@ -181,7 +190,7 @@ export function createEvent<
 
     const addListener = (
         handler: Event["signature"],
-        listenerOptions: ListenerOptions = {} as ListenerOptions,
+        listenerOptions: ListenerOptions = {},
     ) => {
         if (destroyed) {
             throw new Error("Event is destroyed");
@@ -263,7 +272,7 @@ export function createEvent<
 
         if (
             options.autoTrigger
-            && lastTrigger !== null
+            && autoTriggerArgs !== null
             && !suspended
         ) {
             const prevFilter = options.filter;
@@ -276,10 +285,12 @@ export function createEvent<
                 }
                 return false;
             };
+            replaying = true;
             try {
-                _trigger(lastTrigger);
+                _trigger(autoTriggerArgs);
             }
             finally {
+                replaying = false;
                 options.filter = prevFilter;
             }
         }
@@ -318,7 +329,7 @@ export function createEvent<
     const updateListenerOptions = (
         handler: Event["signature"],
         context: object | null = null,
-        nextOptions: ListenerOptions = {} as ListenerOptions,
+        nextOptions: ListenerOptions = {},
     ): boolean => {
         const listenerContext = context ?? null;
         const listener = listeners.find((l) =>
@@ -613,6 +624,7 @@ export function createEvent<
         queued = false;
         triggered = 0;
         lastTrigger = null;
+        autoTriggerArgs = null;
         sortListeners = false;
     };
 
@@ -750,16 +762,27 @@ export function createEvent<
         if (suspended) {
             return;
         }
-        if (options.limit && triggered >= options.limit) {
+        // The trigger `limit` bounds real triggers; an autoTrigger replay is an
+        // internal redelivery and must always reach the new listener.
+        if (options.limit && triggered >= options.limit && !replaying) {
             return;
         }
-        triggered++;
+        if (!replaying) {
+            triggered++;
 
-        // Always record the last trigger arguments for introspection
-        // (`lastTriggerArgs`). Copy rather than store the reference: consequent
-        // modes such as PIPE mutate `args[0]` in place while processing, which
-        // would otherwise corrupt the recorded snapshot.
-        lastTrigger = args.slice() as Event["arguments"];
+            // Always record the last trigger arguments for introspection
+            // (`lastTriggerArgs`). Copy rather than store the reference:
+            // consequent modes such as PIPE mutate `args[0]` in place while
+            // processing, which would otherwise corrupt the recorded snapshot.
+            lastTrigger = args.slice() as Event["arguments"];
+
+            // Record the replay source only while autoTrigger is enabled, so a
+            // late listener added after autoTrigger is turned on replays the
+            // most recent *enabled* trigger, never an earlier disabled one.
+            if (options.autoTrigger) {
+                autoTriggerArgs = args.slice() as Event["arguments"];
+            }
+        }
 
         // in pipe mode if there is no listeners,
         // we just return piped value
@@ -999,7 +1022,7 @@ export function createEvent<
 
     const once = (
         handler: Event["signature"],
-        listenerOptions: ListenerOptions = {} as ListenerOptions,
+        listenerOptions: ListenerOptions = {},
     ) => {
         return addListener(handler, { ...listenerOptions, limit: 1 });
     };

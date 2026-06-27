@@ -259,4 +259,66 @@ describe("store computed", () => {
         expect(batches.length).toBe(1);
         expect(batches[0].filter((n) => n === "fullName").length).toBe(1);
     });
+
+    it("re-seeds computed keys on reset so they reflect the cleared deps", () => {
+        const store = createStore<UserStore>({ first: "John", last: "Doe" });
+        store.computed(
+            "fullName",
+            [ "first", "last" ],
+            (f, l) => `${f ?? ""} ${l ?? ""}`.trim(),
+        );
+        expect(store.get("fullName")).toBe("John Doe");
+
+        store.reset();
+
+        // After reset the base deps are cleared; the computed must reflect
+        // fn(undefined, undefined) rather than a stale "John Doe" or undefined.
+        expect(store.get("fullName")).toBe("");
+
+        // It also stays a live computed: a later set recomputes it.
+        store.set("first", "Jane");
+        expect(store.get("fullName")).toBe("Jane");
+    });
+
+    it("a diamond computed emits onChange once with a consistent value", () => {
+        type Diamond = { a: number; b: number; c: number; d: number };
+        const store = createStore<Diamond>({ a: 1 });
+        store.computed("b", [ "a" ], (a) => (a ?? 0) + 1);
+        store.computed("c", [ "a" ], (a) => (a ?? 0) + 10);
+        store.computed("d", [ "b", "c" ], (b, c) => (b ?? 0) + (c ?? 0));
+
+        // a=1 -> b=2, c=11, d=13.
+        const emissions: Array<[ number, number ]> = [];
+        store.onChange(
+            "d",
+            (v, p) => emissions.push([ v as number, p as number ]),
+        );
+
+        store.set("a", 2);
+
+        // a=2 -> b=3, c=12, d=15. d must fire exactly once with the settled
+        // value and the real pre-set prev (13) — never the inconsistent
+        // intermediate 14 (b_new + c_old) nor a wrong prev of 14.
+        expect(store.get("d")).toBe(15);
+        expect(emissions).toEqual([ [ 15, 13 ] ]);
+    });
+
+    it("a diamond computed is glitch-free on a multi-key set too", () => {
+        type Diamond = { a: number; x: number; b: number; c: number; d: number };
+        const store = createStore<Diamond>({ a: 1, x: 0 });
+        store.computed("b", [ "a" ], (a) => (a ?? 0) + 1);
+        store.computed("c", [ "a" ], (a) => (a ?? 0) + 10);
+        store.computed("d", [ "b", "c" ], (b, c) => (b ?? 0) + (c ?? 0));
+
+        const emissions: Array<[ number, number ]> = [];
+        store.onChange(
+            "d",
+            (v, p) => emissions.push([ v as number, p as number ]),
+        );
+
+        store.set({ a: 2, x: 5 });
+
+        expect(store.get("d")).toBe(15);
+        expect(emissions).toEqual([ [ 15, 13 ] ]);
+    });
 });

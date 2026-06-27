@@ -1,5 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "bun:test";
+import { useState } from "react";
 import { createStore } from "../../src/store";
 import { useStoreSelector } from "../../src/react/useStoreSelector";
 
@@ -128,6 +129,31 @@ describe("useStoreSelector", () => {
             store.set("a", false);
         });
         expect(screen.getByTestId("v")).toHaveTextContent("false");
+    });
+
+    it("re-selects when the selector changes between renders without a store change", () => {
+        const store = createStore<S>({ first: "Jane", last: "Doe", other: 0 });
+        let setUpper: (v: boolean) => void = () => {};
+
+        function Component() {
+            const [ upper, setU ] = useState(false);
+            setUpper = setU;
+            const label = useStoreSelector(
+                store,
+                (s) => (upper ? s.first.toUpperCase() : s.first),
+            );
+            return <span data-testid="v">{label}</span>;
+        }
+
+        render(<Component />);
+        expect(screen.getByTestId("v")).toHaveTextContent("Jane");
+
+        // The selector closure changes (captures the new `upper`) with no store
+        // change; the displayed selection must update from the latest selector.
+        act(() => {
+            setUpper(true);
+        });
+        expect(screen.getByTestId("v")).toHaveTextContent("JANE");
     });
 
     it("reads computed keys (composes with Feature 1)", () => {

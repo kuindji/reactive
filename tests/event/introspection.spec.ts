@@ -59,6 +59,16 @@ describe("event introspection", () => {
         expect(o.triggeredCount()).toBe(2);
     });
 
+    it("triggeredCount does not count autoTrigger replays to new listeners", () => {
+        const o = createEvent<(n: number) => void>({ autoTrigger: true });
+        o.trigger(1);
+        // Each of these additions internally replays the last trigger to the
+        // new listener; those replays must not inflate the public counter.
+        o.addListener(() => {});
+        o.addListener(() => {});
+        expect(o.triggeredCount()).toBe(1);
+    });
+
     it("lastTriggerArgs returns the most recent trigger arguments", () => {
         const o = createEvent<(a: number, b: string) => void>();
         expect(o.lastTriggerArgs()).toBe(null);

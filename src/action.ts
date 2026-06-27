@@ -126,11 +126,6 @@ export function createAction<A extends BaseHandler>(action: A) {
     });
 
     const updateStatus = () => {
-        // The status event may have been torn down while an invocation was in
-        // flight; emitting onto it would throw and mask the real outcome.
-        if (destroyed) {
-            return;
-        }
         const pending = inFlight > 0;
         if (
             currentStatus.pending === pending
@@ -144,6 +139,13 @@ export function createAction<A extends BaseHandler>(action: A) {
             error: lastError,
             response: lastResponse,
         });
+        // The status event may have been torn down while an invocation was in
+        // flight. Still reconcile `currentStatus` above (so getStatus() does not
+        // strand `pending: true` after a mid-flight destroy), but skip emitting
+        // onto the dead event, which would throw and mask the real outcome.
+        if (destroyed) {
+            return;
+        }
         // Status is a side channel. A throwing status listener must not corrupt
         // the invoke lifecycle: if it propagated here it would, depending on the
         // call site, abort execution or skip the inFlight decrement and strand
@@ -199,10 +201,11 @@ export function createAction<A extends BaseHandler>(action: A) {
                 : beforeResponse;
             for (const before of beforeResults) {
                 if (before === false) {
-                    // A before-veto is not a UI failure: settle status to
-                    // neither response nor error.
-                    lastResponse = null;
-                    lastError = null;
+                    // A before-veto is a no-op for the caller, not a settlement:
+                    // leave lastResponse/lastError untouched so a vetoed
+                    // invocation cannot wipe the status of a concurrent (or
+                    // prior) real invocation. A fresh action still reads idle
+                    // because both start null.
                     const response = {
                         response: null,
                         error: "Action cancelled",

@@ -25,7 +25,7 @@ describe("event error handling", () => {
         let receivedArgs: [number, string] = null!;
 
         event.addErrorListener(({ args }) => {
-            receivedArgs = args as [number, string];
+            receivedArgs = args;
         });
 
         event.addListener((_a, _b) => {

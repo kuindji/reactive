@@ -365,7 +365,7 @@ describe("store edge cases", () => {
 
     it("handles undefined as valid value", () => {
         const store = createStore({
-            a: 1 as number | undefined,
+            a: 1,
         });
 
         let changeTriggered = false;
@@ -513,7 +513,7 @@ describe("store batch operations", () => {
 
         let changedKeys: string[] = [];
         store.control("change", (keys) => {
-            changedKeys = keys as string[];
+            changedKeys = keys;
         });
 
         store.batch(() => {
@@ -556,7 +556,7 @@ describe("store batch operations", () => {
             changes.push({ value, prev: prev! });
         });
         store.control("change", (keys) => {
-            changedKeys = keys as string[];
+            changedKeys = keys;
         });
 
         expect(() => {

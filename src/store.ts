@@ -79,6 +79,11 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     // a cyclic computed throws instead of looping forever.
     const computedKeys = new Set<KeyOf<PropMap>>();
     const computingKeys = new Set<KeyOf<PropMap>>();
+    // Re-seed closures keyed in registration order so reset() can recompute each
+    // computed value from the (now cleared) deps. Without this, reset() clears
+    // `data` but leaves computed keys stale/undefined while still marked
+    // read-only, so they no longer equal fn(deps).
+    const computedReseeders = new Map<KeyOf<PropMap>, () => void>();
 
     // Multi-key object sets write every base value first with effect emission
     // deferred (`deferEffects`), then replay effects once so computed values
@@ -118,6 +123,17 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     };
 
     const dedupe = (keys: MapKey[]): MapKey[] => Array.from(new Set(keys));
+
+    // A public set() can trigger a computed cascade. Routing it through batch()
+    // makes that cascade glitch-free (one coalesced onChange per affected key).
+    // Only do so at the top level: if already batching or intercepting, the
+    // surrounding operation coalesces; with no effect listener there is no
+    // cascade to coalesce.
+    const canCoalesceCascade = () =>
+        !batching
+        && !changes.isIntercepting()
+        && !control.isIntercepting()
+        && !!control.get(EffectEventName)?.hasListener();
 
     const effectInterceptor = (name: MapKey, args: unknown[]) => {
         if (name === ChangeEventName) {
@@ -289,6 +305,185 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         pendingTimers.add(timer);
     }
 
+    // Replay a coalesced change log: one onChange per key, keeping the first
+    // entry's pre-cascade `prev` and the last entry's settled `value`, dropping
+    // keys whose net value is unchanged. Mirrors batch()'s replay (including its
+    // store-change error routing) so a computed touched several times during a
+    // cascade emits a single, internally-consistent onChange.
+    const replayCoalescedChanges = (
+        log: [ MapKey, any, any ][],
+        hasCallbackError: boolean,
+        callbackError: unknown,
+    ) => {
+        const coalesced = new Map<MapKey, { value: any; prev: any; }>();
+        for (const [ propName, value, prev ] of log) {
+            const existing = coalesced.get(propName);
+            if (existing) {
+                existing.value = value;
+            }
+            else {
+                coalesced.set(propName, { value, prev });
+            }
+        }
+        for (const [ propName, { value, prev } ] of coalesced) {
+            if (value === prev) {
+                continue;
+            }
+            const changeArgs = [
+                value,
+                prev,
+            ] as unknown as ChangeEvents[typeof propName]["arguments"];
+            try {
+                changes.trigger(propName, ...changeArgs);
+            }
+            catch (error) {
+                control.trigger(ErrorEventName, {
+                    error: error instanceof Error
+                        ? error
+                        : new Error(String(error)),
+                    args: changeArgs,
+                    type: "store-change",
+                    name: propName,
+                });
+                if (control.get(ErrorEventName)?.hasListener()) {
+                    continue;
+                }
+                if (hasCallbackError) {
+                    continue;
+                }
+                throw error;
+            }
+        }
+        if (hasCallbackError) {
+            throw callbackError;
+        }
+    };
+
+    // Run `fn` with onChange emissions intercepted and coalesced. The control
+    // change-key collection (effectKeys / effectInterceptor ordering) inside
+    // `fn` is untouched, so only the per-key onChange stream is deduped.
+    const withChangeCoalescing = (fn: () => void) => {
+        const log: [ MapKey, any, any ][] = [];
+        const logger = function(propName: MapKey, args: any[]) {
+            log.push([ propName, args[0], args[1] ]);
+            return false;
+        };
+        changes.intercept(logger);
+        let callbackError: unknown;
+        let hasCallbackError = false;
+        try {
+            fn();
+        }
+        catch (error) {
+            callbackError = error;
+            hasCallbackError = true;
+        }
+        finally {
+            changes.stopIntercepting();
+        }
+        replayCoalescedChanges(log, hasCallbackError, callbackError);
+    };
+
+    // The write path shared by set() and its coalescing wrapper. Computed-key
+    // validation happens in set() before this runs.
+    const applySet = (name: any, value?: any) => {
+        if (typeof name === "string") {
+            _set(name, value);
+            return;
+        }
+        const changedKeys: MapKey[] = [];
+        const isIntercepting = control.isIntercepting();
+        const hasEffectListener = control.get(EffectEventName)?.hasListener();
+        const shouldInterceptEffects = hasEffectListener && !isIntercepting;
+        let controlError: Error | null = null;
+        if (shouldInterceptEffects) {
+            control.intercept(effectInterceptor);
+            computedBatch = new Map();
+        }
+        let allChangedKeys: MapKey[] = [];
+        try {
+            // Phase 1: write every base value with effect emission deferred,
+            // so computed values do not recompute against a half-updated
+            // state mid-loop.
+            if (shouldInterceptEffects) {
+                deferEffects = true;
+            }
+            const entries = Object.entries(name as Record<string, unknown>) as [
+                KeyOf<PropMap>,
+                PropMap[KeyOf<PropMap>],
+            ][];
+            entries.forEach(([ k, v ]) => {
+                if (_set(k, v, false)) {
+                    changedKeys.push(k);
+                }
+            });
+            // Phase 2: with all base values final, replay the effect once per
+            // changed key. `computedBatch` skips a computed whose dependency
+            // values are unchanged since its last recompute, while still
+            // letting chained computeds re-settle when an upstream updates.
+            if (shouldInterceptEffects) {
+                deferEffects = false;
+                changedKeys.forEach((k) => {
+                    // Mirror _set's effect error contract: a throwing effect
+                    // listener routes to the error event (and is swallowed if
+                    // a handler exists) rather than aborting the whole set.
+                    try {
+                        control.trigger(EffectEventName, k, data.get(k));
+                    }
+                    catch (error) {
+                        control.trigger(ErrorEventName, {
+                            error: error instanceof Error
+                                ? error
+                                : new Error(String(error)),
+                            args: [ k ],
+                            type: "store-control",
+                            name: k,
+                        });
+                        if (!control.get(ErrorEventName)?.hasListener()) {
+                            throw error;
+                        }
+                    }
+                });
+            }
+            allChangedKeys = dedupe([
+                ...changedKeys,
+                ...effectKeys,
+            ]);
+        }
+        finally {
+            if (shouldInterceptEffects) {
+                effectKeys = [];
+                deferEffects = false;
+                computedBatch = null;
+                control.stopIntercepting();
+            }
+        }
+        // Fire the outer change AFTER intercepting stops; otherwise the
+        // effectInterceptor (active during the loop to fold computed/effect
+        // writes into effectKeys) would swallow this trigger too.
+        if (allChangedKeys.length > 0) {
+            try {
+                control.trigger(ChangeEventName, allChangedKeys);
+            }
+            catch (error) {
+                controlError = error instanceof Error
+                    ? error
+                    : new Error(String(error));
+            }
+        }
+        if (controlError) {
+            control.trigger(ErrorEventName, {
+                error: controlError,
+                args: [ name ],
+                type: "store-control",
+            });
+            if (control.get(ErrorEventName)?.hasListener()) {
+                return;
+            }
+            throw controlError;
+        }
+    };
+
     function set<K extends KeyOf<PropMap>>(
         key: K,
         value: PropMap[K] | undefined,
@@ -309,7 +504,6 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                     `Cannot set computed property "${name}"`,
                 );
             }
-            _set(name, value);
         }
         else if (typeof name === "object") {
             // Validate all keys before any write so a computed key in the patch
@@ -321,98 +515,22 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                     );
                 }
             }
-            const changedKeys: MapKey[] = [];
-            const isIntercepting = control.isIntercepting();
-            const hasEffectListener = control.get(EffectEventName)
-                ?.hasListener();
-            const shouldInterceptEffects = hasEffectListener && !isIntercepting;
-            let controlError: Error | null = null;
-            if (shouldInterceptEffects) {
-                control.intercept(effectInterceptor);
-                computedBatch = new Map();
-            }
-            let allChangedKeys: MapKey[] = [];
-            try {
-                // Phase 1: write every base value with effect emission deferred,
-                // so computed values do not recompute against a half-updated
-                // state mid-loop.
-                if (shouldInterceptEffects) {
-                    deferEffects = true;
-                }
-                Object.entries(name).forEach(([ k, v ]) => {
-                    if (_set(k, v, false)) {
-                        changedKeys.push(k);
-                    }
-                });
-                // Phase 2: with all base values final, replay the effect once per
-                // changed key. `computedBatch` skips a computed whose dependency
-                // values are unchanged since its last recompute, while still
-                // letting chained computeds re-settle when an upstream updates.
-                if (shouldInterceptEffects) {
-                    deferEffects = false;
-                    changedKeys.forEach((k) => {
-                        // Mirror _set's effect error contract: a throwing effect
-                        // listener routes to the error event (and is swallowed if
-                        // a handler exists) rather than aborting the whole set.
-                        try {
-                            control.trigger(EffectEventName, k, data.get(k));
-                        }
-                        catch (error) {
-                            control.trigger(ErrorEventName, {
-                                error: error instanceof Error
-                                    ? error
-                                    : new Error(String(error)),
-                                args: [ k ],
-                                type: "store-control",
-                                name: k,
-                            });
-                            if (!control.get(ErrorEventName)?.hasListener()) {
-                                throw error;
-                            }
-                        }
-                    });
-                }
-                allChangedKeys = dedupe([
-                    ...changedKeys,
-                    ...effectKeys,
-                ]);
-            }
-            finally {
-                if (shouldInterceptEffects) {
-                    effectKeys = [];
-                    deferEffects = false;
-                    computedBatch = null;
-                    control.stopIntercepting();
-                }
-            }
-            // Fire the outer change AFTER intercepting stops; otherwise the
-            // effectInterceptor (active during the loop to fold computed/effect
-            // writes into effectKeys) would swallow this trigger too.
-            if (allChangedKeys.length > 0) {
-                try {
-                    control.trigger(ChangeEventName, allChangedKeys);
-                }
-                catch (error) {
-                    controlError = error instanceof Error
-                        ? error
-                        : new Error(String(error));
-                }
-            }
-            if (controlError) {
-                control.trigger(ErrorEventName, {
-                    error: controlError,
-                    args: [ name ],
-                    type: "store-control",
-                });
-                if (control.get(ErrorEventName)?.hasListener()) {
-                    return;
-                }
-                throw controlError;
-            }
         }
         else {
             throw new Error(`Invalid key: ${String(name)}`);
         }
+        // A cascade-triggering set coalesces its onChange emissions: a computed
+        // touched several times during the cascade (e.g. a diamond sink
+        // recomputed once per upstream) fires onChange once with its settled
+        // value and the real pre-set prev, instead of leaking an internally
+        // inconsistent intermediate (b_new + c_old) with a wrong prev. The
+        // control change-key collection is left untouched, so change-key
+        // ordering is unaffected.
+        if (canCoalesceCascade()) {
+            withChangeCoalescing(() => applySet(name, value));
+            return;
+        }
+        applySet(name, value);
     }
 
     const get = <
@@ -577,6 +695,12 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
 
     const reset = () => {
         data.clear();
+        // Recompute computed keys from the cleared deps (registration order, so a
+        // base computed re-seeds before a dependent in a chain) and re-seed them
+        // silently, keeping each consistent with fn(deps) instead of stale.
+        computedReseeders.forEach((reseed) => {
+            reseed();
+        });
         control.trigger(ResetEventName);
     };
 
@@ -591,6 +715,7 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         data.clear();
         computedKeys.clear();
         computingKeys.clear();
+        computedReseeders.clear();
         effectKeys = [];
         destroyed = true;
     };
@@ -603,12 +728,13 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
     // batch via `effectKeys`. Computed keys flow transparently through
     // get/getData/onChange/useStoreState/useStoreSelector.
     //
-    // Known limitation: recompute is registration-order, not topologically
-    // sorted. Within one multi-key set a dependent in a chain may recompute
-    // from a stale upstream first, but it re-settles to the final value once the
-    // upstream computed updates (`computedBatch` keys on dep values, not a
-    // one-shot flag). Registering the base before the dependent minimises the
-    // transient intermediate emission.
+    // Recompute is registration-order, not topologically sorted, so a dependent
+    // (chain or diamond) may recompute from a stale upstream first. The internal
+    // intermediate recompute is invisible to consumers: set() coalesces the
+    // onChange stream for a cascade, so each computed fires onChange once with
+    // its settled value and the real pre-set prev (`computedBatch` also dedupes
+    // redundant recomputes within a multi-key set). The final get()/onChange
+    // value is always correct.
     const computed = <
         K extends KeyOf<PropMap>,
         const D extends readonly KeyOf<PropMap>[],
@@ -637,6 +763,11 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         // only now mark the key computed and install the recompute listener.
         data.set(key, initialValue);
         computedKeys.add(key);
+        // reset() re-runs this to recompute the value from the cleared deps. It
+        // seeds `data` silently (no change emitted), matching this setup path.
+        computedReseeders.set(key, () => {
+            data.set(key, fn(...readDeps()));
+        });
 
         control.addListener(EffectEventName, (changedName) => {
             if ((deps as readonly MapKey[]).indexOf(changedName) === -1) {

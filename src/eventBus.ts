@@ -333,7 +333,7 @@ export function createEventBus<
         // intentionally left as-is (the bus can change an event's options but
         // does not un-set them).
         Object.keys(eventOptions).forEach((name) => {
-            const e = events.get(name as KeyOf<Events>) as
+            const e = events.get(name) as
                 | EventTypes[KeyOf<Events>]
                 | undefined;
             if (e) {
@@ -1013,7 +1013,12 @@ export function createEventBus<
             eventSource,
             remoteEventName,
             localEventName: localEventName || null,
-            proxyType,
+            // Store the resolved proxyType (undefined resolves to TRIGGER) so the
+            // registry key matches how the proxy listener is actually resolved.
+            // Otherwise unrelay({ proxyType: TRIGGER }) for a relay({}) (undefined)
+            // detaches the listener but leaves a stale registry entry, which a
+            // later reset()/destroy() then unrelays a second time.
+            proxyType: proxyType || ProxyType.TRIGGER,
             localEventNamePrefix: localEventNamePrefix || null,
         });
     };
@@ -1055,7 +1060,10 @@ export function createEventBus<
             r.eventSource === eventSource
             && r.remoteEventName === remoteEventName
             && r.localEventName === (localEventName || null)
-            && r.proxyType === proxyType
+            // Compare on the resolved proxyType so an undefined relay matches an
+            // explicit TRIGGER unrelay (and vice versa), mirroring how the proxy
+            // listener itself resolves equivalent types.
+            && r.proxyType === (proxyType || ProxyType.TRIGGER)
             && r.localEventNamePrefix === (localEventNamePrefix || null)
         );
         if (inx !== -1) {

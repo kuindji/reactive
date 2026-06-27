@@ -41,7 +41,7 @@ describe("eventBus setOptions", () => {
             calls++;
         });
         // new options omit 'a' -> existing event keeps limit 1
-        bus.setOptions({ eventOptions: {} as any });
+        bus.setOptions({ eventOptions: {} });
         bus.trigger("a", 1);
         bus.trigger("a", 1);
         expect(calls).toBe(1);

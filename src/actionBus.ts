@@ -100,7 +100,7 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
     };
 
     const has = (name: MapKey) => {
-        return actions.has(name as KeyOf<Actions>);
+        return actions.has(name);
     };
 
     // Replace an action's function in place when it exists (preserving all of
@@ -110,7 +110,7 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         if (destroyed) {
             throw new Error("ActionBus is destroyed");
         }
-        const existing = actions.get(name as KeyOf<Actions>);
+        const existing = actions.get(name);
         if (existing) {
             existing.setAction(action);
         }
@@ -123,8 +123,8 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
     // removeListener. The removed action's listeners and its error-forwarding
     // listener are dropped with it (they lived on the action's own events).
     const removeAction = (name: MapKey) => {
-        const action = actions.get(name as KeyOf<Actions>);
-        const existed = actions.delete(name as KeyOf<Actions>);
+        const action = actions.get(name);
+        const existed = actions.delete(name);
         // Detach the bus error-forwarding listener from the removed action so a
         // held reference no longer feeds the bus error event (and so its invoke
         // rejects rather than resolving via the forwarder acting as an error
@@ -208,6 +208,9 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         handler: Actions[K]["listenerSignature"],
         options?: ListenerOptions,
     ) => {
+        if (destroyed) {
+            throw new Error("ActionBus is destroyed");
+        }
         options = options || {};
         options.limit = 1;
         const action: ActionTypes[K] = get(name);
@@ -223,6 +226,9 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         context?: object | null,
         tag?: string | null,
     ) => {
+        if (destroyed) {
+            throw new Error("ActionBus is destroyed");
+        }
         const action: ActionTypes[K] = get(name);
         if (!action) {
             throw new Error(`Action ${name as string} not found`);
@@ -236,6 +242,9 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         context?: object | null,
         nextOptions?: ListenerOptions,
     ) => {
+        if (destroyed) {
+            throw new Error("ActionBus is destroyed");
+        }
         const action: ActionTypes[K] | undefined = get(name);
         if (!action) {
             return false;
@@ -261,7 +270,7 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
     ): Actions[K]["statusType"] => {
         const action: ActionTypes[K] | undefined = get(name);
         if (!action) {
-            return idleStatus as Actions[K]["statusType"];
+            return idleStatus;
         }
         return action.getStatus();
     };

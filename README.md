@@ -825,7 +825,7 @@ const userData = userStore.get([ "name", "email" ]); // { name: string, email: s
 - `computed(key, deps, fn)` - Register a derived value (see Computed values)
 - `isEmpty()` - Check if store is empty
 - `getData()` - Get all store data
-- `reset()` - Clear store data
+- `reset()` - Clear store data. Computed keys are re-seeded from the cleared dependencies (so they stay consistent with `fn(deps)` rather than going stale) and remain live.
 - `destroy()` - Tear down the store: destroy the underlying change/pipe/control buses and drop all data. After `destroy()`, `set()`/`get()` throw.
 - `isDestroyed()` - Returns `true` once `destroy()` has been called
 
@@ -874,11 +874,13 @@ store.set("first", "John");   // fullName recomputes -> "John Doe"
 store.set("fullName", "x");   // throws: computed is read-only
 ```
 
-> **Known limitation:** recompute is registration-order, not topologically
-> sorted. A computed whose dependencies change together within a single
-> `set({...})`/`batch` can transiently emit an intermediate value before the
-> final one (the final value is always correct). Register base computeds before
-> the computeds that depend on them.
+> **Note:** recompute is registration-order, not topologically sorted, so a
+> chained or diamond-shaped computed may recompute internally more than once per
+> change. This is invisible to consumers: a single `set(...)`/`set({...})`/`batch`
+> coalesces the `onChange` stream, so each computed fires `onChange` once with
+> its settled value and the correct previous value. The final value is always
+> correct. Registering base computeds before dependents reduces redundant
+> internal recomputes.
 
 ## React Hooks
 

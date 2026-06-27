@@ -183,6 +183,16 @@ describe("actionBus status", () => {
         expect(() => bus.onStatusChange("a", () => {})).toThrow("destroyed");
     });
 
+    it("throws a consistent error for once/un/updateListenerOptions on a destroyed bus", () => {
+        const bus = createActionBus<{ a: () => number }>();
+        const handler = () => {};
+        bus.destroy();
+        expect(() => bus.once("a", handler)).toThrow("ActionBus is destroyed");
+        expect(() => bus.un("a", handler)).toThrow("ActionBus is destroyed");
+        expect(() => bus.updateListenerOptions("a", handler, null, {}))
+            .toThrow("ActionBus is destroyed");
+    });
+
     it("returns a frozen idle status so mutation cannot corrupt future snapshots", () => {
         const bus = createActionBus<{ load: (x: number) => number }>();
         const status = bus.getStatus("load");
