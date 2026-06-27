@@ -182,4 +182,50 @@ describe("store computed", () => {
         expect(batches.length).toBe(1);
         expect(batches[0]).toContain("fullName");
     });
+
+    it("emits only the final computed value to onChange inside batch (single-key sets)", () => {
+        const store = createStore<UserStore>({ first: "Jane", last: "Doe" });
+        store.computed("fullName", [ "first", "last" ], (f, l) => `${f} ${l}`);
+
+        const seen: string[] = [];
+        store.onChange("fullName", (v) => seen.push(v as string));
+
+        store.batch(() => {
+            store.set("first", "John");
+            store.set("last", "Roe");
+        });
+
+        expect(seen).toEqual([ "John Roe" ]);
+    });
+
+    it("emits only the final computed value to onChange inside batch (multi-key set)", () => {
+        const store = createStore<UserStore>({ first: "Jane", last: "Doe" });
+        store.computed("fullName", [ "first", "last" ], (f, l) => `${f} ${l}`);
+
+        const seen: string[] = [];
+        store.onChange("fullName", (v) => seen.push(v as string));
+
+        store.batch(() => {
+            store.set({ first: "John", last: "Roe" });
+        });
+
+        expect(seen).toEqual([ "John Roe" ]);
+    });
+
+    it("reports the pre-batch value as previous when a computed coalesces", () => {
+        const store = createStore<UserStore>({ first: "Jane", last: "Doe" });
+        store.computed("fullName", [ "first", "last" ], (f, l) => `${f} ${l}`);
+
+        const seen: Array<{ value: string; prev: string }> = [];
+        store.onChange("fullName", (v, p) =>
+            seen.push({ value: v as string, prev: p as string })
+        );
+
+        store.batch(() => {
+            store.set("first", "John");
+            store.set("last", "Roe");
+        });
+
+        expect(seen).toEqual([ { value: "John Roe", prev: "Jane Doe" } ]);
+    });
 });

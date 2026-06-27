@@ -494,7 +494,27 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
             batching = false;
         }
 
+        // Coalesce the log per key before replaying: a key written multiple
+        // times in the batch (e.g. a computed recomputing once per base-key
+        // write) must fire onChange once with its final value, not once per
+        // intermediate value. Keep first-occurrence order, the pre-batch `prev`
+        // from the first entry, and the final `value` from the last entry; drop
+        // keys whose net value is unchanged from before the batch.
+        const coalesced = new Map<MapKey, { value: any; prev: any }>();
         for (const [ propName, value, prev ] of log) {
+            const existing = coalesced.get(propName);
+            if (existing) {
+                existing.value = value;
+            }
+            else {
+                coalesced.set(propName, { value, prev });
+            }
+        }
+
+        for (const [ propName, { value, prev } ] of coalesced) {
+            if (value === prev) {
+                continue;
+            }
             const changeArgs = [
                 value,
                 prev,
