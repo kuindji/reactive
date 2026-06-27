@@ -526,30 +526,66 @@ export function createEvent<
     const lastTriggerArgs = (): Event["arguments"] | null =>
         lastTrigger ? (lastTrigger.slice() as Event["arguments"]) : null;
 
-    // Deep-copy object/array extraData so the read-only projection cannot
-    // mutate internal listener metadata (which filters can read) at any depth;
-    // a shallow copy still shares nested objects/arrays by reference. Primitives
-    // and functions are returned as-is. Non-plain values (Date, Map, class
-    // instances, etc.) are returned as-is rather than mangled by a generic deep
-    // clone — copying their enumerable keys would not faithfully reproduce them.
-    const projectExtraData = (value: any): any => {
-        if (Array.isArray(value)) {
-            return value.map((v) => projectExtraData(v));
+    // Deep-copy extraData so the read-only projection cannot mutate internal
+    // listener metadata (which filters can read) at any depth; a shallow copy
+    // still shares nested containers by reference. `seen` carries already-cloned
+    // containers so a cyclic graph reuses its clone instead of recursing forever
+    // (a plain recursive clone throws RangeError on cycles). Arrays, plain
+    // objects, Date, Map and Set are cloned. Truly opaque values (functions,
+    // class instances) are returned as-is — copying their enumerable keys would
+    // not faithfully reproduce them — as are primitives.
+    const projectExtraDataDeep = (value: any, seen: WeakMap<object, any>): any => {
+        if (value === null || typeof value !== "object") {
+            return value;
         }
-        if (
-            value !== null
-            && typeof value === "object"
-            && (Object.getPrototypeOf(value) === Object.prototype
-                || Object.getPrototypeOf(value) === null)
-        ) {
+        const existing = seen.get(value);
+        if (existing !== undefined) {
+            return existing;
+        }
+        if (value instanceof Date) {
+            return new Date(value.getTime());
+        }
+        if (Array.isArray(value)) {
+            const copy: any[] = [];
+            seen.set(value, copy);
+            for (const v of value) {
+                copy.push(projectExtraDataDeep(v, seen));
+            }
+            return copy;
+        }
+        if (value instanceof Map) {
+            const copy = new Map();
+            seen.set(value, copy);
+            value.forEach((v, k) => {
+                copy.set(
+                    projectExtraDataDeep(k, seen),
+                    projectExtraDataDeep(v, seen),
+                );
+            });
+            return copy;
+        }
+        if (value instanceof Set) {
+            const copy = new Set();
+            seen.set(value, copy);
+            value.forEach((v) => {
+                copy.add(projectExtraDataDeep(v, seen));
+            });
+            return copy;
+        }
+        const proto = Object.getPrototypeOf(value);
+        if (proto === Object.prototype || proto === null) {
             const copy: Record<string, any> = {};
+            seen.set(value, copy);
             for (const k of Object.keys(value)) {
-                copy[k] = projectExtraData(value[k]);
+                copy[k] = projectExtraDataDeep(value[k], seen);
             }
             return copy;
         }
         return value;
     };
+
+    const projectExtraData = (value: any): any =>
+        projectExtraDataDeep(value, new WeakMap());
 
     const getListeners = (): ListenerInfo<Event["signature"]>[] => {
         return listeners.map((l) => ({

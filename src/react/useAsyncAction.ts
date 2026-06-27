@@ -1,4 +1,10 @@
-import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
+import {
+    useCallback,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useSyncExternalStore,
+} from "react";
 import { createAction } from "../action.js";
 import type { ActionResponse, ActionStatus } from "../action.js";
 import type { BaseHandler } from "../lib/types.js";
@@ -25,13 +31,20 @@ export function useAsyncAction<Fn extends BaseHandler>(
     (...args: Parameters<Fn>) => Promise<ActionResponse<Awaited<ReturnType<Fn>>, Parameters<Fn>>>,
     AsyncActionState<Awaited<ReturnType<Fn>>>,
 ] {
-    // Keep the latest fn in a ref updated during render. The action wraps a
-    // stable indirection that always calls fnRef.current, so it invokes the
-    // current fn even from a consumer layout effect that runs after a rerender
-    // but before this hook's passive effects — which a useEffect+setAction
-    // swap would miss, invoking the previous fn.
+    // Keep the latest fn in a ref. The action wraps a stable indirection that
+    // always calls fnRef.current, so it invokes the current fn even from a
+    // consumer layout effect that runs after a rerender but before this hook's
+    // passive effects — which a useEffect+setAction swap would miss, invoking
+    // the previous fn. The ref is updated in a layout effect (commit phase),
+    // not during render: a render-phase mutation would leak a fn from a
+    // suspended or abandoned concurrent render that never commits into the
+    // currently committed UI. Layout effects run only for committed renders,
+    // and this one runs before any consumer layout effect declared after the
+    // hook call, so consumers still observe the latest fn.
     const fnRef = useRef<Fn>(fn);
-    fnRef.current = fn;
+    useLayoutEffect(() => {
+        fnRef.current = fn;
+    });
 
     const action = useMemo(
         () => {

@@ -37,6 +37,27 @@ describe("action destroy()", () => {
         expect(result).toEqual({ response: 42, error: null, args: [] });
     });
 
+    it("keeps the error-handling policy from invoke start when destroyed mid-flight", async () => {
+        let reject!: (reason: Error) => void;
+        const action = createAction(
+            () => new Promise<number>((_resolve, rej) => {
+                reject = rej;
+            }),
+        );
+        // With an error listener present at invoke start, a failing invocation
+        // resolves with an error response rather than rejecting.
+        action.addErrorListener(() => {});
+
+        const pending = action.invoke();
+        // destroy() tears down the error listeners mid-flight; the policy must
+        // stay as captured at invoke start (errors handled -> resolve).
+        action.destroy();
+        reject(new Error("boom"));
+
+        const result = await pending;
+        expect(result).toEqual({ response: null, error: "boom", args: [] });
+    });
+
     it("drops response listeners on destroy", () => {
         const action = createAction((x: number) => x + 1);
         let calls = 0;

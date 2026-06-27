@@ -133,4 +133,41 @@ describe("event introspection", () => {
         expect(o.getListeners()[0].extraData.nested.flag).toBe(true);
         expect(o.getListeners()[0].extraData.list).toEqual([ 1 ]);
     });
+
+    it("getListeners projects cyclic extraData without throwing", () => {
+        const o = createEvent<() => void>();
+        const cyclic: Record<string, any> = { name: "x" };
+        cyclic.self = cyclic;
+        o.addListener(() => {}, { extraData: cyclic });
+
+        let projected: any;
+        expect(() => {
+            projected = o.getListeners()[0].extraData;
+        }).not.toThrow();
+        // The cycle is preserved structurally (a fresh copy, not the original).
+        expect(projected).not.toBe(cyclic);
+        expect(projected.self).toBe(projected);
+        expect(projected.name).toBe("x");
+    });
+
+    it("getListeners clones Date and Map extraData so mutation cannot reach internals", () => {
+        const o = createEvent<() => void>();
+        const when = new Date(1000);
+        const map = new Map<string, { n: number }>([ [ "k", { n: 1 } ] ]);
+        o.addListener(() => {}, { extraData: { when, map } });
+
+        const info = o.getListeners()[0];
+        expect(info.extraData.when).not.toBe(when);
+        expect(info.extraData.when.getTime()).toBe(1000);
+        expect(info.extraData.map).not.toBe(map);
+
+        info.extraData.when.setTime(5000);
+        info.extraData.map.get("k").n = 99;
+        info.extraData.map.set("k2", { n: 2 });
+
+        const fresh = o.getListeners()[0];
+        expect(fresh.extraData.when.getTime()).toBe(1000);
+        expect(fresh.extraData.map.get("k").n).toBe(1);
+        expect(fresh.extraData.map.has("k2")).toBe(false);
+    });
 });
