@@ -140,7 +140,22 @@ export function createAction<A extends BaseHandler>(action: A) {
             error: lastError,
             response: lastResponse,
         };
-        triggerStatus(currentStatus);
+        // Status is a side channel. A throwing status listener must not corrupt
+        // the invoke lifecycle: if it propagated here it would, depending on the
+        // call site, abort execution or skip the inFlight decrement and strand
+        // `pending: true`. Isolate it and surface it via the error event.
+        try {
+            triggerStatus(currentStatus);
+        }
+        catch (error) {
+            triggerError({
+                error: error instanceof Error
+                    ? error
+                    : new Error(String(error)),
+                args: [] as unknown as Action["actionArguments"],
+                type: "action-status",
+            });
+        }
     };
 
     const getStatus = () => currentStatus;

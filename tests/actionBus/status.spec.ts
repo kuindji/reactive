@@ -98,4 +98,34 @@ describe("actionBus status", () => {
 
         expect(seen).toEqual([1, 20]);
     });
+
+    it("notifies status subscribers with idle when an action is removed", async () => {
+        const bus = createActionBus({ load: (x: number) => x });
+        const seen: Array<{ pending: boolean; response: unknown }> = [];
+        bus.onStatusChange("load", (status) => {
+            seen.push({ pending: status.pending, response: status.response });
+        });
+
+        await bus.invoke("load", 5);
+        seen.length = 0;
+
+        bus.removeAction("load");
+
+        expect(seen).toEqual([ { pending: false, response: null } ]);
+        expect(bus.getStatus("load")).toEqual({
+            pending: false,
+            error: null,
+            response: null,
+        });
+    });
+
+    it("does not notify status subscribers when removing a missing action", () => {
+        const bus = createActionBus<{ load: (x: number) => number }>();
+        const seen: unknown[] = [];
+        bus.onStatusChange("load", (status) => seen.push(status));
+
+        bus.removeAction("load");
+
+        expect(seen).toEqual([]);
+    });
 });

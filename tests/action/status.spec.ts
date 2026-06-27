@@ -149,4 +149,41 @@ describe("action status", () => {
         await action.invoke(2);
         expect(seen.length).toBe(countAfterFirst);
     });
+
+    it("a throwing status listener does not block execution or strand pending", async () => {
+        let ran = false;
+        const action = createAction((x: number) => {
+            ran = true;
+            return x * 2;
+        });
+        let calls = 0;
+        action.onStatusChange(() => {
+            calls++;
+            // Throw on the first (pending: true) emission.
+            if (calls === 1) {
+                throw new Error("status listener boom");
+            }
+        });
+
+        const result = await action.invoke(21);
+
+        expect(result.response).toBe(42);
+        expect(ran).toBe(true);
+        expect(action.getStatus().pending).toBe(false);
+    });
+
+    it("routes a throwing status listener to the action error listeners", async () => {
+        const action = createAction((x: number) => x);
+        const errors: string[] = [];
+        action.addErrorListener(({ error }) => {
+            errors.push(error.message);
+        });
+        action.onStatusChange(() => {
+            throw new Error("status boom");
+        });
+
+        await action.invoke(1);
+
+        expect(errors).toContain("status boom");
+    });
 });

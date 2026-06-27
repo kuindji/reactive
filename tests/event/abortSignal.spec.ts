@@ -57,3 +57,55 @@ describe("event addListener AbortSignal", () => {
         expect(called).toBe(1);
     });
 });
+
+describe("event updateListenerOptions AbortSignal", () => {
+    it("binds to the new signal so aborting it removes the listener", () => {
+        const o = createEvent<() => void>();
+        const oldController = new AbortController();
+        const newController = new AbortController();
+        const handler = () => {};
+        o.addListener(handler, { signal: oldController.signal });
+
+        o.updateListenerOptions(handler, null, { signal: newController.signal });
+
+        newController.abort();
+        expect(o.hasListener()).toBe(false);
+    });
+
+    it("detaches the old signal so aborting it no longer removes the listener", () => {
+        const o = createEvent<() => void>();
+        const oldController = new AbortController();
+        const newController = new AbortController();
+        const handler = () => {};
+        o.addListener(handler, { signal: oldController.signal });
+
+        o.updateListenerOptions(handler, null, { signal: newController.signal });
+
+        oldController.abort();
+        expect(o.hasListener()).toBe(true);
+    });
+
+    it("clears the signal binding when the option is omitted", () => {
+        const o = createEvent<() => void>();
+        const controller = new AbortController();
+        const handler = () => {};
+        o.addListener(handler, { signal: controller.signal });
+
+        o.updateListenerOptions(handler, null, {});
+
+        controller.abort();
+        expect(o.hasListener()).toBe(true);
+    });
+
+    it("removes the listener immediately when updated to an already-aborted signal", () => {
+        const o = createEvent<() => void>();
+        const handler = () => {};
+        o.addListener(handler);
+        const controller = new AbortController();
+        controller.abort();
+
+        o.updateListenerOptions(handler, null, { signal: controller.signal });
+
+        expect(o.hasListener()).toBe(false);
+    });
+});

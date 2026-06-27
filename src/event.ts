@@ -362,6 +362,28 @@ export function createEvent<
             }
         }
 
+        // Rebind the AbortSignal: detach any previous wiring so the old
+        // controller can no longer remove this listener, then attach the new
+        // signal. Omitting the field clears the binding (soft-field reset
+        // convention); an already-aborted new signal removes the listener now,
+        // mirroring addListener's "do not keep an aborted-signal listener".
+        listener.abortCleanup?.();
+        listener.abortCleanup = null;
+        const nextSignal = nextOptions.signal ?? null;
+        if (nextSignal) {
+            if (nextSignal.aborted) {
+                removeListener(listener.handler, listenerContext);
+                return true;
+            }
+            const onAbort = () => {
+                removeListener(listener.handler, listenerContext);
+            };
+            nextSignal.addEventListener("abort", onAbort, { once: true });
+            listener.abortCleanup = () => {
+                nextSignal.removeEventListener("abort", onAbort);
+            };
+        }
+
         // The core auto-remove check is a strict `called === limit`, so a
         // listener whose `called` already exceeds the new limit would never
         // auto-remove. Remove it immediately in that case.

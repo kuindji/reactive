@@ -978,6 +978,12 @@ export function createEventBus<
         proxyType?: ProxyType;
         localEventNamePrefix?: string | null;
     }) => {
+        // Like the other registration methods, refuse on a dead bus: attaching
+        // the proxy listener here would leave a dangling subscription that
+        // throws "EventBus is destroyed" the next time the source fires.
+        if (destroyed) {
+            throw new Error("EventBus is destroyed");
+        }
         const { returnType, resolve } = proxyReturnTypeToTriggerReturnType(
             proxyType || ProxyType.TRIGGER,
         );
@@ -1051,6 +1057,9 @@ export function createEventBus<
     };
 
     const addEventSource = (eventSource: EventSource) => {
+        if (destroyed) {
+            throw new Error("EventBus is destroyed");
+        }
         if (
             eventSources.find((evs) =>
                 evs.eventSource.name === eventSource.name

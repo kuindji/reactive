@@ -234,7 +234,13 @@ import { createAction } from "../../src/action";
         // errorResponse has correct shape
         const _error: Error = errorResponse.error;
         const _args: [{ value: number; }] = errorResponse.args;
-        const _type: "action" | "event" | "store-change" | "store-pipe" | "store-control" = errorResponse.type;
+        const _type:
+            | "action"
+            | "action-status"
+            | "event"
+            | "store-change"
+            | "store-pipe"
+            | "store-control" = errorResponse.type;
 
         // Can access the original args
         const _value: number = errorResponse.args[0].value;

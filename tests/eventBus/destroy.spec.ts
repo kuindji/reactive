@@ -71,6 +71,34 @@ describe("eventBus destroy()", () => {
         expect(() => o.promise("event")).toThrow("destroyed");
     });
 
+    it("throws on relay() after destroy instead of attaching a dangling listener", () => {
+        const o1 = createEventBus<{ event: (a: number) => void; }>();
+        const o2 = createEventBus<{ event: (a: number) => void; }>();
+        o1.destroy();
+
+        expect(() =>
+            o1.relay({ eventSource: o2, remoteEventName: "event" })
+        ).toThrow("destroyed");
+        // No dangling relay listener: firing the source must not throw.
+        expect(() => o2.trigger("event", 1)).not.toThrow();
+    });
+
+    it("throws on addEventSource() after destroy instead of attaching a dangling listener", () => {
+        const em = new EventEmitter();
+        const o = createEventBus<{ event: () => void; }>();
+        o.destroy();
+
+        expect(() =>
+            o.addEventSource({
+                name: "ev",
+                accepts: () => true,
+                on: (name, fn) => em.on(name, fn),
+                un: (name, fn) => em.off(name, fn),
+            })
+        ).toThrow("destroyed");
+        expect(em.listenerCount("event")).toBe(0);
+    });
+
     it("removes event sources so external emitters detach on destroy", () => {
         const em = new EventEmitter();
         const o = createEventBus<{ event: () => void; }>();
