@@ -136,6 +136,53 @@ describe("actionBus status", () => {
         expect(seen).toEqual([]);
     });
 
+    it("detaches and notifies all subscribers on removal even if one throws", () => {
+        const bus = createActionBus({ load: (x: number) => x });
+        const calls: string[] = [];
+        bus.onStatusChange("load", () => {
+            calls.push("a");
+            throw new Error("subscriber boom");
+        });
+        bus.onStatusChange("load", () => {
+            calls.push("b");
+        });
+
+        expect(() => bus.removeAction("load")).not.toThrow();
+        expect(calls).toContain("a");
+        expect(calls).toContain("b");
+    });
+
+    it("forwards a throwing removal subscriber to the bus error listener", () => {
+        const bus = createActionBus({ load: (x: number) => x });
+        const errors: string[] = [];
+        bus.addErrorListener(({ error }) => errors.push(error.message));
+        bus.onStatusChange("load", () => {
+            throw new Error("subscriber boom");
+        });
+
+        bus.removeAction("load");
+
+        expect(errors).toContain("subscriber boom");
+    });
+
+    it("throws when adding an action to a destroyed bus", () => {
+        const bus = createActionBus<{ a: () => number }>();
+        bus.destroy();
+        expect(() => bus.add("a", () => 1)).toThrow("destroyed");
+    });
+
+    it("throws when replacing an action on a destroyed bus", () => {
+        const bus = createActionBus<{ a: () => number }>();
+        bus.destroy();
+        expect(() => bus.replace("a", () => 1)).toThrow("destroyed");
+    });
+
+    it("throws when subscribing to status on a destroyed bus", () => {
+        const bus = createActionBus<{ a: () => number }>();
+        bus.destroy();
+        expect(() => bus.onStatusChange("a", () => {})).toThrow("destroyed");
+    });
+
     it("does not notify status subscribers when removing a missing action", () => {
         const bus = createActionBus<{ load: (x: number) => number }>();
         const seen: unknown[] = [];

@@ -544,8 +544,8 @@ customSource.trigger("appStart");
 - `removeEventSource(source)` - Remove event source
 - `suspendAll(withQueue?)` - Suspend all events
 - `resumeAll()` - Resume all events
-- `reset()` - Reset all events
-- `destroy()` - Tear down the bus: unrelay all relays, remove all event sources (detaching their external listeners — which `reset()` leaves dangling), destroy every owned event, and mark the bus dead. After `destroy()`, `trigger()`/`on()` throw.
+- `reset()` - Reset all events: unrelay all relays and remove all event sources (detaching their external listeners), then clear every owned event and interception/tag state. The bus stays usable afterwards.
+- `destroy()` - Tear down the bus: unrelay all relays, remove all event sources (detaching their external listeners), destroy every owned event, and mark the bus dead. After `destroy()`, `trigger()`/`on()` throw.
 - `isDestroyed()` - Returns `true` once `destroy()` has been called
 - `withTags(tags, callback)` - Execute callback with specific tags
 
@@ -762,8 +762,8 @@ Delegates to the underlying action's status (see Action → Status). This is the
 primary path for apps that route mutations through one shared ActionBus.
 
 - `getStatus(name)` - Status for a named action; an unregistered name reports an idle status
-- `onStatusChange(name, handler)` - Subscribe to a named action's status (no-op for an unregistered name)
-- `removeStatusListener(name, handler)` - Remove a status listener
+- `onStatusChange(name, handler)` - Subscribe to a named action's status. Subscribing before the action is registered is retained and attached automatically once it is added (and re-attached if the action is later removed and re-added)
+- `removeStatusListener(name, handler)` - Remove a status listener (also clears a subscription retained before registration)
 
 #### Error Handling
 

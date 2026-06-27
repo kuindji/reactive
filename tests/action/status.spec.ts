@@ -206,4 +206,25 @@ describe("action status", () => {
         expect(ran).toBe(true);
         expect(action.getStatus().pending).toBe(false);
     });
+
+    it("getStatus returns an immutable snapshot that cannot suppress later notifications", async () => {
+        const action = createAction((x: number) => x);
+        const seen: boolean[] = [];
+        action.onStatusChange((status) => seen.push(status.pending));
+
+        const snapshot = action.getStatus();
+        // Tampering with the returned snapshot must not mutate internal state
+        // (which would make updateStatus believe nothing changed).
+        try {
+            (snapshot as { pending: boolean }).pending = true;
+        }
+        catch {
+            // Frozen snapshot throws in strict mode; that is acceptable.
+        }
+        expect(action.getStatus().pending).toBe(false);
+
+        await action.invoke(1);
+
+        expect(seen).toEqual([ true, false ]);
+    });
 });

@@ -54,6 +54,9 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
     }
 
     const add = (name: MapKey, action: BaseHandler) => {
+        if (destroyed) {
+            throw new Error("ActionBus is destroyed");
+        }
         if (!actions.has(name)) {
             const a = createAction(action);
             a.addErrorListener(({ error, args }) => {
@@ -87,6 +90,9 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
     // its listeners and the bus error-forwarding listener, which is attached to
     // the action's error event, not the function); otherwise add it.
     const replace = (name: MapKey, action: BaseHandler) => {
+        if (destroyed) {
+            throw new Error("ActionBus is destroyed");
+        }
         const existing = actions.get(name as KeyOf<Actions>);
         if (existing) {
             existing.setAction(action);
@@ -114,7 +120,22 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
             const pending = pendingStatusListeners.get(name);
             pending?.forEach((handler) => {
                 action?.removeStatusListener(handler);
-                (handler as (status: typeof idleStatus) => void)(idleStatus);
+                // Isolate each notify: one throwing subscriber must not abort
+                // the loop and leave the remaining subscribers attached and
+                // un-notified. Route the failure to the bus error event.
+                try {
+                    (handler as (status: typeof idleStatus) => void)(idleStatus);
+                }
+                catch (error) {
+                    errorEvent.emit({
+                        name,
+                        error: error instanceof Error
+                            ? error
+                            : new Error(String(error)),
+                        args: [],
+                        type: "action-status",
+                    });
+                }
             });
         }
     };
@@ -211,6 +232,9 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
         name: K,
         handler: Actions[K]["statusListenerSignature"],
     ) => {
+        if (destroyed) {
+            throw new Error("ActionBus is destroyed");
+        }
         // Record the subscription so it survives (re)registration, then attach
         // to the action now if it already exists.
         let pending = pendingStatusListeners.get(name);
