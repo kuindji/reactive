@@ -623,10 +623,15 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                 [I in keyof D]: PropMap[D[I]] | undefined;
             };
 
-        computedKeys.add(key);
+        // Compute the initial value BEFORE committing any registration state.
+        // If `fn` throws here, nothing has been mutated, so the key does not
+        // become a permanently read-only computed with no listener installed.
+        const initialValue = fn(...readDeps());
 
-        // Seed the initial value directly (no change emitted at setup time).
-        data.set(key, fn(...readDeps()));
+        // Seed the initial value directly (no change emitted at setup time) and
+        // only now mark the key computed and install the recompute listener.
+        data.set(key, initialValue);
+        computedKeys.add(key);
 
         control.addListener(EffectEventName, (changedName) => {
             if ((deps as readonly MapKey[]).indexOf(changedName) === -1) {

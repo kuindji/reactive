@@ -111,4 +111,14 @@ describe("event introspection", () => {
         listeners[0].tags.push("mutated");
         expect(o.getListeners()[0].tags).toEqual([ "x" ]);
     });
+
+    it("getListeners returns extraData defensively so the projection cannot mutate internals", () => {
+        const o = createEvent<() => void>();
+        o.addListener(() => {}, { extraData: { flag: true } });
+
+        const info = o.getListeners()[0];
+        info.extraData.flag = false;
+
+        expect(o.getListeners()[0].extraData.flag).toBe(true);
+    });
 });

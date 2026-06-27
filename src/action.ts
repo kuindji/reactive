@@ -148,13 +148,22 @@ export function createAction<A extends BaseHandler>(action: A) {
             triggerStatus(currentStatus);
         }
         catch (error) {
-            triggerError({
-                error: error instanceof Error
-                    ? error
-                    : new Error(String(error)),
-                args: [] as unknown as Action["actionArguments"],
-                type: "action-status",
-            });
+            // Surface the failure via the error event, but a throwing error
+            // listener must not re-escape either: this runs before invoke()
+            // enters its try/finally, so any escape would strand pending:true
+            // and skip execution entirely.
+            try {
+                triggerError({
+                    error: error instanceof Error
+                        ? error
+                        : new Error(String(error)),
+                    args: [] as unknown as Action["actionArguments"],
+                    type: "action-status",
+                });
+            }
+            catch {
+                // Nothing left to route to; swallow to protect the lifecycle.
+            }
         }
     };
 

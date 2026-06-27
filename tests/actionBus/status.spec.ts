@@ -119,6 +119,23 @@ describe("actionBus status", () => {
         });
     });
 
+    it("detaches retained status listeners from a removed action", async () => {
+        const bus = createActionBus({ load: (x: number) => x });
+        // Hold a direct reference obtained before removal.
+        const action = bus.get("load");
+        const seen: boolean[] = [];
+        bus.onStatusChange("load", (status) => seen.push(status.pending));
+
+        bus.removeAction("load");
+        seen.length = 0;
+
+        // Invoking the held reference must not notify the now-unsubscribed
+        // listener: removeAction should have detached it from the action.
+        await action.invoke(1);
+
+        expect(seen).toEqual([]);
+    });
+
     it("does not notify status subscribers when removing a missing action", () => {
         const bus = createActionBus<{ load: (x: number) => number }>();
         const seen: unknown[] = [];

@@ -526,6 +526,19 @@ export function createEvent<
     const lastTriggerArgs = (): Event["arguments"] | null =>
         lastTrigger ? (lastTrigger.slice() as Event["arguments"]) : null;
 
+    // Shallow-copy object/array extraData so the read-only projection cannot
+    // mutate internal listener metadata (which filters can read). Primitives
+    // and functions are returned as-is. Mirrors the `tags.slice()` approach.
+    const projectExtraData = (value: any): any => {
+        if (Array.isArray(value)) {
+            return value.slice();
+        }
+        if (value !== null && typeof value === "object") {
+            return { ...value };
+        }
+        return value;
+    };
+
     const getListeners = (): ListenerInfo<Event["signature"]>[] => {
         return listeners.map((l) => ({
             handler: l.handler,
@@ -539,7 +552,7 @@ export function createEvent<
             first: l.first,
             alwaysFirst: l.alwaysFirst,
             alwaysLast: l.alwaysLast,
-            extraData: l.extraData,
+            extraData: projectExtraData(l.extraData),
         }));
     };
 

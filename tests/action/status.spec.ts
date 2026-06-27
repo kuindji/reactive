@@ -186,4 +186,24 @@ describe("action status", () => {
 
         expect(errors).toContain("status boom");
     });
+
+    it("contains a throwing status listener even when the error listener also throws", async () => {
+        let ran = false;
+        const action = createAction((x: number) => {
+            ran = true;
+            return x * 2;
+        });
+        action.onStatusChange(() => {
+            throw new Error("status boom");
+        });
+        action.addErrorListener(() => {
+            throw new Error("error boom");
+        });
+
+        const result = await action.invoke(21);
+
+        expect(result.response).toBe(42);
+        expect(ran).toBe(true);
+        expect(action.getStatus().pending).toBe(false);
+    });
 });

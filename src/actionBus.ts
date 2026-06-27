@@ -100,16 +100,20 @@ export function createActionBus<ActionsMap extends BaseActionsMap>(
     // removeListener. The removed action's listeners and its error-forwarding
     // listener are dropped with it (they lived on the action's own events).
     const removeAction = (name: MapKey) => {
+        const action = actions.get(name as KeyOf<Actions>);
         const existed = actions.delete(name as KeyOf<Actions>);
         // getStatus() now reports idle for this name, but status subscribers
         // (e.g. useActionBusStatus via useSyncExternalStore) were attached to
         // the removed action's own status event and will never be notified of
-        // the drop. Push an idle status so they re-read and clear any stale
-        // loading/error/response state. Subscriptions are retained in
-        // pendingStatusListeners so a later re-add() reattaches them.
+        // the drop. Detach each retained subscription from the removed action
+        // (otherwise invoking a held action reference keeps notifying a
+        // listener that bus.removeStatusListener can no longer reach), then push
+        // an idle status so they re-read and clear stale state. Subscriptions
+        // stay in pendingStatusListeners so a later re-add() reattaches them.
         if (existed) {
             const pending = pendingStatusListeners.get(name);
             pending?.forEach((handler) => {
+                action?.removeStatusListener(handler);
                 (handler as (status: typeof idleStatus) => void)(idleStatus);
             });
         }

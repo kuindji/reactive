@@ -229,6 +229,21 @@ describe("store computed", () => {
         expect(seen).toEqual([ { value: "John Roe", prev: "Jane Doe" } ]);
     });
 
+    it("does not mark the key read-only if the initial computation throws", () => {
+        const store = createStore<{ a: number; bad: number }>({ a: 1 });
+
+        expect(() =>
+            store.computed("bad", [ "a" ], () => {
+                throw new Error("compute boom");
+            })
+        ).toThrow("compute boom");
+
+        // Registration must not have partially committed: the key stays a
+        // normal settable key rather than a permanently read-only computed.
+        expect(() => store.set("bad", 5)).not.toThrow();
+        expect(store.get("bad")).toBe(5);
+    });
+
     it("deduplicates a computed key in the control change event within a batch", () => {
         const store = createStore<UserStore>({ first: "Jane", last: "Doe" });
         store.computed("fullName", [ "first", "last" ], (f, l) => `${f} ${l}`);
