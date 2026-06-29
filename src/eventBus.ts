@@ -208,6 +208,16 @@ export function createEventBus<
         eventSource: EventSource;
         subscribed: MapKey[];
     }[] = [];
+    let destroyed: boolean = false;
+    // Registry of active relays so destroy() can unwind the external listeners
+    // they attach (reset()/destroy() otherwise leave them dangling).
+    const relays: {
+        eventSource: RelaySource;
+        remoteEventName: MapKey;
+        localEventName: MapKey | null;
+        proxyType?: ProxyType;
+        localEventNamePrefix: string | null;
+    }[] = [];
 
     const asterisk = createEvent<
         (name: MapKey, args: any[], tags: string[] | null) => void
@@ -290,6 +300,9 @@ export function createEventBus<
     };
 
     const add = (name: MapKey, options?: EventOptions<BaseHandler>) => {
+        if (destroyed) {
+            throw new Error("EventBus is destroyed");
+        }
         if (!events.has(name)) {
             events.set(name, createEvent(options));
         }
@@ -320,7 +333,7 @@ export function createEventBus<
         // intentionally left as-is (the bus can change an event's options but
         // does not un-set them).
         Object.keys(eventOptions).forEach((name) => {
-            const e = events.get(name as KeyOf<Events>) as
+            const e = events.get(name) as
                 | EventTypes[KeyOf<Events>]
                 | undefined;
             if (e) {
@@ -344,6 +357,9 @@ export function createEventBus<
     };
 
     const get = <K extends KeyOf<Events>>(name: K) => {
+        if (destroyed) {
+            throw new Error("EventBus is destroyed");
+        }
         return _getOrAddEvent(name);
     };
 
@@ -355,6 +371,9 @@ export function createEventBus<
         handler: H,
         options?: ListenerOptions,
     ) => {
+        if (destroyed) {
+            throw new Error("EventBus is destroyed");
+        }
         const e: EventTypes[K] = _getOrAddEvent(name);
         eventSources.forEach((evs) => {
             if (
@@ -395,15 +414,16 @@ export function createEventBus<
         handler: H,
         options?: ListenerOptions,
     ) => {
-        options = options || {};
-        options.limit = 1;
-        return on(name, handler, options);
+        return on(name, handler, { ...(options || {}), limit: 1 });
     };
 
     const promise = <K extends KeyOf<Events>>(
         name: K,
         options?: ListenerOptions,
     ) => {
+        if (destroyed) {
+            throw new Error("EventBus is destroyed");
+        }
         const e: EventTypes[K] = _getOrAddEvent(name);
         return e.promise(options) as Promise<Events[K]["arguments"]>;
     };
@@ -478,6 +498,9 @@ export function createEventBus<
         returnType?: TriggerReturnType | null,
         resolve?: boolean,
     ) => {
+        if (destroyed) {
+            throw new Error("EventBus is destroyed");
+        }
         if (name === "*") {
             return;
         }
@@ -868,18 +891,72 @@ export function createEventBus<
     };
 
     const reset = () => {
+        // Detach relays BEFORE clearing proxyListeners: unrelay() resolves the
+        // external listener via _getProxyListener, which depends on the original
+        // entry still being present. Clearing proxyListeners first would lose the
+        // callback identity, leaving the external subscription dangling so a
+        // later destroy() could never remove it.
+        relays.slice().forEach((r) => {
+            unrelay({
+                eventSource: r.eventSource,
+                remoteEventName: r.remoteEventName,
+                localEventName: r.localEventName,
+                proxyType: r.proxyType,
+                localEventNamePrefix: r.localEventNamePrefix,
+            });
+        });
         if (eventSources.length > 0) {
             eventSources.slice().forEach((evs) => {
                 removeEventSource(evs.eventSource);
             });
         }
+        // Reset each owned event before dropping it: clearing the map alone
+        // leaves listener AbortSignal handlers attached to their signals, which
+        // retains the orphaned events (and their listeners) until the signal
+        // aborts. reset() detaches those handlers and clears the listeners.
+        events.forEach((event: EventTypes[KeyOf<Events>]) => {
+            event.reset();
+        });
         events.clear();
         interceptor = null;
         currentTagsFilter = null;
         asterisk.reset();
         proxyListeners.length = 0;
         eventSources.length = 0;
+        relays.length = 0;
     };
+
+    // One-call teardown: unwind external attachments (relays + event sources)
+    // that reset() leaves dangling, destroy every owned event, and mark the bus
+    // dead. Post-destroy trigger/addListener throw rather than silently no-op.
+    const destroy = () => {
+        relays.slice().forEach((r) => {
+            unrelay({
+                eventSource: r.eventSource,
+                remoteEventName: r.remoteEventName,
+                localEventName: r.localEventName,
+                proxyType: r.proxyType,
+                localEventNamePrefix: r.localEventNamePrefix,
+            });
+        });
+        eventSources.slice().forEach((evs) => {
+            removeEventSource(evs.eventSource);
+        });
+        events.forEach((event: EventTypes[KeyOf<Events>]) => {
+            event.destroy();
+        });
+        events.clear();
+        asterisk.destroy();
+        errorEvent.destroy();
+        proxyListeners.length = 0;
+        eventSources.length = 0;
+        relays.length = 0;
+        interceptor = null;
+        currentTagsFilter = null;
+        destroyed = true;
+    };
+
+    const isDestroyed = () => destroyed;
 
     const suspendAll = (withQueue: boolean = false) => {
         events.forEach((event: EventTypes[KeyOf<Events>]) => {
@@ -906,6 +983,12 @@ export function createEventBus<
         proxyType?: ProxyType;
         localEventNamePrefix?: string | null;
     }) => {
+        // Like the other registration methods, refuse on a dead bus: attaching
+        // the proxy listener here would leave a dangling subscription that
+        // throws "EventBus is destroyed" the next time the source fires.
+        if (destroyed) {
+            throw new Error("EventBus is destroyed");
+        }
         const { returnType, resolve } = proxyReturnTypeToTriggerReturnType(
             proxyType || ProxyType.TRIGGER,
         );
@@ -924,6 +1007,18 @@ export function createEventBus<
         else {
             eventSource.on(remoteEventName, listener.listener);
         }
+        relays.push({
+            eventSource,
+            remoteEventName,
+            localEventName: localEventName || null,
+            // Store the resolved proxyType (undefined resolves to TRIGGER) so the
+            // registry key matches how the proxy listener is actually resolved.
+            // Otherwise unrelay({ proxyType: TRIGGER }) for a relay({}) (undefined)
+            // detaches the listener but leaves a stale registry entry, which a
+            // later reset()/destroy() then unrelays a second time.
+            proxyType: proxyType || ProxyType.TRIGGER,
+            localEventNamePrefix: localEventNamePrefix || null,
+        });
     };
 
     const unrelay = ({
@@ -959,9 +1054,25 @@ export function createEventBus<
                 eventSource.un(remoteEventName, listener.listener);
             }
         }
+        const inx = relays.findIndex((r) =>
+            r.eventSource === eventSource
+            && r.remoteEventName === remoteEventName
+            && r.localEventName === (localEventName || null)
+            // Compare on the resolved proxyType so an undefined relay matches an
+            // explicit TRIGGER unrelay (and vice versa), mirroring how the proxy
+            // listener itself resolves equivalent types.
+            && r.proxyType === (proxyType || ProxyType.TRIGGER)
+            && r.localEventNamePrefix === (localEventNamePrefix || null)
+        );
+        if (inx !== -1) {
+            relays.splice(inx, 1);
+        }
     };
 
     const addEventSource = (eventSource: EventSource) => {
+        if (destroyed) {
+            throw new Error("EventBus is destroyed");
+        }
         if (
             eventSources.find((evs) =>
                 evs.eventSource.name === eventSource.name
@@ -1088,6 +1199,8 @@ export function createEventBus<
         stopIntercepting,
         isIntercepting,
         reset,
+        destroy,
+        isDestroyed,
         suspendAll,
         resumeAll,
         relay,

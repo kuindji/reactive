@@ -1,6 +1,8 @@
 export * from "./react/ErrorBoundary.js";
 export * from "./react/useAction.js";
 export * from "./react/useActionBus.js";
+export * from "./react/useActionBusStatus.js";
+export * from "./react/useAsyncAction.js";
 export * from "./react/useActionMap.js";
 export * from "./react/useEvent.js";
 export * from "./react/useEventBus.js";
@@ -10,4 +12,5 @@ export * from "./react/useListenToEvent.js";
 export * from "./react/useListenToEventBus.js";
 export * from "./react/useListenToStoreChanges.js";
 export * from "./react/useStore.js";
+export * from "./react/useStoreSelector.js";
 export * from "./react/useStoreState.js";

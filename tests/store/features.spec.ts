@@ -254,6 +254,28 @@ describe("store error handling", () => {
         expect(receivedType).toBe("store-pipe");
     });
 
+    it("routes a throwing effect listener to the error event on a multi-key set", () => {
+        const store = createStore({
+            a: 1,
+            b: 1,
+        });
+
+        let errors = 0;
+        store.control(ErrorEventName, () => {
+            errors++;
+        });
+        store.control("effect", (name) => {
+            if (name === "a") {
+                throw new Error("Effect error");
+            }
+        });
+
+        expect(() => store.set({ a: 2, b: 2 })).not.toThrow();
+        expect(errors).toBe(1);
+        expect(store.get("a")).toBe(2);
+        expect(store.get("b")).toBe(2);
+    });
+
     it("clears effect interception after handled effect errors", () => {
         const store = createStore({
             a: 1,
@@ -343,7 +365,7 @@ describe("store edge cases", () => {
 
     it("handles undefined as valid value", () => {
         const store = createStore({
-            a: 1 as number | undefined,
+            a: 1,
         });
 
         let changeTriggered = false;
@@ -491,7 +513,7 @@ describe("store batch operations", () => {
 
         let changedKeys: string[] = [];
         store.control("change", (keys) => {
-            changedKeys = keys as string[];
+            changedKeys = keys;
         });
 
         store.batch(() => {
@@ -534,7 +556,7 @@ describe("store batch operations", () => {
             changes.push({ value, prev: prev! });
         });
         store.control("change", (keys) => {
-            changedKeys = keys as string[];
+            changedKeys = keys;
         });
 
         expect(() => {
@@ -547,6 +569,33 @@ describe("store batch operations", () => {
         expect(store.get("a")).toBe(2);
         expect(changes).toEqual([ { value: 2, prev: 1 } ]);
         expect(changedKeys).toEqual([ "a" ]);
+    });
+
+    it("coalesces per-key onChange to the net change within a batch", () => {
+        const store = createStore({ a: 1 });
+        const changes: Array<{ value: number; prev: number; }> = [];
+        store.onChange("a", (value, prev) => {
+            changes.push({ value: value!, prev: prev! });
+        });
+
+        // A key whose net value within the batch equals its pre-batch value
+        // fires no onChange: batch() reports the net transition, not each
+        // intermediate write. This is intentional coalescing.
+        store.batch(() => {
+            store.set("a", 2);
+            store.set("a", 1);
+        });
+        expect(changes).toEqual([]);
+        expect(store.get("a")).toBe(1);
+
+        // A real net change fires exactly once, with the pre-batch prev and the
+        // final value (intermediate values are not delivered).
+        store.batch(() => {
+            store.set("a", 5);
+            store.set("a", 9);
+        });
+        expect(changes).toEqual([ { value: 9, prev: 1 } ]);
+        expect(store.get("a")).toBe(9);
     });
 });
 

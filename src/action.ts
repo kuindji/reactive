@@ -27,6 +27,22 @@ export type ListenerSignature<ActionSignature extends BaseHandler> = (
     >,
 ) => void;
 
+/**
+ * Status of an action's `invoke` lifecycle, suitable for driving
+ * `loading`/`disabled` UI. `pending` is true while one or more invocations are
+ * in flight; `response`/`error` hold the last settled outcome (a before-veto
+ * settles to neither). This is not a cache — `response` is just the last value.
+ */
+export type ActionStatus<Response = any> = {
+    pending: boolean;
+    error: Error | null;
+    response: Response | null;
+};
+
+export type StatusListenerSignature<ActionSignature extends BaseHandler> = (
+    status: ActionStatus<Awaited<ReturnType<ActionSignature>>>,
+) => void;
+
 export type BeforeActionSignature<ActionSignature extends BaseHandler> = (
     ...args: Parameters<ActionSignature>
 ) => false | void | Promise<false | void>;
@@ -42,6 +58,8 @@ export type ActionDefinitionHelper<A extends BaseHandler> = {
     beforeActionSignature: BeforeActionSignature<A>;
     errorListenerArgument: ErrorResponse<Parameters<A>>;
     errorListenerSignature: ErrorListenerSignature<Parameters<A>>;
+    statusType: ActionStatus<Awaited<ReturnType<A>>>;
+    statusListenerSignature: StatusListenerSignature<A>;
 };
 
 export function createAction<A extends BaseHandler>(action: A) {
@@ -59,6 +77,7 @@ export function createAction<A extends BaseHandler>(action: A) {
         removeListener,
         updateListenerOptions,
         promise,
+        destroy: destroyResponseEvent,
     } = createEvent<Action["listenerSignature"]>();
 
     const {
@@ -67,6 +86,7 @@ export function createAction<A extends BaseHandler>(action: A) {
         removeAllListeners: removeAllBeforeActionListeners,
         removeListener: removeBeforeActionListener,
         promise: beforeActionPromise,
+        destroy: destroyBeforeEvent,
     } = createEvent<Action["beforeActionSignature"]>();
 
     const {
@@ -76,11 +96,99 @@ export function createAction<A extends BaseHandler>(action: A) {
         removeListener: removeErrorListener,
         promise: errorPromise,
         hasListener: hasErrorListeners,
+        destroy: destroyErrorEvent,
     } = createEvent<Action["errorListenerSignature"]>();
+
+    // Status is a side channel over the invoke lifecycle: a dedicated event so
+    // a React hook can subscribe through useSyncExternalStore. The status
+    // object reference is kept stable and only rebuilt when a field actually
+    // changes, which is required for useSyncExternalStore to bail out of
+    // redundant renders.
+    const {
+        trigger: triggerStatus,
+        addListener: addStatusListener,
+        removeListener: removeStatusListener,
+        destroy: destroyStatusEvent,
+    } = createEvent<Action["statusListenerSignature"]>();
+
+    let destroyed = false;
+    let inFlight = 0;
+    let lastResponse: Action["actionReturnType"] | null = null;
+    let lastError: Error | null = null;
+    // Frozen so getStatus() can hand out the live reference (required for
+    // useSyncExternalStore to bail out of redundant renders) without a consumer
+    // being able to mutate it — a tampered `pending` would make updateStatus()
+    // believe nothing changed and suppress the next notification.
+    let currentStatus: Action["statusType"] = Object.freeze({
+        pending: false,
+        error: null,
+        response: null,
+    });
+
+    const updateStatus = () => {
+        const pending = inFlight > 0;
+        if (
+            currentStatus.pending === pending
+            && currentStatus.error === lastError
+            && currentStatus.response === lastResponse
+        ) {
+            return;
+        }
+        currentStatus = Object.freeze({
+            pending,
+            error: lastError,
+            response: lastResponse,
+        });
+        // The status event may have been torn down while an invocation was in
+        // flight. Still reconcile `currentStatus` above (so getStatus() does not
+        // strand `pending: true` after a mid-flight destroy), but skip emitting
+        // onto the dead event, which would throw and mask the real outcome.
+        if (destroyed) {
+            return;
+        }
+        // Status is a side channel. A throwing status listener must not corrupt
+        // the invoke lifecycle: if it propagated here it would, depending on the
+        // call site, abort execution or skip the inFlight decrement and strand
+        // `pending: true`. Isolate it and surface it via the error event.
+        try {
+            triggerStatus(currentStatus);
+        }
+        catch (error) {
+            // Surface the failure via the error event, but a throwing error
+            // listener must not re-escape either: this runs before invoke()
+            // enters its try/finally, so any escape would strand pending:true
+            // and skip execution entirely.
+            try {
+                triggerError({
+                    error: error instanceof Error
+                        ? error
+                        : new Error(String(error)),
+                    args: [] as unknown as Action["actionArguments"],
+                    type: "action-status",
+                });
+            }
+            catch {
+                // Nothing left to route to; swallow to protect the lifecycle.
+            }
+        }
+    };
+
+    const getStatus = () => currentStatus;
 
     const invoke = async (
         ...args: Action["actionArguments"]
     ): Promise<Action["responseType"]> => {
+        if (destroyed) {
+            throw new Error("Action is destroyed");
+        }
+        // Snapshot whether error listeners existed at invocation start. The
+        // catch below ORs this with a live re-check: the snapshot guards against
+        // destroy() tearing listeners down mid-flight (which must not flip a
+        // handled failure into a rejection), while the live check still routes
+        // the error to a listener registered after invoke() began.
+        const handlesErrors = hasErrorListeners();
+        inFlight++;
+        updateStatus();
         try {
             type BeforeResult = Awaited<
                 ReturnType<Action["beforeActionSignature"]>
@@ -93,12 +201,22 @@ export function createAction<A extends BaseHandler>(action: A) {
                 : beforeResponse;
             for (const before of beforeResults) {
                 if (before === false) {
+                    // A before-veto is a no-op for the caller, not a settlement:
+                    // leave lastResponse/lastError untouched so a vetoed
+                    // invocation cannot wipe the status of a concurrent (or
+                    // prior) real invocation. A fresh action still reads idle
+                    // because both start null.
                     const response = {
                         response: null,
                         error: "Action cancelled",
                         args: args,
                     };
-                    trigger(response);
+                    // Skip emitting if destroyed mid-flight: the caller still
+                    // gets its settled response, but the torn-down event is not
+                    // triggered (which would throw "Event is destroyed").
+                    if (!destroyed) {
+                        trigger(response);
+                    }
                     return response;
                 }
             }
@@ -106,16 +224,33 @@ export function createAction<A extends BaseHandler>(action: A) {
             if (isPromiseLike(result)) {
                 result = await Promise.resolve(result);
             }
+            lastResponse = result;
+            lastError = null;
             const response = {
                 response: result,
                 error: null,
                 args: args,
             };
-            trigger(response);
+            // A successful invocation must still resolve with its result even if
+            // the action was destroyed while awaiting; only skip the emit.
+            if (!destroyed) {
+                trigger(response);
+            }
             return response;
         }
         catch (error) {
-            if (!hasErrorListeners()) {
+            // Record the failure before the re-throw branch so status is
+            // correct even when invoke re-throws (no error listener).
+            lastError = error instanceof Error
+                ? error
+                : new Error(error as string);
+            lastResponse = null;
+            // Handle the error if listeners existed at invoke start OR were
+            // registered while the invocation was in flight. The start-of-invoke
+            // snapshot is retained (rather than relying solely on the live check)
+            // so that destroy() tearing the listeners down mid-flight cannot flip
+            // a previously-handled failure into a rejection.
+            if (!handlesErrors && !hasErrorListeners()) {
                 throw error;
             }
             const response = {
@@ -123,15 +258,19 @@ export function createAction<A extends BaseHandler>(action: A) {
                 error: error instanceof Error ? error.message : error as string,
                 args: args,
             };
-            trigger(response);
-            triggerError({
-                error: error instanceof Error
-                    ? error
-                    : new Error(error as string),
-                args: args,
-                type: "action",
-            });
+            if (!destroyed) {
+                trigger(response);
+                triggerError({
+                    error: lastError,
+                    args: args,
+                    type: "action",
+                });
+            }
             return response;
+        }
+        finally {
+            inFlight--;
+            updateStatus();
         }
     };
 
@@ -139,9 +278,27 @@ export function createAction<A extends BaseHandler>(action: A) {
         actionFn = nextAction;
     };
 
+    // One-call teardown: destroy the underlying response/before/error/status
+    // events and mark the action dead. Post-destroy invoke/addListener throw
+    // rather than silently no-op.
+    const destroy = () => {
+        destroyResponseEvent();
+        destroyBeforeEvent();
+        destroyErrorEvent();
+        destroyStatusEvent();
+        destroyed = true;
+    };
+
+    const isDestroyed = () => destroyed;
+
     const api = {
         invoke,
         setAction,
+        destroy,
+        isDestroyed,
+        getStatus,
+        onStatusChange: addStatusListener,
+        removeStatusListener,
         addListener,
         /** @alias addListener */
         on: addListener,

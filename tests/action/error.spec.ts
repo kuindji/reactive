@@ -286,5 +286,27 @@ describe("action errorPromise", () => {
         const result = await errorPromise;
         expect(result[0].error.message).toBe("Promise error");
     });
+
+    it("routes errors to a listener added while the invoke is in flight", async () => {
+        let reject!: (e: Error) => void;
+        const action = createAction(
+            () => new Promise<number>((_, r) => {
+                reject = r;
+            }),
+        );
+
+        const errors: string[] = [];
+        const promise = action.invoke();
+        // Listener registered after invoke() began but before it settles.
+        action.addErrorListener(({ error }) => {
+            errors.push(error.message);
+        });
+        reject(new Error("late listener"));
+
+        const result = await promise;
+        expect(errors).toEqual([ "late listener" ]);
+        expect(result.error).toBe("late listener");
+        expect(result.response).toBe(null);
+    });
 });
 

@@ -69,4 +69,28 @@ describe("event setOptions (expanded)", () => {
         });
         expect(received).toEqual([ 7 ]);
     });
+
+    it("does not replay a trigger fired before autoTrigger was enabled", () => {
+        const o = createEvent<(n: number) => void>();
+        // autoTrigger is OFF here, so this trigger must not be replayed later.
+        o.trigger(1);
+        o.setOptions({ autoTrigger: true });
+        const received: number[] = [];
+        o.addListener((n) => {
+            received.push(n);
+        });
+        expect(received).toEqual([]);
+    });
+
+    it("replays only the trigger fired while autoTrigger was enabled", () => {
+        const o = createEvent<(n: number) => void>();
+        o.trigger(1); // before enable -> must not replay
+        o.setOptions({ autoTrigger: true });
+        o.trigger(2); // after enable -> this one replays
+        const received: number[] = [];
+        o.addListener((n) => {
+            received.push(n);
+        });
+        expect(received).toEqual([ 2 ]);
+    });
 });

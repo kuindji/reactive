@@ -9,8 +9,8 @@ A JavaScript/TypeScript utility library for building reactive applications with 
 ## Features
 
 - **Event System**: Event emitter with subscriber/dispatcher and collector modes
-- **Action System**: Async action handling with error management and response tracking
-- **Store System**: Reactive state management with change tracking and validation
+- **Action System**: Async action handling with error management, response tracking and loading/error/response status
+- **Store System**: Reactive state management with change tracking, validation and computed/derived values
 - **EventBus**: Centralized event management for complex applications
 - **ActionBus & ActionMap**: Organized action management with error handling
 - **React Integration**: Full React hooks support with error boundaries
@@ -99,7 +99,19 @@ event.addListener(handler, {
     tags: string[], // Listener tags for filtering; default undefined
     async: booleantrue, // Call this listener asynchronously; default false
     extraData: object, // Custom data will be passed to filter()
+    signal: AbortSignal, // Auto-remove the listener when this signal aborts
 });
+```
+
+When a `signal` is provided, the listener is removed automatically once the
+signal aborts (and is not added at all if the signal is already aborted). The
+abort subscription is cleaned up if the listener is removed first, so there is no
+dangling reference into a still-live signal:
+
+```typescript
+const controller = new AbortController();
+event.addListener(handler, { signal: controller.signal });
+controller.abort(); // handler is now removed
 ```
 
 ### Collector
@@ -159,9 +171,10 @@ const value = event.pipe(1); // value = 4
 
 - `addListener(listener, options?)` - Add event listener
   - **Aliases**: `on()`, `listen()`, `subscribe()`
+- `once(listener, options?)` - Add a listener that is removed after a single call (sugar for `addListener(listener, { ...options, limit: 1 })`)
 - `removeListener(listener, context?, tag?)` - Remove specific listener
   - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
-- `updateListenerOptions(listener, context?, nextOptions?)` - Update a registered listener's soft options (`limit`, `start`, `async`, `tags`, `extraData`, `alwaysFirst`/`alwaysLast`) **in place**, preserving its `called`/`count` counters. Matches the listener by `listener` + `context`. Returns `true` if a listener was found. `context` is an identity field and is not updated here (resubscribe to change it); `first` is insertion-time only and ignored. Lowering `limit` to at/below the current `called` removes the listener immediately.
+- `updateListenerOptions(listener, context?, nextOptions?)` - Update a registered listener's soft options (`limit`, `start`, `async`, `tags`, `extraData`, `alwaysFirst`/`alwaysLast`, `signal`) **in place**, preserving its `called`/`count` counters. This is a **partial update**: only fields explicitly present in `nextOptions` change; any omitted field keeps its current value. Pass a field explicitly to clear it (e.g. `limit: 0` for unlimited, `signal: null` to drop abort wiring). Matches the listener by `listener` + `context`. Returns `true` if a listener was found. `context` is an identity field and is not updated here (resubscribe to change it); `first` is insertion-time only and ignored. Lowering `limit` to at/below the current `called` removes the listener immediately.
 - `hasListener(listener?, context?, tag?)` - Check if listener exists
   - **Aliases**: `has()`
 - `removeAllListeners(tag?)` - Remove all listeners (optionally by tag)
@@ -197,7 +210,16 @@ const value = event.pipe(1); // value = 4
 - `suspend(withQueue?: boolean)` - Suspend event triggering; When `withQueue=true`, all trigger calls will be queued and replayed after resume()
 - `resume()` - Resume event triggering
 - `reset()` - Reset event state
+- `destroy()` - Tear down the event: remove all listeners (unwinding any `AbortSignal` subscriptions) and mark it dead. After `destroy()`, `trigger()` and `addListener()` throw rather than silently no-op.
+- `isDestroyed()` - Returns `true` once `destroy()` has been called
 - `withTags(tags: string[], callback: () => CallbackResponse) => CallbackResponse` - Execute callback with specific tags
+
+#### Introspection
+
+- `listenerCount(tag?)` - Number of registered listeners, optionally filtered by tag
+- `triggeredCount()` - How many times the event has been triggered
+- `lastTriggerArgs()` - The most recent trigger arguments (a copy), or `null` if never triggered
+- `getListeners()` - Read-only projection of registered listeners (`handler`, `context`, `tags`, `limit`, `start`, `called`, `count`, `async`, ordering flags, `extraData`). Mutating the returned objects does not affect the event.
 
 ## EventBus
 
@@ -522,7 +544,9 @@ customSource.trigger("appStart");
 - `removeEventSource(source)` - Remove event source
 - `suspendAll(withQueue?)` - Suspend all events
 - `resumeAll()` - Resume all events
-- `reset()` - Reset all events
+- `reset()` - Reset all events: unrelay all relays and remove all event sources (detaching their external listeners), then clear every owned event and interception/tag state. The bus stays usable afterwards.
+- `destroy()` - Tear down the bus: unrelay all relays, remove all event sources (detaching their external listeners), destroy every owned event, and mark the bus dead. After `destroy()`, `trigger()`/`on()` throw.
+- `isDestroyed()` - Returns `true` once `destroy()` has been called
 - `withTags(tags, callback)` - Execute callback with specific tags
 
 ## Action
@@ -571,12 +595,38 @@ const result = await fetchUserAction.invoke("user123");
   - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
 - `updateListenerOptions(handler, context?, nextOptions?)` - Update a response listener's soft options in place (see Event's `updateListenerOptions`)
 - `removeAllListeners(tag?)` - Remove all listeners
+- `destroy()` - Tear down the action: destroy its response, before-action, error and status events and mark it dead. After `destroy()`, `invoke()`/`addListener()` throw.
+- `isDestroyed()` - Returns `true` once `destroy()` has been called
 
 #### Error Handling
 
 - `addErrorListener(handler, context?)` - Add error listener
 - `removeErrorListener(handler, context?)` - Remove error listener
 - `removeAllErrorListeners(tag?)` - Remove all error listeners
+
+#### Status (loading / error / response)
+
+An action tracks the status of its `invoke` lifecycle so UI can drive
+`loading`/`disabled` without a hand-rolled `useState(false)`. `pending` is true
+while one or more invocations are in flight; `response`/`error` hold the last
+settled outcome (a before-action veto settles to neither). This is **not** a
+cache — `response` is just the last value.
+
+- `getStatus()` - Returns `{ pending: boolean, error: Error | null, response: T | null }`. The reference is stable while unchanged (safe for `useSyncExternalStore`).
+- `onStatusChange(handler)` - Subscribe to status changes
+- `removeStatusListener(handler)` - Remove a status listener
+
+```typescript
+const saveAction = createAction(async (data: FormData) => save(data));
+
+saveAction.onStatusChange(({ pending, error }) => {
+    button.disabled = pending;
+});
+
+await saveAction.invoke(form); // pending -> true, then false on settle
+```
+
+In React, prefer the `useAsyncAction` / `useActionBusStatus` hooks (see React Hooks).
 
 #### Utility Methods
 
@@ -703,6 +753,17 @@ const user = await actionBus.invoke("fetchUser", "user123");
 - `removeListener(name, handler, context?, tag?)` - Remove listener
   - **Aliases**: `un()`, `off()`, `remove()`, `unsubscribe()`
 - `updateListenerOptions(name, handler, context?, nextOptions?)` - Update a response listener's soft options in place (see Event's `updateListenerOptions`)
+- `destroy()` - Tear down the bus: destroy every owned action and the error event, then drop them all. After `destroy()`, `invoke()`/`on()` throw.
+- `isDestroyed()` - Returns `true` once `destroy()` has been called
+
+#### Status (loading / error / response)
+
+Delegates to the underlying action's status (see Action → Status). This is the
+primary path for apps that route mutations through one shared ActionBus.
+
+- `getStatus(name)` - Status for a named action; an unregistered name reports an idle status
+- `onStatusChange(name, handler)` - Subscribe to a named action's status. Subscribing before the action is registered is retained and attached automatically once it is added (and re-attached if the action is later removed and re-added)
+- `removeStatusListener(name, handler)` - Remove a status listener (also clears a subscription retained before registration)
 
 #### Error Handling
 
@@ -761,9 +822,12 @@ const userData = userStore.get([ "name", "email" ]); // { name: string, email: s
 - `asyncSet(data)` - Async set multiple properties
 - `get(key)` - Get single property
 - `get(keys)` - Get multiple properties
+- `computed(key, deps, fn)` - Register a derived value (see Computed values)
 - `isEmpty()` - Check if store is empty
 - `getData()` - Get all store data
-- `reset()` - Clear store data
+- `reset()` - Clear store data. Computed keys are re-seeded from the cleared dependencies (so they stay consistent with `fn(deps)` rather than going stale) and remain live.
+- `destroy()` - Tear down the store: destroy the underlying change/pipe/control buses and drop all data. After `destroy()`, `set()`/`get()` throw.
+- `isDestroyed()` - Returns `true` once `destroy()` has been called
 
 #### Event Methods
 
@@ -783,6 +847,40 @@ const userData = userStore.get([ "name", "email" ]); // { name: string, email: s
 #### Utility Methods
 
 - `batch(fn)` - Batch multiple changes
+
+#### Computed values
+
+Declare a derived key in the store type, then attach its derivation with
+`computed(key, deps, fn)`. It recomputes automatically when any dependency
+changes and notifies like any other key — `get`, `getData`, `onChange`,
+`useStoreState` and `useStoreSelector` all see it transparently. Computed keys
+are read-only: calling `set` on one throws. Computed-of-computed chains are
+supported, and a cyclic computed throws rather than looping.
+
+```typescript
+type UserStore = {
+    first: string;
+    last: string;
+    fullName: string; // declared in the type, registered as computed
+};
+
+const store = createStore<UserStore>({ first: "Jane", last: "Doe" });
+
+store.computed("fullName", [ "first", "last" ], (first, last) => `${first} ${last}`);
+
+store.get("fullName");        // "Jane Doe"
+store.onChange("fullName", (v) => console.log(v));
+store.set("first", "John");   // fullName recomputes -> "John Doe"
+store.set("fullName", "x");   // throws: computed is read-only
+```
+
+> **Note:** recompute is registration-order, not topologically sorted, so a
+> chained or diamond-shaped computed may recompute internally more than once per
+> change. This is invisible to consumers: a single `set(...)`/`set({...})`/`batch`
+> coalesces the `onChange` stream, so each computed fires `onChange` once with
+> its settled value and the correct previous value. The final value is always
+> correct. Registering base computeds before dependents reduces redundant
+> internal recomputes.
 
 ## React Hooks
 
@@ -963,6 +1061,31 @@ useListenToStoreChanges(
     listener: (value: TypeOfValue, previousValue?: TypeOfValue) => void
     listenerOptions?: ListenerOptions
 )
+```
+
+Select a derived slice with equality (bails out of re-renders while the result
+is unchanged). Two forms — a selector over the whole state, or a deps-keyed form
+that recomputes only when the listed keys change:
+
+```typescript
+// selector form (default equality is Object.is)
+const label = useStoreSelector(store, (s) => `${s.first} ${s.last}`, shallowEqual?);
+
+// deps-keyed form
+const anyLoading = useStoreSelector(store, [ "a", "b", "c" ], (a, b, c) => a || b || c);
+```
+
+Drive `loading`/`disabled` from an action's status. `useActionBusStatus` is the
+primary path for apps built around one shared ActionBus; `useAsyncAction` wraps a
+standalone function:
+
+```typescript
+// shared ActionBus
+const { loading, error, response } = useActionBusStatus(appActions, "user/login");
+
+// standalone action
+const [ submit, { loading, error } ] = useAsyncAction(saveProfileFn);
+// <Button loading={loading} disabled={loading} onClick={() => submit(form)} />
 ```
 
 ### Reconciliation across renders

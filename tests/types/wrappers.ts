@@ -88,7 +88,7 @@ function createTypedEventBus<EventsMap extends BaseEventMap>(
     if (options.listeners) {
         for (const [name, handler] of Object.entries(options.listeners)) {
             if (handler) {
-                bus.on(name as string & keyof EventsMap, handler);
+                bus.on(name, handler);
             }
         }
     }
@@ -244,7 +244,7 @@ function createTypedActionBus<ActionsMap extends BaseActionsMap>(
     if (options.listeners) {
         for (const [name, handler] of Object.entries(options.listeners)) {
             if (handler) {
-                bus.on(name as string & keyof ActionsMap, handler);
+                bus.on(name, handler);
             }
         }
     }

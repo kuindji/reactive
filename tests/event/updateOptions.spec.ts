@@ -110,9 +110,32 @@ describe("event updateListenerOptions", () => {
         expect(order).toEqual([ 1, 3, 2 ]);
 
         order.length = 0;
-        o.updateListenerOptions(h2, null, {});
+        // Partial update: clearing alwaysLast requires passing it explicitly
+        // (omitting it would now preserve the existing value).
+        o.updateListenerOptions(h2, null, { alwaysLast: false });
         o.trigger();
         expect(order).toEqual([ 1, 2, 3 ]);
+    });
+
+    it("preserves omitted options instead of resetting them", () => {
+        const o = createEvent<() => void>();
+        let calls = 0;
+        const handler = () => {
+            calls++;
+        };
+        o.addListener(handler, { limit: 2, tags: [ "a" ] });
+
+        // Change only the limit; the tag scoping must survive (partial update).
+        o.updateListenerOptions(handler, null, { limit: 3 });
+
+        o.withTags([ "a" ], () => o.trigger());
+        o.withTags([ "a" ], () => o.trigger());
+        o.withTags([ "a" ], () => o.trigger());
+        // Tags preserved (so the tag-scoped triggers still match) and the new
+        // limit of 3 applied (auto-removed only after the 3rd call).
+        expect(calls).toBe(3);
+        o.withTags([ "a" ], () => o.trigger());
+        expect(calls).toBe(3);
     });
 
     it("normalizes async true to 1", () => {

@@ -62,6 +62,29 @@ describe("actionBus error handling", () => {
         expect(result.error).toBe("Error");
         expect(errors).toEqual(["Error"]); // Our listener wasn't called again
     });
+
+    it("forwards the original error type so listeners can distinguish them", async () => {
+        const bus = createActionBus({
+            ok: (n: number) => n,
+        });
+
+        const received: Array<{ name?: string; type?: string; }> = [];
+        bus.addErrorListener(({ name, type }) => {
+            received.push({ name, type });
+        });
+
+        // A throwing status listener surfaces as type "action-status" (with no
+        // invocation args), distinct from an invocation failure ("action"). The
+        // forwarder preserves the original type so a bus-level listener can
+        // branch on it rather than assuming every error is type "action".
+        bus.onStatusChange("ok", () => {
+            throw new Error("status boom");
+        });
+
+        await bus.invoke("ok", 1);
+
+        expect(received).toContainEqual({ name: "ok", type: "action-status" });
+    });
 });
 
 describe("actionBus once", () => {

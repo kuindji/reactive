@@ -23,7 +23,10 @@ import { useListenToEvent } from "../../src/react/useListenToEvent";
 import { useListenToEventBus } from "../../src/react/useListenToEventBus";
 import { useListenToStoreChanges } from "../../src/react/useListenToStoreChanges";
 import { useStore } from "../../src/react/useStore";
+import { useStoreSelector } from "../../src/react/useStoreSelector";
 import { useStoreState } from "../../src/react/useStoreState";
+import { useActionBusStatus } from "../../src/react/useActionBusStatus";
+import { useAsyncAction } from "../../src/react/useAsyncAction";
 import { createStore } from "../../src/store";
 
 // ============================================================================
@@ -519,6 +522,59 @@ function _TestDynamicEventBusInComponent() {
     // Unknown events are also allowed
     eventBus.trigger("dynamic:event", "any", "args");
 
+    return null;
+}
+
+// ============================================================================
+// useStoreSelector / useAsyncAction / useActionBusStatus
+// ============================================================================
+
+function _TestStoreSelector() {
+    const store = createStore<{ first: string; last: string; n: number; }>({
+        first: "Jane",
+        last: "Doe",
+        n: 0,
+    });
+
+    // Selector form: result type inferred from the selector
+    const label: string = useStoreSelector(store, (s) => `${s.first} ${s.last}`);
+
+    // Deps-keyed form: dep values typed, result inferred
+    const sum: number = useStoreSelector(store, [ "n" ], (n) => n + 1);
+
+    // @ts-expect-error - Invalid: unknown dependency key
+    useStoreSelector(store, [ "unknown" ], () => 1);
+
+    return <span>{label}{sum}</span>;
+}
+
+function _TestAsyncActionHook() {
+    const [ submit, state ] = useAsyncAction(async (id: string) => {
+        return Promise.resolve({ id });
+    });
+
+    const _loading: boolean = state.loading;
+    const _error: Error | null = state.error;
+    if (state.response) {
+        const _id: string = state.response.id;
+    }
+
+    // @ts-expect-error - Invalid: wrong argument type
+    void submit(123);
+
+    return null;
+}
+
+function _TestActionBusStatusHook() {
+    const bus = createActionBus({
+        "user/login": async (_user: string) => Promise.resolve(true),
+    });
+    const status = useActionBusStatus(bus, "user/login");
+    const _loading: boolean = status.loading;
+    const _error: Error | null = status.error;
+    if (status.response !== null) {
+        const _ok: boolean = status.response;
+    }
     return null;
 }
 

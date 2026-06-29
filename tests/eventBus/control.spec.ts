@@ -130,6 +130,35 @@ describe("eventBus", () => {
         expect(triggered).toEqual([ true ]);
     });
 
+    it("unrelay with an equivalent proxyType clears the relay registry entry", () => {
+        // relay() with no proxyType resolves to ProxyType.TRIGGER. Unrelaying
+        // with the explicit equivalent must remove BOTH the external listener
+        // and the registry entry, so a later destroy() does not unrelay again.
+        let unCount = 0;
+        const source = {
+            on: () => {},
+            un: () => {
+                unCount++;
+            },
+            addAllEventsListener: () => {},
+            removeAllEventsListener: () => {},
+        };
+        const o1 = createEventBus<{ event: (a: number) => void; }>();
+
+        o1.relay({ eventSource: source, remoteEventName: "event" });
+        o1.unrelay({
+            eventSource: source,
+            remoteEventName: "event",
+            proxyType: ProxyType.TRIGGER,
+        });
+        expect(unCount).toBe(1);
+
+        o1.destroy();
+        // The registry entry was already removed, so teardown must not call un()
+        // a second time on the (already detached) external source.
+        expect(unCount).toBe(1);
+    });
+
     it("should relay * events", () => {
         const o1 = createEventBus<{
             event1: (a: number) => void;

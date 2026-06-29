@@ -242,7 +242,13 @@ import { createEvent } from "../../src/event";
         // Valid: error response has correct shape
         const _error: Error = errorResponse.error;
         const _args: [number, string] = errorResponse.args;
-        const _type: "action" | "event" | "store-change" | "store-pipe" | "store-control" = errorResponse.type;
+        const _type:
+            | "action"
+            | "action-status"
+            | "event"
+            | "store-change"
+            | "store-pipe"
+            | "store-control" = errorResponse.type;
     });
 }
 
@@ -311,6 +317,59 @@ import { createEvent } from "../../src/event";
 
     // Handler can be generic
     event.addListener((value) => value);
+}
+
+// ============================================================================
+// once(), AbortSignal, destroy, and introspection (Features #4 / #5)
+// ============================================================================
+
+// Test: once() infers listener args like addListener
+{
+    const event = createEvent<(a: string, b: number) => void>();
+
+    event.once((a, b) => {
+        const _strCheck: string = a;
+        const _numCheck: number = b;
+    });
+
+    // Valid: once accepts the same options as addListener
+    event.once(() => {}, { first: true });
+}
+
+// Test: AbortSignal option on addListener
+{
+    const event = createEvent<(value: number) => void>();
+    const controller = new AbortController();
+
+    // Valid: signal is an accepted listener option
+    event.addListener((value) => {
+        const _check: number = value;
+    }, { signal: controller.signal });
+}
+
+// Test: introspection method return types
+{
+    const event = createEvent<(a: number) => string>();
+
+    const _count: number = event.listenerCount();
+    const _countByTag: number = event.listenerCount("tag");
+    const _triggered: number = event.triggeredCount();
+
+    const lastArgs = event.lastTriggerArgs();
+    // Valid: lastTriggerArgs returns the tuple of arguments or null
+    const _args: [number] | null = lastArgs;
+
+    const listeners = event.getListeners();
+    const _handler = listeners[0]?.handler;
+    const _called: number | undefined = listeners[0]?.called;
+    const _tags: string[] | undefined = listeners[0]?.tags;
+}
+
+// Test: destroy / isDestroyed
+{
+    const event = createEvent<() => void>();
+    event.destroy();
+    const _destroyed: boolean = event.isDestroyed();
 }
 
 console.log("Event type tests passed!");

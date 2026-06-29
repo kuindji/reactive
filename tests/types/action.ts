@@ -234,7 +234,13 @@ import { createAction } from "../../src/action";
         // errorResponse has correct shape
         const _error: Error = errorResponse.error;
         const _args: [{ value: number; }] = errorResponse.args;
-        const _type: "action" | "event" | "store-change" | "store-pipe" | "store-control" = errorResponse.type;
+        const _type:
+            | "action"
+            | "action-status"
+            | "event"
+            | "store-change"
+            | "store-pipe"
+            | "store-control" = errorResponse.type;
 
         // Can access the original args
         const _value: number = errorResponse.args[0].value;
@@ -374,6 +380,34 @@ import { createAction } from "../../src/action";
             const _errorMessage: string = result.error;
         }
     }
+}
+
+// ============================================================================
+// Action status
+// ============================================================================
+
+// Test: getStatus / onStatusChange infer the response type
+{
+    const action = createAction(async (id: string) => {
+        return Promise.resolve({ id, name: "John" });
+    });
+
+    const status = action.getStatus();
+    const _pending: boolean = status.pending;
+    const _error: Error | null = status.error;
+    if (status.response !== null) {
+        const _id: string = status.response.id;
+
+        // @ts-expect-error - Invalid: wrong property
+        const _wrong = status.response.wrongProp;
+    }
+
+    action.onStatusChange((s) => {
+        const _p: boolean = s.pending;
+        if (s.response !== null) {
+            const _name: string = s.response.name;
+        }
+    });
 }
 
 console.log("Action type tests passed!");

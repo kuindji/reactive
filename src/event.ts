@@ -53,21 +53,51 @@ export interface ListenerOptions extends BaseOptions {
      * You can pass any additional fields here. They will be passed back to TriggerFilter
      */
     extraData?: any;
+    /**
+     * When provided, the listener is auto-removed once the signal aborts. If the
+     * signal is already aborted the listener is not added at all.
+     */
+    signal?: AbortSignal | null;
 }
 
 interface ListenerPrototype<Handler extends BaseHandler>
-    extends Required<ListenerOptions>
+    extends Required<Omit<ListenerOptions, "signal">>
 {
     handler: Handler;
     called: number;
     count: number;
     index: number;
     start: number;
+    // Detaches the AbortSignal "abort" handler, if one was registered. Kept on
+    // the listener so a manual removeListener also unwinds the abort handler
+    // (no dangling reference into a still-live signal).
+    abortCleanup: (() => void) | null;
 }
 
 interface ErrorListenerPrototype<Handler extends BaseHandler> {
     handler: Handler;
     context?: object | null;
+}
+
+/**
+ * Read-only projection of a registered listener, returned by `getListeners()`.
+ * Carries the listener's options plus its live `called`/`count` counters but
+ * none of the mutable internals — mutating this object does not affect the
+ * event.
+ */
+export interface ListenerInfo<Handler extends BaseHandler = BaseHandler> {
+    handler: Handler;
+    context: object | null;
+    tags: string[];
+    limit: number;
+    start: number;
+    called: number;
+    count: number;
+    async: boolean | number | null;
+    first: boolean;
+    alwaysFirst: boolean;
+    alwaysLast: boolean;
+    extraData: any;
 }
 
 export interface EventOptions<
@@ -133,8 +163,14 @@ export function createEvent<
     ]> = [];
     let suspended: boolean = false;
     let queued: boolean = false;
+    let destroyed: boolean = false;
     let triggered: number = 0;
     let lastTrigger: Event["arguments"] | null = null;
+    // The args replayed to a late autoTrigger listener. Recorded only while
+    // autoTrigger is enabled, so enabling it *after* a trigger does not replay
+    // that earlier (pre-enablement) trigger. Kept separate from `lastTrigger`,
+    // which is recorded on every trigger purely for `lastTriggerArgs`.
+    let autoTriggerArgs: Event["arguments"] | null = null;
     let sortListeners: boolean = false;
     let currentTagsFilter: string[] | null = null;
 
@@ -150,9 +186,17 @@ export function createEvent<
 
     const addListener = (
         handler: Event["signature"],
-        listenerOptions: ListenerOptions = {} as ListenerOptions,
+        listenerOptions: ListenerOptions = {},
     ) => {
+        if (destroyed) {
+            throw new Error("Event is destroyed");
+        }
         if (!handler) {
+            return;
+        }
+
+        const signal = listenerOptions.signal ?? null;
+        if (signal?.aborted) {
             return;
         }
 
@@ -184,6 +228,7 @@ export function createEvent<
             limit: 0,
             async: null,
             ...listenerOptions,
+            abortCleanup: null,
         } as const;
 
         if (listener.async === true) {
@@ -211,27 +256,31 @@ export function createEvent<
             sortListeners = true;
         }
 
+        if (signal) {
+            const onAbort = () => {
+                removeListener(handler, listenerContext);
+            };
+            signal.addEventListener("abort", onAbort, { once: true });
+            listener.abortCleanup = () => {
+                signal.removeEventListener("abort", onAbort);
+            };
+        }
+
         if (
             options.autoTrigger
-            && lastTrigger !== null
+            && autoTriggerArgs !== null
             && !suspended
         ) {
-            const prevFilter = options.filter;
-            options.filter = (
-                args: any[],
-                l: Listener,
-            ) => {
-                if (l && l.handler === handler) {
-                    return prevFilter ? prevFilter(args, l) !== false : true;
-                }
-                return false;
-            };
-            try {
-                _trigger(lastTrigger);
-            }
-            finally {
-                options.filter = prevFilter;
-            }
+            // Replay the last enabled trigger, but only into the listener just
+            // added. The replay target is passed explicitly to `_trigger` (not
+            // via shared closure/`options.filter` state) so that a real trigger
+            // fired synchronously by the replayed handler is an ordinary real
+            // trigger — full bookkeeping, limit enforcement, and delivery to all
+            // listeners — rather than inheriting this replay's suppression.
+            _trigger(autoTriggerArgs, null, null, {
+                handler,
+                context: listenerContext ?? null,
+            });
         }
     };
 
@@ -260,14 +309,15 @@ export function createEvent<
             return false;
         }
 
-        listeners.splice(inx, 1);
+        const [ removed ] = listeners.splice(inx, 1);
+        removed?.abortCleanup?.();
         return true;
     };
 
     const updateListenerOptions = (
         handler: Event["signature"],
         context: object | null = null,
-        nextOptions: ListenerOptions = {} as ListenerOptions,
+        nextOptions: ListenerOptions = {},
     ): boolean => {
         const listenerContext = context ?? null;
         const listener = listeners.find((l) =>
@@ -280,20 +330,36 @@ export function createEvent<
         const prevAlwaysFirst = listener.alwaysFirst;
         const prevAlwaysLast = listener.alwaysLast;
 
-        // Soft fields, applying the same defaults as addListener so that a
-        // removed field resets to its default rather than lingering.
-        listener.limit = nextOptions.limit ?? 0;
-        listener.start = nextOptions.start ?? 1;
-        listener.tags = nextOptions.tags ?? [];
-        listener.extraData = nextOptions.extraData ?? null;
-        listener.alwaysFirst = nextOptions.alwaysFirst ?? false;
-        listener.alwaysLast = nextOptions.alwaysLast ?? false;
-
-        let nextAsync: boolean | number | null = nextOptions.async ?? null;
-        if (nextAsync === true) {
-            nextAsync = 1;
+        // Partial update: only fields explicitly present in nextOptions change;
+        // any omitted field keeps its current value (a caller changing one
+        // option does not silently reset the others). Pass a field explicitly
+        // (e.g. limit: 0, signal: null) to clear it.
+        if ("limit" in nextOptions) {
+            listener.limit = nextOptions.limit ?? 0;
         }
-        listener.async = nextAsync;
+        if ("start" in nextOptions) {
+            listener.start = nextOptions.start ?? 1;
+        }
+        if ("tags" in nextOptions) {
+            listener.tags = nextOptions.tags ?? [];
+        }
+        if ("extraData" in nextOptions) {
+            listener.extraData = nextOptions.extraData ?? null;
+        }
+        if ("alwaysFirst" in nextOptions) {
+            listener.alwaysFirst = nextOptions.alwaysFirst ?? false;
+        }
+        if ("alwaysLast" in nextOptions) {
+            listener.alwaysLast = nextOptions.alwaysLast ?? false;
+        }
+
+        if ("async" in nextOptions) {
+            let nextAsync: boolean | number | null = nextOptions.async ?? null;
+            if (nextAsync === true) {
+                nextAsync = 1;
+            }
+            listener.async = nextAsync;
+        }
 
         // Re-sort if ordering hints changed. Unlike addListener we do NOT
         // rewrite each listener's index here: the existing indices hold the
@@ -308,6 +374,32 @@ export function createEvent<
             }
             if (sortListeners) {
                 listeners.sort((l1, l2) => listenerSorter<Listener>(l1, l2));
+            }
+        }
+
+        // Rebind the AbortSignal only when `signal` is explicitly present:
+        // detach any previous wiring so the old controller can no longer remove
+        // this listener, then attach the new signal. Omitting the field leaves
+        // the existing binding intact (partial-update convention); pass
+        // signal: null to clear it. An already-aborted new signal removes the
+        // listener now, mirroring addListener's "do not keep an aborted-signal
+        // listener".
+        if ("signal" in nextOptions) {
+            listener.abortCleanup?.();
+            listener.abortCleanup = null;
+            const nextSignal = nextOptions.signal ?? null;
+            if (nextSignal) {
+                if (nextSignal.aborted) {
+                    removeListener(listener.handler, listenerContext);
+                    return true;
+                }
+                const onAbort = () => {
+                    removeListener(listener.handler, listenerContext);
+                };
+                nextSignal.addEventListener("abort", onAbort, { once: true });
+                listener.abortCleanup = () => {
+                    nextSignal.removeEventListener("abort", onAbort);
+                };
             }
         }
 
@@ -357,10 +449,15 @@ export function createEvent<
     const removeAllListeners = (tag?: string) => {
         if (tag) {
             listeners = listeners.filter((l) => {
-                return !l.tags || l.tags.indexOf(tag) === -1;
+                const keep = !l.tags || l.tags.indexOf(tag) === -1;
+                if (!keep) {
+                    l.abortCleanup?.();
+                }
+                return keep;
             });
         }
         else {
+            listeners.forEach((l) => l.abortCleanup?.());
             listeners = [];
         }
     };
@@ -421,7 +518,113 @@ export function createEvent<
     const isSuspended = () => suspended;
     const isQueued = () => queued;
 
+    // One-call teardown: drop all listeners (unwinding their abort handlers via
+    // reset) and mark the event dead. Post-destroy trigger/addListener throw
+    // rather than silently no-op, surfacing use-after-free.
+    const destroy = () => {
+        reset();
+        destroyed = true;
+    };
+
+    const isDestroyed = () => destroyed;
+
+    const listenerCount = (tag?: string | null): number => {
+        if (tag) {
+            return listeners.filter(
+                (l) => l.tags && l.tags.indexOf(tag) !== -1,
+            ).length;
+        }
+        return listeners.length;
+    };
+
+    const triggeredCount = (): number => triggered;
+
+    // Return a copy: handing back the internal `lastTrigger` reference would let
+    // a caller mutate it, corrupting both the recorded snapshot and the values
+    // replayed to autoTrigger listeners.
+    const lastTriggerArgs = (): Event["arguments"] | null =>
+        lastTrigger ? (lastTrigger.slice() as Event["arguments"]) : null;
+
+    // Deep-copy extraData so the read-only projection cannot mutate internal
+    // listener metadata (which filters can read) at any depth; a shallow copy
+    // still shares nested containers by reference. `seen` carries already-cloned
+    // containers so a cyclic graph reuses its clone instead of recursing forever
+    // (a plain recursive clone throws RangeError on cycles). Arrays, plain
+    // objects, Date, Map and Set are cloned. Truly opaque values (functions,
+    // class instances) are returned as-is — copying their enumerable keys would
+    // not faithfully reproduce them — as are primitives.
+    const projectExtraDataDeep = (value: any, seen: WeakMap<object, any>): any => {
+        if (value === null || typeof value !== "object") {
+            return value;
+        }
+        const existing = seen.get(value);
+        if (existing !== undefined) {
+            return existing;
+        }
+        if (value instanceof Date) {
+            return new Date(value.getTime());
+        }
+        if (Array.isArray(value)) {
+            const copy: any[] = [];
+            seen.set(value, copy);
+            for (const v of value) {
+                copy.push(projectExtraDataDeep(v, seen));
+            }
+            return copy;
+        }
+        if (value instanceof Map) {
+            const copy = new Map();
+            seen.set(value, copy);
+            value.forEach((v, k) => {
+                copy.set(
+                    projectExtraDataDeep(k, seen),
+                    projectExtraDataDeep(v, seen),
+                );
+            });
+            return copy;
+        }
+        if (value instanceof Set) {
+            const copy = new Set();
+            seen.set(value, copy);
+            value.forEach((v) => {
+                copy.add(projectExtraDataDeep(v, seen));
+            });
+            return copy;
+        }
+        const proto = Object.getPrototypeOf(value);
+        if (proto === Object.prototype || proto === null) {
+            const copy: Record<string, any> = {};
+            seen.set(value, copy);
+            for (const k of Object.keys(value)) {
+                copy[k] = projectExtraDataDeep(value[k], seen);
+            }
+            return copy;
+        }
+        return value;
+    };
+
+    const projectExtraData = (value: any): any =>
+        projectExtraDataDeep(value, new WeakMap());
+
+    const getListeners = (): ListenerInfo<Event["signature"]>[] => {
+        return listeners.map((l) => ({
+            handler: l.handler,
+            context: l.context,
+            tags: l.tags ? l.tags.slice() : [],
+            limit: l.limit,
+            start: l.start,
+            called: l.called,
+            count: l.count,
+            async: l.async,
+            first: l.first,
+            alwaysFirst: l.alwaysFirst,
+            alwaysLast: l.alwaysLast,
+            extraData: projectExtraData(l.extraData),
+        }));
+    };
+
     const reset = () => {
+        listeners.forEach((l) => l.abortCleanup?.());
         listeners.length = 0;
         errorListeners.length = 0;
         queue.length = 0;
@@ -429,6 +632,7 @@ export function createEvent<
         queued = false;
         triggered = 0;
         lastTrigger = null;
+        autoTriggerArgs = null;
         sortListeners = false;
     };
 
@@ -519,6 +723,12 @@ export function createEvent<
         | boolean =>
     {
         if (returnType === TriggerReturnType.PIPE) {
+            // Copy-on-write: preserve the pre-pipe lastTrigger snapshot before
+            // mutating args[0] in place for the pipe chain (lastTrigger stores
+            // the args reference rather than an eager per-trigger copy).
+            if (lastTrigger === args) {
+                lastTrigger = args.slice() as Event["arguments"];
+            }
             args[0] = prevValue;
             // since we don't user listener's arg transformer,
             // we don't need to prepare args
@@ -551,7 +761,15 @@ export function createEvent<
         args: Event["arguments"],
         returnType: TriggerReturnType | null = null,
         tags?: string[] | null,
+        // When set, this call is an autoTrigger replay: it must not bump
+        // `triggered`/`lastTrigger` or be gated by the trigger `limit`, and it is
+        // delivered only to the listener identified here.
+        replayTo?: { handler: Event["signature"]; context: object | null } | null,
     ) => {
+        const replaying = !!replayTo;
+        if (destroyed) {
+            throw new Error("Event is destroyed");
+        }
         if (queued) {
             queue.push([
                 args,
@@ -563,13 +781,30 @@ export function createEvent<
         if (suspended) {
             return;
         }
-        if (options.limit && triggered >= options.limit) {
+        // The trigger `limit` bounds real triggers; an autoTrigger replay is an
+        // internal redelivery and must always reach the new listener.
+        if (options.limit && triggered >= options.limit && !replaying) {
             return;
         }
-        triggered++;
+        if (!replaying) {
+            triggered++;
 
-        if (options.autoTrigger) {
-            lastTrigger = args.slice() as Event["arguments"];
+            // Record the last trigger arguments for introspection
+            // (`lastTriggerArgs`). Store the reference rather than eagerly
+            // copying on every trigger (a hot path even when nothing ever reads
+            // it): `args` is a fresh per-call array the caller cannot reach, and
+            // listeners receive it spread (never the array itself). The snapshot
+            // is copied lazily — when handed out by lastTriggerArgs(), and
+            // copy-on-write before PIPE mode mutates args[0] in place — so the
+            // recorded snapshot stays the pre-pipe arguments.
+            lastTrigger = args;
+
+            // Record the replay source only while autoTrigger is enabled, so a
+            // late listener added after autoTrigger is turned on replays the
+            // most recent *enabled* trigger, never an earlier disabled one.
+            if (options.autoTrigger) {
+                autoTriggerArgs = args.slice() as Event["arguments"];
+            }
         }
 
         // in pipe mode if there is no listeners,
@@ -613,6 +848,16 @@ export function createEvent<
                 continue;
             }
 
+            // An autoTrigger replay is delivered only to the newly added
+            // listener identified by `replayTo`.
+            if (
+                replayTo
+                && (listener.handler !== replayTo.handler
+                    || (listener.context ?? null) !== replayTo.context)
+            ) {
+                continue;
+            }
+
             if (
                 options.filter
                 && options.filter.call(options.filterContext, args, listener)
@@ -645,6 +890,17 @@ export function createEvent<
                 && listener.count < listener.start
             ) {
                 continue;
+            }
+
+            // Count the call and exhaust the limit BEFORE invoking the handler.
+            // If the handler re-triggers this same event, the nested _trigger
+            // snapshots `listeners` AFTER the removal below, so an exhausted
+            // (e.g. once()) listener is not invoked a second time. Doing this
+            // after the call would let a re-entrant trigger see the still-live
+            // listener and run it again past its limit.
+            listener.called++;
+            if (listener.called === listener.limit) {
+                removeListener(listener.handler, listener.context);
             }
 
             if (isConsequent && results.length > 0) {
@@ -684,12 +940,6 @@ export function createEvent<
             }
             else {
                 listenerResult = _listenerCall(listener, args);
-            }
-
-            listener.called++;
-
-            if (listener.called === listener.limit) {
-                removeListener(listener.handler, listener.context);
             }
 
             if (returnType === TriggerReturnType.FIRST) {
@@ -806,6 +1056,13 @@ export function createEvent<
         finally {
             currentTagsFilter = prevTagsFilter;
         }
+    };
+
+    const once = (
+        handler: Event["signature"],
+        listenerOptions: ListenerOptions = {},
+    ) => {
+        return addListener(handler, { ...listenerOptions, limit: 1 });
     };
 
     const promise = (options?: ListenerOptions) => {
@@ -995,6 +1252,7 @@ export function createEvent<
         listen: addListener,
         /** @alias addListener */
         subscribe: addListener,
+        once,
         removeListener,
         updateListenerOptions,
         /** @alias removeListener */
@@ -1020,8 +1278,14 @@ export function createEvent<
         resume,
         setOptions,
         reset,
+        destroy,
+        isDestroyed,
         isSuspended,
         isQueued,
+        listenerCount,
+        triggeredCount,
+        lastTriggerArgs,
+        getListeners,
         withTags,
         promise,
         first,
