@@ -206,6 +206,15 @@ export function useStoreSelector(
 
     const subscribe = useCallback(
         (onStoreChange: () => void) => {
+            // subscribe can run (during commit) for an already-destroyed store
+            // — e.g. a provider torn down before this component mounts, or a
+            // `store` change re-running subscribe. control() reaches the
+            // destroyed control bus's addListener, which throws "EventBus is
+            // destroyed" out of render. Skip subscribing and hand back a no-op
+            // cleanup; getSelection already reads destroyed stores safely.
+            if (store.isDestroyed()) {
+                return () => {};
+            }
             const listener = (names: MapKey[]) => {
                 const currentDeps = depsRef.current;
                 if (

@@ -83,6 +83,34 @@ export function areListenerOptionsEqual(
 }
 
 /**
+ * Expand a listener's options into a fully-populated set of the soft fields
+ * that {@link ListenerOptions} reconciliation updates in place, filling every
+ * omitted field with its default.
+ *
+ * `event.updateListenerOptions` uses partial-merge semantics (only fields
+ * present in the passed object change), but the React reconciliation layer is
+ * declarative: the options object fully describes the desired listener state,
+ * so a field dropped between renders must reset to its default. Passing this
+ * normalized object makes partial-merge behave as a full reset for exactly the
+ * soft fields — without disturbing `signal` (identity-managed by the abort
+ * wiring) or `context` (identity, handled by resubscribe).
+ */
+export function fillListenerUpdateDefaults(
+    options?: ListenerOptions | null,
+): ListenerOptions {
+    const o = options ?? {};
+    return {
+        limit: o.limit ?? 0,
+        start: o.start ?? 1,
+        tags: o.tags ?? [],
+        extraData: o.extraData ?? null,
+        alwaysFirst: o.alwaysFirst ?? false,
+        alwaysLast: o.alwaysLast ?? false,
+        async: o.async ?? null,
+    };
+}
+
+/**
  * Domain-specific comparator for {@link EventOptions}. Primitives compare after
  * default semantics; `filter`/`filterContext` compare by reference.
  */

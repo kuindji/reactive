@@ -75,6 +75,34 @@ describe("action error handling", () => {
         expect(() => action.invoke()).toThrow("Error");
     });
 
+    it("rejects when the only error listener is removed mid-flight", async () => {
+        let reject!: (reason: Error) => void;
+        const action = createAction(
+            () => new Promise<number>((_resolve, rej) => {
+                reject = rej;
+            }),
+        );
+
+        const errorListener = () => {};
+        // Listener present at invoke start, so the failure is initially handled.
+        action.addErrorListener(errorListener);
+
+        const pending = action.invoke();
+        // Ordinary removal (not destroy()) while awaiting genuinely leaves the
+        // failure unhandled: invoke() must reject rather than silently swallow.
+        action.removeErrorListener(errorListener);
+        reject(new Error("late failure"));
+
+        let rejected: Error | null = null;
+        try {
+            await pending;
+        }
+        catch (e) {
+            rejected = e as Error;
+        }
+        expect(rejected?.message).toBe("late failure");
+    });
+
     it("removes all error listeners", () => {
         const action = createAction(() => {
             throw new Error("Error");

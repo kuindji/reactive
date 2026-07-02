@@ -87,4 +87,20 @@ describe("useStoreState", () => {
                 rerender(1);
             })).not.toThrow();
     });
+
+    it("does not throw when mounting onto an already-destroyed store", () => {
+        const store = createStore({ a: 1 });
+        store.destroy();
+
+        function Component() {
+            // useSyncExternalStore runs subscribe during commit; on a destroyed
+            // store store.onChange reaches the torn-down changes event and would
+            // throw "Event is destroyed" out of render without the guard.
+            const [ value ] = useStoreState(store, "a");
+            return <span data-testid="v">{String(value)}</span>;
+        }
+
+        expect(() => render(<Component />)).not.toThrow();
+        expect(screen.getByTestId("v")).toHaveTextContent("undefined");
+    });
 });

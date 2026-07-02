@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
-import { ChangeEventName, createStore } from "../../src/store";
+import {
+    BeforeChangeEventName,
+    ChangeEventName,
+    createStore,
+} from "../../src/store";
 
 type UserStore = {
     first: string;
@@ -22,6 +26,43 @@ describe("store computed", () => {
 
         store.set("first", "John");
         expect(store.get("fullName")).toBe("John Doe");
+    });
+
+    it("recomputes even when a beforeChange listener vetoes the computed key",
+        () => {
+            const store = createStore<UserStore>(
+                { first: "Jane", last: "Doe" },
+            );
+            store.computed(
+                "fullName",
+                [ "first", "last" ],
+                (f, l) => `${f} ${l}`,
+            );
+            // Veto the computed key only. A computed value is derived and must
+            // always equal fn(deps); its recompute must ignore beforeChange, so
+            // it never strands a stale value inconsistent with the dependency.
+            store.control(
+                BeforeChangeEventName,
+                (name) => name !== "fullName",
+            );
+
+            store.set("first", "John");
+
+            expect(store.get("fullName")).toBe("John Doe");
+        });
+
+    it("throws synchronously when asyncSet targets a computed key", () => {
+        const store = createStore<UserStore>({ first: "Jane", last: "Doe" });
+        store.computed("fullName", [ "first", "last" ], (f, l) => `${f} ${l}`);
+
+        // The guard must fire at the call site (catchable), not from the
+        // deferred timer where it would escape as an uncaught exception.
+        expect(() => store.asyncSet("fullName", "X")).toThrow(
+            "Cannot set computed property \"fullName\"",
+        );
+        expect(() => store.asyncSet({ fullName: "X" })).toThrow(
+            "Cannot set computed property \"fullName\"",
+        );
     });
 
     it("notifies onChange subscribers of the computed key", () => {

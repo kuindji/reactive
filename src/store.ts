@@ -159,16 +159,24 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         name: K,
         value: V | undefined,
         triggerChange: boolean = true,
+        runBeforeChange: boolean = true,
     ) => {
         const prev = data.get(name) as V | undefined;
         if (prev !== value) {
-            const beforeChangeResults = control.all(
-                BeforeChangeEventName,
-                name,
-                value,
-            );
-            if (beforeChangeResults.some((result) => result === false)) {
-                return;
+            // A computed recompute skips the beforeChange veto (runBeforeChange
+            // false): the initial computed seed() bypasses beforeChange for the
+            // same reason, so allowing a veto here would leave the derived value
+            // stale and no longer equal to fn(deps) — internally inconsistent
+            // with the seeded value. beforeChange still gates ordinary sets.
+            if (runBeforeChange) {
+                const beforeChangeResults = control.all(
+                    BeforeChangeEventName,
+                    name,
+                    value,
+                );
+                if (beforeChangeResults.some((result) => result === false)) {
+                    return;
+                }
             }
 
             const pipeArgs = [ value ] as PipeEvents[K]["arguments"];
@@ -303,6 +311,22 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         name: K,
         value?: V,
     ) {
+        // Validate computed keys synchronously, mirroring set(). Deferring the
+        // check to the timer callback would turn a misuse into an uncaught
+        // exception escaping the timer (crashing Node / surfacing as an uncaught
+        // browser error) instead of a catchable throw at the call site.
+        if (typeof name === "string") {
+            if (computedKeys.has(name)) {
+                throw new Error(`Cannot set computed property "${name}"`);
+            }
+        }
+        else if (typeof name === "object" && name !== null) {
+            for (const k of Object.keys(name)) {
+                if (computedKeys.has(k)) {
+                    throw new Error(`Cannot set computed property "${k}"`);
+                }
+            }
+        }
         const timer = setTimeout(() => {
             pendingTimers.delete(timer);
             // The store may have been destroyed between scheduling and firing.
@@ -319,15 +343,16 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         pendingTimers.add(timer);
     }
 
-    // Replay a coalesced change log: one onChange per key, keeping the first
-    // entry's pre-cascade `prev` and the last entry's settled `value`, dropping
-    // keys whose net value is unchanged. Mirrors batch()'s replay (including its
-    // store-change error routing) so a computed touched several times during a
-    // cascade emits a single, internally-consistent onChange.
-    const replayCoalescedChanges = (
+    // Coalesce a change log per key and replay it as one onChange each, keeping
+    // the first entry's pre-cascade `prev` and the last entry's settled `value`
+    // and dropping keys whose net value is unchanged. Store-change errors route
+    // to the error event; an unhandled one propagates unless the surrounding
+    // callback already failed (`hasCallbackError`), in which case it is swallowed
+    // so the original callback error is the one that ultimately surfaces. Shared
+    // by batch() and the single-set cascade wrapper so both coalesce identically.
+    const replayCoalescedLog = (
         log: [ MapKey, any, any ][],
         hasCallbackError: boolean,
-        callbackError: unknown,
     ) => {
         const coalesced = new Map<MapKey, { value: any; prev: any; }>();
         for (const [ propName, value, prev ] of log) {
@@ -368,6 +393,16 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
                 throw error;
             }
         }
+    };
+
+    // Replay a coalesced cascade log and, if the driving callback failed, rethrow
+    // its error last (after every surviving onChange has fired).
+    const replayCoalescedChanges = (
+        log: [ MapKey, any, any ][],
+        hasCallbackError: boolean,
+        callbackError: unknown,
+    ) => {
+        replayCoalescedLog(log, hasCallbackError);
         if (hasCallbackError) {
             throw callbackError;
         }
@@ -646,49 +681,10 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
         // Coalesce the log per key before replaying: a key written multiple
         // times in the batch (e.g. a computed recomputing once per base-key
         // write) must fire onChange once with its final value, not once per
-        // intermediate value. Keep first-occurrence order, the pre-batch `prev`
-        // from the first entry, and the final `value` from the last entry; drop
-        // keys whose net value is unchanged from before the batch.
-        const coalesced = new Map<MapKey, { value: any; prev: any }>();
-        for (const [ propName, value, prev ] of log) {
-            const existing = coalesced.get(propName);
-            if (existing) {
-                existing.value = value;
-            }
-            else {
-                coalesced.set(propName, { value, prev });
-            }
-        }
-
-        for (const [ propName, { value, prev } ] of coalesced) {
-            if (value === prev) {
-                continue;
-            }
-            const changeArgs = [
-                value,
-                prev,
-            ] as unknown as ChangeEvents[typeof propName]["arguments"];
-            try {
-                changes.trigger(propName, ...changeArgs);
-            }
-            catch (error) {
-                control.trigger(ErrorEventName, {
-                    error: error instanceof Error
-                        ? error
-                        : new Error(String(error)),
-                    args: changeArgs,
-                    type: "store-change",
-                    name: propName,
-                });
-                if (control.get(ErrorEventName)?.hasListener()) {
-                    continue;
-                }
-                if (hasCallbackError) {
-                    continue;
-                }
-                throw error;
-            }
-        }
+        // intermediate value. Drop keys whose net value is unchanged from before
+        // the batch. The callback error (if any) is deferred and rethrown at the
+        // end so the partial-write control change event below still fires.
+        replayCoalescedLog(log, hasCallbackError);
 
         // Dedupe so the control change event lists each key once, matching the
         // non-batch path (which dedupes via `dedupe([name, ...effectKeys])`).
@@ -843,7 +839,10 @@ export function createStore<PropMap extends BasePropMap = BasePropMap>(
             }
             computingKeys.add(key);
             try {
-                _set(key, fn(...depValues));
+                // runBeforeChange=false: a computed key is derived and must
+                // always hold fn(deps); a beforeChange veto here would strand a
+                // stale value (see _set and the seed() rationale).
+                _set(key, fn(...depValues), true, false);
             }
             finally {
                 computingKeys.delete(key);

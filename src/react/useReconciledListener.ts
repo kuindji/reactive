@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 import type { ListenerOptions } from "../event.js";
-import { areListenerOptionsEqual } from "./listenerOptionsEqual.js";
+import {
+    areListenerOptionsEqual,
+    fillListenerUpdateDefaults,
+} from "./listenerOptionsEqual.js";
 
 type ListenerOps = {
     /**
@@ -64,7 +67,19 @@ export function useReconciledListener({
             return;
         }
         if (!areListenerOptionsEqual(committedRef.current, options)) {
-            update(context, options);
+            // Normalize to a full soft-option set so a field dropped since the
+            // last render resets to its default: updateListenerOptions is
+            // partial-merge, but the React path is declarative (see
+            // fillListenerUpdateDefaults). Carry `signal` through only when
+            // present (matching the old whole-options pass), so its abort wiring
+            // is rebound/cleared exactly as before; `context` is passed
+            // separately and not read from the options object.
+            update(context, {
+                ...fillListenerUpdateDefaults(options),
+                ...(options?.signal !== undefined
+                    ? { signal: options.signal }
+                    : {}),
+            });
         }
         committedRef.current = options;
     });

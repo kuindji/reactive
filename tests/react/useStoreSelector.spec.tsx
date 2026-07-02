@@ -255,4 +255,24 @@ describe("useStoreSelector", () => {
                 rerender(1);
             })).not.toThrow();
     });
+
+    it("does not throw when mounting onto an already-destroyed store", () => {
+        const store = createStore<S>({ first: "Jane", last: "Doe", other: 0 });
+        store.destroy();
+
+        function Component() {
+            // subscribe runs during commit; on a destroyed store store.control
+            // reaches the torn-down control bus and would throw "EventBus is
+            // destroyed" out of render without the guard.
+            const label = useStoreSelector(
+                store,
+                [ "first" ],
+                (f) => f ?? "none",
+            );
+            return <span data-testid="v">{label}</span>;
+        }
+
+        expect(() => render(<Component />)).not.toThrow();
+        expect(screen.getByTestId("v")).toHaveTextContent("none");
+    });
 });

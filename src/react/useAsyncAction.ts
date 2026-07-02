@@ -18,6 +18,21 @@ export type AsyncActionState<Response = any> = {
 };
 
 /**
+ * Project an action's {@link ActionStatus} into the {@link AsyncActionState}
+ * shape consumed by the status hooks (`pending` -> `loading`). Shared so
+ * `useAsyncAction` and `useActionBusStatus` stay in lockstep.
+ */
+export function toAsyncActionState<Response>(
+    status: ActionStatus<Response>,
+): AsyncActionState<Response> {
+    return {
+        loading: status.pending,
+        error: status.error,
+        response: status.response,
+    };
+}
+
+/**
  * Wraps a function in an action and exposes its in-flight status, so a
  * component can drive `loading`/`disabled` without a hand-rolled
  * `useState(false)`. Returns `[invoke, { loading, error, response }]`.
@@ -86,10 +101,6 @@ export function useAsyncAction<Fn extends BaseHandler>(
 
     return [
         invoke,
-        {
-            loading: status.pending,
-            error: status.error,
-            response: status.response,
-        },
+        toAsyncActionState(status),
     ] as const;
 }

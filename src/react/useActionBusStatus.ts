@@ -2,7 +2,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import type { ActionStatus } from "../action.js";
 import type { BaseActionBus } from "../actionBus.js";
 import type { KeyOf } from "../lib/types.js";
-import type { AsyncActionState } from "./useAsyncAction.js";
+import { type AsyncActionState, toAsyncActionState } from "./useAsyncAction.js";
 
 export type { ActionStatus, AsyncActionState };
 
@@ -42,9 +42,5 @@ export function useActionBusStatus<
 
     const status = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
-    return {
-        loading: status.pending,
-        error: status.error,
-        response: status.response,
-    };
+    return toAsyncActionState(status);
 }

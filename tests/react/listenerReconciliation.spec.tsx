@@ -30,6 +30,28 @@ describe("useListenToEvent reconciliation", () => {
         expect(calls).toBe(1);
     });
 
+    it("dropping the limit field resets it to unlimited", () => {
+        const event = createEvent<() => void>();
+        let calls = 0;
+        function Comp({ options }: { options?: ListenerOptions; }) {
+            useListenToEvent(event, () => {
+                calls++;
+            }, options);
+            return null;
+        }
+        const { rerender } = render(<Comp options={{ limit: 3 }} />);
+        // Declaratively drop the limit. Under partial-merge alone the omitted
+        // field would linger at 3 and auto-remove after 3 events; the React
+        // path must reset it to unlimited.
+        rerender(<Comp options={{}} />);
+
+        event.trigger();
+        event.trigger();
+        event.trigger();
+        event.trigger();
+        expect(calls).toBe(4);
+    });
+
     it("changed tags take effect", () => {
         const event = createEvent<() => void>();
         let calls = 0;

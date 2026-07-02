@@ -13,6 +13,15 @@ export function useStoreState<
 
     const subscribe = useCallback(
         (onStoreChange: () => void) => {
+            // subscribe can run (during commit) for a store that was already
+            // destroyed — e.g. a provider torn down before this component
+            // mounts, or a `key`/`store` change re-running subscribe. onChange
+            // reaches the destroyed changes event's addListener, which throws
+            // "Event is destroyed" out of render. Skip subscribing and hand back
+            // a no-op cleanup; getSnapshot already reads destroyed stores safely.
+            if (store.isDestroyed()) {
+                return () => {};
+            }
             const listener = () => {
                 onStoreChange();
             };

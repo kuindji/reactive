@@ -245,12 +245,15 @@ export function createAction<A extends BaseHandler>(action: A) {
                 ? error
                 : new Error(error as string);
             lastResponse = null;
-            // Handle the error if listeners existed at invoke start OR were
-            // registered while the invocation was in flight. The start-of-invoke
-            // snapshot is retained (rather than relying solely on the live check)
-            // so that destroy() tearing the listeners down mid-flight cannot flip
-            // a previously-handled failure into a rejection.
-            if (!handlesErrors && !hasErrorListeners()) {
+            // Re-throw unless the failure is handled. It is handled when a live
+            // error listener exists now, OR when the action was destroyed
+            // mid-flight after starting with listeners: destroy() tears the
+            // listeners down, and that teardown must not flip a previously-handled
+            // failure into a rejection. The start-of-invoke snapshot is scoped to
+            // the destroyed case on purpose — an ordinary removeErrorListener()
+            // while awaiting genuinely leaves the failure unhandled, so invoke()
+            // must reject rather than silently swallow it.
+            if (!hasErrorListeners() && !(destroyed && handlesErrors)) {
                 throw error;
             }
             const response = {
